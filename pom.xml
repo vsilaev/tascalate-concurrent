@@ -4,7 +4,7 @@
 
 	<groupId>net.tascalate.concurrent</groupId>
 	<artifactId>net.tascalate.concurrent.lib</artifactId>
-	<version>1.0-SNAPSHOT</version>
+	<version>0.5-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>Tascalate Concurrenct</name>
@@ -52,6 +52,7 @@
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
+
 
 	<distributionManagement>
 		<snapshotRepository>
@@ -114,6 +115,19 @@
            </profile>
        </profiles>
 
+
+	<dependencies>
+		<dependency>
+			<groupId>commons-logging</groupId>
+			<artifactId>commons-logging</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
 
 	<build>
 		<plugins>

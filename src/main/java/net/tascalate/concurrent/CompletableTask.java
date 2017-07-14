@@ -21,7 +21,7 @@ import java.util.concurrent.RunnableFuture;
 
 public class CompletableTask<T> extends AbstractCompletableTask<T> implements RunnableFuture<T> {
 
-    public CompletableTask(final Executor executor, Callable<T> callable) {
+    protected CompletableTask(final Executor executor, Callable<T> callable) {
         super(executor, callable);
     }
 
@@ -30,10 +30,14 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
         task.run();
     }
 
-    public static <T> Promise<T> completedFuture(T value, Executor defaultExecutor) {
+    public static <T> Promise<T> resolve(T value, Executor defaultExecutor) {
         CompletableTask<T> result = new CompletableTask<T>(defaultExecutor, () -> value);
         SAME_THREAD_EXECUTOR.execute(result);
         return result;
+    }
+    
+    public static Promise<Void> asyncOn(Executor defaultExecutor) {
+        return resolve(null, defaultExecutor);
     }
 
     @Override
