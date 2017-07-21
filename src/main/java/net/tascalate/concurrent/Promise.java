@@ -31,6 +31,7 @@ import java.util.function.Function;
  * @author vsilaev
  *
  * @param <T>
+ *   a type of the successfully resolved promise value   
  */
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
    

@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
  * @author vsilaev
  *
  * @param <T>
+ *   a type of the successfully resolved promise value   
  */
 public class CompletablePromise<T> extends AbstractDelegatingPromise<T, CompletableFuture<T>> implements Promise<T> {
 

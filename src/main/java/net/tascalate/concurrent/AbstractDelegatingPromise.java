@@ -30,7 +30,9 @@ import java.util.function.Function;
  * @author vsilaev
  *
  * @param <T>
+ *   a type of the successfully resolved promise value   
  * @param <D>
+ *   a type of the concrete {@link CompletionStage} subclass
  */
 abstract public class AbstractDelegatingPromise<T, D extends CompletionStage<T>> implements Promise<T> {
     final protected D completionStage;

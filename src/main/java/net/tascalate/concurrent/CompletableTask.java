@@ -26,6 +26,7 @@ import java.util.concurrent.RunnableFuture;
  * @author vsilaev
  *
  * @param <T>
+ *   a type of the successfully executed task result   
  */
 public class CompletableTask<T> extends AbstractCompletableTask<T> implements RunnableFuture<T> {
 
@@ -63,9 +64,11 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *  </pre>
      * All of <code>myMapper</code>, <code>myTransformer</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed using <code>myExecutor</code>
      * 
+     * @param <T>
+     *   a type of the successfully executed task result 
      * @param value
-     *   a resolved value of the promise
-     * @param executor
+     *   a task result
+     * @param defaultExecutor
      *   a default {@link Executor} to run functions passed to async composition methods 
      *   (like <code>thenApplyAsync</code> / <code>thenAcceptAsync</code> / <code>whenCompleteAsync</code> etc.)
      * @return

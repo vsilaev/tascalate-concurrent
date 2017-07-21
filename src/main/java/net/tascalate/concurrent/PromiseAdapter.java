@@ -35,6 +35,7 @@ import java.util.function.Function;
  * @author vsilaev
  *
  * @param <T>
+ *   a type of the successfully resolved promise value   
  */
 abstract public class PromiseAdapter<T> implements Promise<T> {
     protected static final Executor SAME_THREAD_EXECUTOR = new Executor() {

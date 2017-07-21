@@ -45,6 +45,7 @@ import java.util.function.Function;
  * @author vsilaev
  *
  * @param <T>
+ *   a type of the successfully executed task result   
  */
 abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements Promise<T> {
 

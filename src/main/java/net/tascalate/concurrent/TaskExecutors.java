@@ -30,6 +30,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * The drop-in replacement for {@link Executors} utility class that returns various useful implementations
+ * of {@link TaskExecutorService} instead of standard {@link ExecutorService}.
+ * @author vsilaev
+ *
+ */
 public class TaskExecutors {
     /**
      * Creates a thread pool that reuses a fixed number of threads operating off

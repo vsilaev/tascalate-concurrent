@@ -35,6 +35,8 @@ public class Promises {
 
     /**
      * Method to create a successfully resolved {@link Promise} with a value provided 
+     * @param <T>
+     *   a type of the value
      * @param value
      *   a value to wrap
      * @return 
@@ -61,6 +63,8 @@ public class Promises {
 
     /**
      * Adapts a stage passed to the {@link Promise} API
+     * @param <T>
+     *   a type of the value
      * @param stage
      *   a {@link CompletionStage} to be wrapped
      * @return
@@ -111,7 +115,9 @@ public class Promises {
      * if any promise completed exceptionally, then resulting promise is resolved faulty as well.
      * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
      * argument at corresponding positions.
-     * <p>When resulting promise is resolved faulty, any remaining {@link CompletionStage}-s is cancelled.  
+     * <p>When resulting promise is resolved faulty, all remaining incomplete {@link CompletionStage}-s are cancelled.  
+     * @param <T>
+     *   a common supertype of the resulting values
      * @param promises
      *   an array of {@link CompletionStage}-s to combine
      * @return
@@ -127,7 +133,10 @@ public class Promises {
      * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
-     * <p>When resulting promise is resolved successfully, any remaining {@link CompletionStage}-s is cancelled.
+     * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s are cancelled.
+     * 
+     * @param <T>
+     *   a common supertype of the resulting values 
      * @param promises
      *   an array of {@link CompletionStage}-s to combine
      * @return
@@ -144,7 +153,9 @@ public class Promises {
      * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
-     * <p>When resulting promise is resolved either successfully or faulty, any remaining {@link CompletionStage}-s is cancelled. 
+     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled. 
+     * @param <T>
+     *   a common supertype of the resulting values 
      * @param promises
      *   an array of {@link CompletionStage}-s to combine
      * @return
@@ -162,8 +173,10 @@ public class Promises {
      * is resolved faulty.
      * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
      * argument at corresponding positions. Non-completed or completed exceptionally promises have <code>null</code> values.
-     * <p>When resulting promise is resolved successfully, any remaining {@link CompletionStage}-s is cancelled. 
+     * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s are cancelled. 
      * 
+     * @param <T>
+     *   a common supertype of the resulting values 
      * @param minResultsCount
      *   a minimum number of promises that should be completed normally to resolve resulting promise successfully 
      * @param promises
@@ -184,8 +197,10 @@ public class Promises {
      * resulting promise is resolved faulty as well. 
      * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
      * argument at corresponding positions. Non-completed promises have <code>null</code> values.
-     * <p>When resulting promise is resolved either successfully or faulty, any remaining {@link CompletionStage}-s is cancelled. 
-     * 
+     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled.
+     *  
+     * @param <T>
+     *   a common supertype of the resulting values 
      * @param minResultsCount
      *   a minimum number of promises that should be completed normally to resolve resulting promise successfully 
      * @param promises
@@ -198,6 +213,32 @@ public class Promises {
         return atLeast(minResultsCount, 0, true, promises);
     }
 
+    /**
+     * <p>General method to combine several {@link CompletionStage}-s passed as arguments into single promise.</p>
+     * <p>The resulting promise is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
+     * are completed normally (race is possible).
+     * <p>If less than <code>minResultCount</code> of promises completed normally, then resulting promise is resolved faulty. 
+     * <p>If <code>maxErrorsCount</code> of promises completed exceptionally <em>before</em> <code>minResultCount</code> of results are available, then 
+     * resulting promise is resolved faulty as well. 
+     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
+     * argument at corresponding positions. Non-completed promises and promises completed exceptionally have <code>null</code> values.
+     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled <em>if</em>
+     * <code>cancelRemaining</code> parameter is <code>true</code>. 
+     * 
+     * @param <T>
+     *   a common supertype of the resulting values 
+     * @param minResultsCount
+     *   a minimum number of promises that should be completed normally to resolve resulting promise successfully
+     * @param maxErrorsCount
+     *   a maximum number of promises that may be completed exceptionally before resolving resulting promise faulty
+     * @param cancelRemaining
+     *   a flag that indicates (if true) whether or not all remaining incomplete {@link CompletionStage}-s should be cancelled
+     *   once a resulting promise outcome is known. 
+     * @param promises
+     *   an array of {@link CompletionStage}-s to combine 
+     * @return
+     *   a combined promise 
+     */    
     @SafeVarargs
     public static <T> Promise<List<T>> atLeast(final int minResultsCount, final int maxErrorsCount, final boolean cancelRemaining, 
                                                final CompletionStage<? extends T>... promises) {
