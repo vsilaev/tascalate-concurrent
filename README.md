@@ -53,7 +53,7 @@ Promise<?> p2 = p1.thenRunAsync(myAction);
 ...
 p.cancel();
 ```  
-In the example above `myConsumer` will be interrupted when already running. Both p1 and p1 will be resolved faulty with [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html).
+In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty with [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html).
 
 b.	`CompletableTask.complete(T value, Executor executor)`
 
