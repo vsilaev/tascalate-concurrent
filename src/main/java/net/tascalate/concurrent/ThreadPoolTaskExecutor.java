@@ -23,6 +23,14 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+
+/**
+ * <p>Concrete implementation of {@link TaskExecutorService} interface.
+ * <p>Specialization of {@link ThreadPoolExecutor} that uses {@link Promise} as a result of <code>submit(...)</code> methods.
+ * 
+ * @author vsilaev
+ *
+ */
 public class ThreadPoolTaskExecutor extends ThreadPoolExecutor implements TaskExecutorService {
 
     public ThreadPoolTaskExecutor(int corePoolSize, int maximumPoolSize, 

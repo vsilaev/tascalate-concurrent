@@ -18,6 +18,12 @@ package net.tascalate.concurrent;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 
+/**
+ * Specialization of {@link ExecutorService} that uses {@link Promise} as a result of <code>submit(...)</code> methods.
+ * 
+ * @author vsilaev
+ *
+ */
 public interface TaskExecutorService extends ExecutorService {
 
     <T> Promise<T> submit(Callable<T> task);
