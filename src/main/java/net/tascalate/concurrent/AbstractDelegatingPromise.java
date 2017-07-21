@@ -23,6 +23,15 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Helper class to create a concrete {@link Promise} subclass via delegation
+ * to the wrapped {@link CompletionStage}
+ * 
+ * @author vsilaev
+ *
+ * @param <T>
+ * @param <D>
+ */
 abstract public class AbstractDelegatingPromise<T, D extends CompletionStage<T>> implements Promise<T> {
     final protected D completionStage;
 

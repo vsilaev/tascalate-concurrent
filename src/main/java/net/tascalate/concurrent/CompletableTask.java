@@ -19,32 +19,100 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RunnableFuture;
 
+/**
+ * 
+ * Concrete implementation of {@link Promise} interface for long-running blocking tasks
+ * 
+ * @author vsilaev
+ *
+ * @param <T>
+ */
 public class CompletableTask<T> extends AbstractCompletableTask<T> implements RunnableFuture<T> {
 
+    /**
+     * Creates a CompletableTask; for internal use only 
+     * @param executor
+     *   a default {@link Executor} to run functions passed to async composition methods 
+     * @param callable
+     *   a {@link Callable} that completes this task
+     */
     protected CompletableTask(final Executor executor, Callable<T> callable) {
         super(executor, callable);
     }
 
+    /**
+     * Executes wrapped {@link Callable}; don't use explicitly
+     */
     @Override
     public void run() {
         task.run();
     }
 
-    public static <T> Promise<T> resolve(T value, Executor defaultExecutor) {
+    /**
+     * Returns a resolved {@link Promise} with specified value; the promise is "bound" to the specified executor. 
+     * I.e. any function passed to composition methods of Promise (like <code>thenApplyAsync</code> 
+     * / <code>thenAcceptAsync</code> / <code>whenCompleteAsync</code> etc.) will be executed using this executor 
+     * unless executor is overridden via explicit composition method parameter. Moreover, any nested 
+     * composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
+     * {@code}<pre>CompletableTask
+     *   .complete("Hello!", myExecutor)
+     *   .thenApplyAsync(myMapper)
+     *   .thenApplyAsync(myTransformer)   
+     *   .thenAcceptAsync(myConsumer)
+     *   .thenRunAsync(myAction)
+     *  </pre>
+     * All of <code>myMapper</code>, <code>myTransformer</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed using <code>myExecutor</code>
+     * 
+     * @param value
+     *   a resolved value of the promise
+     * @param executor
+     *   a default {@link Executor} to run functions passed to async composition methods 
+     *   (like <code>thenApplyAsync</code> / <code>thenAcceptAsync</code> / <code>whenCompleteAsync</code> etc.)
+     * @return
+     *   resolved {@link Promise} with a value passed; the promise is bound to the specified executor
+     */
+    public static <T> Promise<T> complete(T value, Executor defaultExecutor) {
         CompletableTask<T> result = new CompletableTask<T>(defaultExecutor, () -> value);
         SAME_THREAD_EXECUTOR.execute(result);
         return result;
     }
-    
-    public static Promise<Void> asyncOn(Executor defaultExecutor) {
-        return resolve(null, defaultExecutor);
+
+    /**
+     * Returns a resolved no-value {@link Promise} that is "bound" to the specified executor. 
+     * I.e. any function passed to composition methods of Promise (like <code>thenApplyAsync</code> 
+     * / <code>thenAcceptAsync</code> / <code>whenCompleteAsync</code> etc.) will be executed using this executor 
+     * unless executor is overridden via explicit composition method parameter. Moreover, any nested 
+     * composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
+     * {@code}<pre>CompletableTask
+     *   .asyncOn(myExecutor)
+     *   .thenApplyAsync(myValueGenerator)
+     *   .thenAcceptAsync(myConsumer)
+     *   .thenRunAsync(myAction)
+     *  </pre>
+     * All of <code>myValueGenerator</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed using <code>myExecutor</code>
+     * 
+     * @param executor
+     *   a default {@link Executor} to run functions passed to async composition methods 
+     *   (like <code>thenApplyAsync</code> / <code>thenAcceptAsync</code> / <code>whenCompleteAsync</code> etc.)
+     * @return
+     *   resolved non-value {@link Promise} bound to the specified executor
+     */
+    public static Promise<Void> asyncOn(Executor executor) {
+        return complete(null, executor);
     }
 
     @Override
     Runnable setupTransition(Callable<T> code) {
         throw new UnsupportedOperationException();
     }
-
+    
+    /**
+     * Creates a nested sub-task for a composition method 
+     * @param executor
+     *   a default executor for async composition methods of nested sub-task
+     * @return
+     *   an instance of {@link CompletableSubTask} bound to the specified executor
+     */
     @Override
     protected <U> AbstractCompletableTask<U> createCompletionStage(Executor executor) {
         return new CompletableSubTask<U>(executor);

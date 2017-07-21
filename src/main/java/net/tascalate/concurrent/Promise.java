@@ -23,6 +23,15 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * <p>{@link Promise} is a combination of the {@link CompletionStage} and {@link Future} contracts.
+ * It provides both composition methods of the former and blocking access methods of the later.
+ * <p>Every composition method derived from the {@link CompletionStage} interface is overridden to
+ * return a new Promise;
+ * @author vsilaev
+ *
+ * @param <T>
+ */
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
    
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);

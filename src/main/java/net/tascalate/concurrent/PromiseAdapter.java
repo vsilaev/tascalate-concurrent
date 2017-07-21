@@ -29,6 +29,13 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Helper class to create a concrete {@link Promise} subclass as an
+ * implementation from scratch.
+ * @author vsilaev
+ *
+ * @param <T>
+ */
 abstract public class PromiseAdapter<T> implements Promise<T> {
     protected static final Executor SAME_THREAD_EXECUTOR = new Executor() {
         public void execute(Runnable command) {

@@ -106,7 +106,7 @@ class AggregatingPromise<T> extends CompletablePromise<List<T>> {
                     // Synchronized around done
                     markRemainingCancelled();
                     // Now no other thread can modify errors array.
-                    onError(new MultitargetException(new ArrayList<>(Arrays.asList(errors))));
+                    onFailure(new MultitargetException(new ArrayList<>(Arrays.asList(errors))));
 
                     if (cancelRemaining) {
                         cancelPromises();

@@ -23,14 +23,49 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Utility class to create a resolved (either successfully or faulty) {@link Promise}-s; 
+ * to wrap an arbitrary {@link CompletionStage} interface to the {@link Promise} API;
+ * to combine several {@link CompletionStage}-s into aggregating promise.
+ *    
+ * @author vsilaev
+ *
+ */
 public class Promises {
 
-    public static <T> Promise<T> readyValue(T value) {
+    /**
+     * Method to create a successfully resolved {@link Promise} with a value provided 
+     * @param value
+     *   a value to wrap
+     * @return 
+     *   a successfully resolved {@link Promise} with a value provided
+     */
+    public static <T> Promise<T> success(T value) {
         final CompletablePromise<T> result = new CompletablePromise<>();
         result.onSuccess(value);
         return result;
     }
+    
+    /**
+     * Method to create a faulty resolved {@link Promise} with an exception provided 
+     * @param exception
+     *   an exception to wrap
+     * @return 
+     *   a faulty resolved {@link Promise} with an exception provided
+     */    
+    public static Promise<?> failure(Throwable exception) {
+        final CompletablePromise<?> result = new CompletablePromise<>();
+        result.onFailure(exception);
+        return result;
+    }
 
+    /**
+     * Adapts a stage passed to the {@link Promise} API
+     * @param stage
+     *   a {@link CompletionStage} to be wrapped
+     * @return
+     *   a {@link Promise}
+     */
     public static <T> Promise<T> from(CompletionStage<T> stage) {
         if (stage instanceof Promise) {
             return (Promise<T>) stage;
@@ -41,7 +76,7 @@ public class Promises {
         }
         
         final CompletablePromise<T> result = createLinkedPromise(stage);
-        stage.whenComplete(handler(result::onSuccess, result::onError));
+        stage.whenComplete(handler(result::onSuccess, result::onFailure));
         return result;
     }
 
@@ -52,7 +87,7 @@ public class Promises {
         final CompletablePromise<R> result = createLinkedPromise(stage);
         stage.whenComplete(handler(
             acceptConverted(result::onSuccess, resultConverter),
-            acceptConverted(result::onError, errorConverter)
+            acceptConverted(result::onFailure, errorConverter)
         ));
         return result;
     }
@@ -70,17 +105,50 @@ public class Promises {
             }
         };
     }
-
+    
+    /**
+     * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters are completed normally; 
+     * if any promise completed exceptionally, then resulting promise is resolved exceptionally as well.
+     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
+     * argument at corresponding positions.
+     *  
+     * @param promises
+     *   an array of {@link CompletionStage}-s to combine
+     * @return
+     *   a combined promise
+     */
     @SafeVarargs
     public static <T> Promise<List<T>> all(final CompletionStage<? extends T>... promises) {
         return atLeast(promises.length, 0, true, promises);
     }
 
+    /**
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
+     * if all promises completed exceptionally, then resulting promise is resolved exceptionally as well.
+     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
+     * argument.
+     * @param promises
+     *    an array of {@link CompletionStage}-s to combine
+     * @return
+     *   a combined promise
+     */
     @SafeVarargs
     public static <T> Promise<T> any(final CompletionStage<? extends T>... promises) {
         return unwrap(atLeast(1, promises.length - 1, true, promises), false);
     }
 
+    /**
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
+     * if any promise completed exceptionally before first result is available, then resulting promise is resolved exceptionally as well 
+     * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
+     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
+     * argument.
+     * 
+     * @param promises
+     *    an array of {@link CompletionStage}-s to combine
+     * @return
+     *   a combined promise
+     */
     @SafeVarargs
     public static <T> Promise<T> anyStrict(final CompletionStage<? extends T>... promises) {
         return unwrap(atLeast(1, 0, true, promises), true);
@@ -104,7 +172,7 @@ public class Promises {
             throw new IllegalArgumentException(
                     "The number of futures supplied is less than a number of futures to await");
         } else if (minResultsCount == 0) {
-            return readyValue(Collections.emptyList());
+            return success(Collections.emptyList());
         } else if (promises.length == 1) {
             return from(promises[0], Collections::singletonList, Function.<Throwable> identity());
         } else {

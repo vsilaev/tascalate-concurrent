@@ -38,6 +38,14 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+/**
+ * Base superclass for both root and intermediate {@link Promise}-s that
+ * represent blocking long-running tasks
+ * 
+ * @author vsilaev
+ *
+ * @param <T>
+ */
 abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements Promise<T> {
 
     private final CallbackRegistry<T> callbackRegistry = new CallbackRegistry<>();

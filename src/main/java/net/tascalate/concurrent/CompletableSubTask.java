@@ -19,6 +19,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * The {@link Promise} implementation for intermediate long-running blocking task
+ * @author vsilaev
+ *
+ * @param <T>
+ */
 class CompletableSubTask<T> extends AbstractCompletableTask<T> {
 
     static class DelegatingCallable<T> implements Callable<T> {

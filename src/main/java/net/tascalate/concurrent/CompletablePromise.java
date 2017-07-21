@@ -24,6 +24,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * The {@link CompletablePromise} is an adapter of a {@link CompletableFuture} to the {@link Promise} API 
+ * 
+ * @author vsilaev
+ *
+ * @param <T>
+ */
 public class CompletablePromise<T> extends AbstractDelegatingPromise<T, CompletableFuture<T>> implements Promise<T> {
 
     public CompletablePromise() {
@@ -38,7 +45,7 @@ public class CompletablePromise<T> extends AbstractDelegatingPromise<T, Completa
         return completionStage.complete(value);
     }
 
-    protected boolean onError(Throwable ex) {
+    protected boolean onFailure(Throwable ex) {
         return completionStage.completeExceptionally(ex);
     }
 
