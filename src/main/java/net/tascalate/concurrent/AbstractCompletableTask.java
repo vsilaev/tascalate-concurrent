@@ -237,7 +237,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
 
     @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
-        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(getDefaultExecutor());
+        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
         addCallbacks(
             nextStage, 
             result -> {
