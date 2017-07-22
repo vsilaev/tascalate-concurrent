@@ -51,7 +51,7 @@ CompletableTask
   
 Promise<?> p2 = p1.thenRunAsync(myAction);
 ...
-p.cancel();
+p1.cancel();
 ```  
 In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty with [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html).
 
@@ -78,18 +78,18 @@ Returns a promise that is completed normally when all `CompletionStage`-s passed
 
 `public static <T> Promise<T> any(final CompletionStage<? extends T>... promises)`
 
-Returns a promise that is completed normally when any CompletionStage passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well
+Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well
 
 `public static <T> Promise<T> anyStrict(CompletionStage<? extends T>... promises)`
 
-Returns a promise that is completed normally when any CompletionStage passed as parameters is completed normally (race is possible); if any promise completed exceptionally before first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if result is available at all)
+Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if result is available at all)
 
 `public static <T> Promise<List<T>> atLeast(int minResultsCount, CompletionStage<? extends T>... promises)`
-Generalization of the any method. Returns a promise that is completed normally when at least minResultCount
-of CompletionStage-s passed as parameters are completed normally (race is possible); if less than minResultCount of promises completed normally, then resulting promise is completed exceptionally
+Generalization of the `any` method. Returns a promise that is completed normally when at least `minResultCount`
+of `CompletionStage`-s passed as parameters are completed normally (race is possible); if less than `minResultCount` of promises completed normally, then resulting promise is completed exceptionally
 
 `public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, CompletionStage<? extends T>... promises)`
-Generalization of the anyStrict method. Returns a promise that is completed normally when at least minResultCount of CompletionStage-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before minResultCount of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if minResultsCount of results are available at all)
+Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of results are available at all)
 
 Additionally, it's possible to convert to `Promise` API ready value:
 
