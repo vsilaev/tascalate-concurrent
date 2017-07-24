@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -24,6 +25,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
 
 /**
  * <p>{@link Promise} is a combination of the {@link CompletionStage} and {@link Future} contracts.
@@ -37,13 +39,20 @@ import java.util.function.Supplier;
  */
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
-    default public T getNow(T valueIfAbsent) throws InterruptedException, ExecutionException {
+    default public T getNow(T valueIfAbsent) {
         return getNow(() -> valueIfAbsent);
     }
     
-    default public T getNow(Supplier<T> valueIfAbsent) throws InterruptedException, ExecutionException {
+    default public T getNow(Supplier<T> valueIfAbsent) {
         if (isDone()) {
-            return get();
+            try {
+                return get();
+            } catch (InterruptedException ex) {
+                // Should not happen when isDone() returns true
+                throw new RuntimeException(ex);
+            } catch (ExecutionException ex) {
+                throw new CompletionException(ex);
+            }
         } else {
             return valueIfAbsent.get();
         }

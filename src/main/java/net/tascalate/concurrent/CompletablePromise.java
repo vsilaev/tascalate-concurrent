@@ -74,6 +74,11 @@ public class CompletablePromise<T> extends AbstractDelegatingPromise<T, Completa
     public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         return completionStage.get(timeout, unit);
     }
+    
+    @Override
+    public T getNow(T valueIfAbsent) {
+        return completionStage.getNow(valueIfAbsent);
+    }
 
     static boolean cancelPromise(final CompletionStage<?> promise, final boolean mayInterruptIfRunning) {
         if (promise instanceof Future) {
