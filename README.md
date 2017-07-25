@@ -1,4 +1,4 @@
-[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate.concurrent/net.tascalate.concurrent.lib.svg)](https://search.maven.org/#artifactdetails%7Cnet.tascalate.concurrent%7Cnet.tascalate.concurrent.lib%7C0.5%7Cpom) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate.concurrent/net.tascalate.concurrent.lib.svg)](https://search.maven.org/#artifactdetails%7Cnet.tascalate.concurrent%7Cnet.tascalate.concurrent.lib%7C0.5.1%7Cpom) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.1) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the CompletionStage interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound) - unlike Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks.
 # Why a CompletableFuture is not enough?
@@ -13,7 +13,7 @@ Add Maven dependency
 <dependency>
     <groupId>net.tascalate.concurrent</groupId>
     <artifactId>net.tascalate.concurrent.lib</artifactId>
-    <version>0.5</version>
+    <version>0.5.1</version>
 </dependency>
 ```
 
@@ -51,7 +51,7 @@ CompletableTask
   
 Promise<?> p2 = p1.thenRunAsync(myAction);
 ...
-p1.cancel();
+p1.cancel(true);
 ```  
 In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty with [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html).
 
