@@ -27,7 +27,7 @@ public class J8Examples {
         CompletableTask
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
             .thenAcceptAsync(J8Examples::onComplete)
-            .get();
+            .get(); 
         
         for (int i : Arrays.asList(5, -5, 10, 4)) {
             final Promise<Integer> task1 = executorService.submit(() -> awaitAndProduce1(i, 1500));
