@@ -24,6 +24,11 @@ public class J8Examples {
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
         
+        CompletableTask
+            .supplyAsync(() -> awaitAndProduceN(73), executorService)
+            .thenAcceptAsync(J8Examples::onComplete)
+            .get();
+        
         for (int i : Arrays.asList(5, -5, 10, 4)) {
             final Promise<Integer> task1 = executorService.submit(() -> awaitAndProduce1(i, 1500));
             final Promise<Integer> task2 = executorService.submit(() -> awaitAndProduce2(i + 1));
@@ -52,10 +57,10 @@ public class J8Examples {
                 executorService.submit(() -> awaitAndProduceN(7)),                
                 executorService.submit(() -> awaitAndProduceN(8)),
                 executorService.submit(() -> awaitAndProduceN(11))
-        ).thenApply(
+        ).thenApplyAsync(
                 l -> l.stream().filter(v -> v != null).collect(Collectors.summingInt((Integer i) -> i.intValue()))
         )
-        .thenAccept(J8Examples::onComplete)
+        .thenAcceptAsync(J8Examples::onComplete)
         .exceptionally(J8Examples::onError);
         
         
