@@ -43,7 +43,7 @@ public class Promises {
      *   a successfully resolved {@link Promise} with a value provided
      */
     public static <T> Promise<T> success(T value) {
-        final CompletablePromise<T> result = new CompletablePromise<>();
+        CompletablePromise<T> result = new CompletablePromise<>();
         result.onSuccess(value);
         return result;
     }
@@ -56,7 +56,7 @@ public class Promises {
      *   a faulty resolved {@link Promise} with an exception provided
      */    
     public static Promise<?> failure(Throwable exception) {
-        final CompletablePromise<?> result = new CompletablePromise<>();
+        CompletablePromise<?> result = new CompletablePromise<>();
         result.onFailure(exception);
         return result;
     }
@@ -79,7 +79,7 @@ public class Promises {
             return new CompletablePromise<>((CompletableFuture<T>)stage);
         }
         
-        final CompletablePromise<T> result = createLinkedPromise(stage);
+        CompletablePromise<T> result = createLinkedPromise(stage);
         stage.whenComplete(handler(result::onSuccess, result::onFailure));
         return result;
     }
@@ -88,7 +88,7 @@ public class Promises {
                                   Function<? super T, ? extends R> resultConverter,
                                   Function<? super Throwable, ? extends Throwable> errorConverter) {
         
-        final CompletablePromise<R> result = createLinkedPromise(stage);
+        CompletablePromise<R> result = createLinkedPromise(stage);
         stage.whenComplete(handler(
             acceptConverted(result::onSuccess, resultConverter),
             acceptConverted(result::onFailure, errorConverter)
@@ -124,7 +124,7 @@ public class Promises {
      *   a combined promise
      */
     @SafeVarargs
-    public static <T> Promise<List<T>> all(final CompletionStage<? extends T>... promises) {
+    public static <T> Promise<List<T>> all(CompletionStage<? extends T>... promises) {
         return atLeast(promises.length, 0, true, promises);
     }
 
@@ -143,7 +143,7 @@ public class Promises {
      *   a combined promise
      */
     @SafeVarargs
-    public static <T> Promise<T> any(final CompletionStage<? extends T>... promises) {
+    public static <T> Promise<T> any(CompletionStage<? extends T>... promises) {
         return unwrap(atLeast(1, promises.length - 1, true, promises), false);
     }
 
@@ -162,7 +162,7 @@ public class Promises {
      *   a combined promise
      */
     @SafeVarargs
-    public static <T> Promise<T> anyStrict(final CompletionStage<? extends T>... promises) {
+    public static <T> Promise<T> anyStrict(CompletionStage<? extends T>... promises) {
         return unwrap(atLeast(1, 0, true, promises), true);
     }
 
@@ -185,7 +185,7 @@ public class Promises {
      *   a combined promise 
      */
     @SafeVarargs
-    public static <T> Promise<List<T>> atLeast(final int minResultsCount, final CompletionStage<? extends T>... promises) {
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, CompletionStage<? extends T>... promises) {
         return atLeast(minResultsCount, promises.length - minResultsCount, true, promises);
     }
 
@@ -209,7 +209,7 @@ public class Promises {
      *   a combined promise 
      */    
     @SafeVarargs
-    public static <T> Promise<List<T>> atLeastStrict(final int minResultsCount, final CompletionStage<? extends T>... promises) {
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, CompletionStage<? extends T>... promises) {
         return atLeast(minResultsCount, 0, true, promises);
     }
 
@@ -240,8 +240,8 @@ public class Promises {
      *   a combined promise 
      */    
     @SafeVarargs
-    public static <T> Promise<List<T>> atLeast(final int minResultsCount, final int maxErrorsCount, final boolean cancelRemaining, 
-                                               final CompletionStage<? extends T>... promises) {
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
+                                               CompletionStage<? extends T>... promises) {
         
         if (minResultsCount > promises.length) {
             throw new IllegalArgumentException(
@@ -255,7 +255,7 @@ public class Promises {
         }
     }
 
-    private static <T> Promise<T> unwrap(final CompletionStage<List<T>> original, final boolean unwrapException) {
+    private static <T> Promise<T> unwrap(CompletionStage<List<T>> original, boolean unwrapException) {
         return from(
             original,
             c -> c.stream().filter(el -> null != el).findFirst().get(),
@@ -273,7 +273,7 @@ public class Promises {
             } else {
                 try {
                     onResult.accept(r);
-                } catch (final Exception ex) {
+                } catch (Exception ex) {
                     onError.accept(ex);
                 }
             }

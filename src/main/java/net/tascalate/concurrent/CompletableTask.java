@@ -38,7 +38,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      * @param callable
      *   a {@link Callable} that completes this task
      */
-    protected CompletableTask(final Executor executor, Callable<T> callable) {
+    protected CompletableTask(Executor executor, Callable<T> callable) {
         super(executor, callable);
     }
 
@@ -116,7 +116,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   the new {@link Promise}
      */
     public static Promise<Void> runAsync(Runnable runnable, Executor executor) {
-        final CompletableTask<Void> result = new CompletableTask<>(executor, () -> { 
+        CompletableTask<Void> result = new CompletableTask<>(executor, () -> { 
             runnable.run(); 
             return null; 
         });
@@ -137,7 +137,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   the new {@link Promise}
      */
     public static <U> Promise<U> supplyAsync(Supplier<U> supplier, Executor executor) {
-        final CompletableTask<U> result = new CompletableTask<>(executor, () -> supplier.get());
+        CompletableTask<U> result = new CompletableTask<>(executor, () -> supplier.get());
         executor.execute(result);
         return result;
     }

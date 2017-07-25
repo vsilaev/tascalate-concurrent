@@ -80,12 +80,12 @@ public class CompletablePromise<T> extends AbstractDelegatingPromise<T, Completa
         return completionStage.getNow(valueIfAbsent);
     }
 
-    static boolean cancelPromise(final CompletionStage<?> promise, final boolean mayInterruptIfRunning) {
+    static boolean cancelPromise(CompletionStage<?> promise, boolean mayInterruptIfRunning) {
         if (promise instanceof Future) {
-            final Future<?> future = (Future<?>) promise;
+            Future<?> future = (Future<?>) promise;
             return future.cancel(mayInterruptIfRunning);
         } else {
-            final Method m = completeExceptionallyMethodOf(promise);
+            Method m = completeExceptionallyMethodOf(promise);
             if (null != m) {
                 try {
                     return (Boolean) m.invoke(promise, new CancellationException());
@@ -100,7 +100,7 @@ public class CompletablePromise<T> extends AbstractDelegatingPromise<T, Completa
 
     private static Method completeExceptionallyMethodOf(CompletionStage<?> promise) {
         try {
-            final Class<?> clazz = promise.getClass();
+            Class<?> clazz = promise.getClass();
             return clazz.getMethod("completeExceptionally", Throwable.class);
         } catch (ReflectiveOperationException | SecurityException ex) {
             return null;

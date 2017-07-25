@@ -124,7 +124,7 @@ class AggregatingPromise<T> extends CompletablePromise<List<T>> {
 
     private void setupCompletionHandlers() {
         int i = 0;
-        for (final CompletionStage<? extends T> promise : promises) {
+        for (CompletionStage<? extends T> promise : promises) {
             final int idx = i++;
             promise.whenComplete((r, e) -> onComplete(idx, r, e));
         }

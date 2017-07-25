@@ -159,7 +159,7 @@ public class TaskExecutors {
         return adapt(Executors.newSingleThreadExecutor(threadFactory));
     }
 
-    public static TaskExecutorService adapt(final ExecutorService executorService) {
+    public static TaskExecutorService adapt(ExecutorService executorService) {
         if (executorService instanceof TaskExecutorService) {
             return (TaskExecutorService) executorService;
         } else {
@@ -199,19 +199,19 @@ public class TaskExecutors {
         }
 
         public <T> Promise<T> submit(Callable<T> callable) {
-            final CompletableTask<T> task = createTask(callable);
+            CompletableTask<T> task = createTask(callable);
             delegate.execute(task);
             return task;
         }
 
         public <T> Promise<T> submit(Runnable codeBlock, T result) {
-            final CompletableTask<T> task = createTask(Executors.callable(codeBlock, result));
+            CompletableTask<T> task = createTask(Executors.callable(codeBlock, result));
             delegate.execute(task);
             return task;
         }
 
         public Promise<?> submit(Runnable codeBlock) {
-            final CompletableTask<?> task = createTask(Executors.callable(codeBlock, null));
+            CompletableTask<?> task = createTask(Executors.callable(codeBlock, null));
             delegate.execute(task);
             return task;
         }

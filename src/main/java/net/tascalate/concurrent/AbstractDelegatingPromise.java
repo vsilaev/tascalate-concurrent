@@ -37,7 +37,7 @@ import java.util.function.Function;
 abstract public class AbstractDelegatingPromise<T, D extends CompletionStage<T>> implements Promise<T> {
     final protected D completionStage;
 
-    protected AbstractDelegatingPromise(final D delegate) {
+    protected AbstractDelegatingPromise(D delegate) {
         this.completionStage = delegate;
     }
     

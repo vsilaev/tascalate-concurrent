@@ -278,7 +278,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         Function<Callable<T>, Runnable> setup = c -> () -> {
             try {
                 c.call();
-            } catch (final Throwable ex) {
+            } catch (Throwable ex) {
                 completableFuture.completeExceptionally(ex);
             }
         };
