@@ -13,7 +13,7 @@ Add Maven dependency
 <dependency>
     <groupId>net.tascalate.concurrent</groupId>
     <artifactId>net.tascalate.concurrent.lib</artifactId>
-    <version>0.5.1</version>
+    <version>0.5.2</version>
 </dependency>
 ```
 
