@@ -18,6 +18,7 @@ package net.tascalate.concurrent;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RunnableFuture;
+import java.util.function.Supplier;
 
 /**
  * 
@@ -102,6 +103,43 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      */
     public static Promise<Void> asyncOn(Executor executor) {
         return complete(null, executor);
+    }
+    
+    /**
+     * Returns a new {@link Promise} that is asynchronously resolved by a task running in the given executor 
+     * after it runs the given action.
+     * @param runnable
+     *   the action to run before resolving the returned {@link Promise}
+     * @param executor
+     *   the executor to use for asynchronous execution
+     * @return
+     *   the new {@link Promise}
+     */
+    public static Promise<Void> runAsync(Runnable runnable, Executor executor) {
+        final CompletableTask<Void> result = new CompletableTask<>(executor, () -> { 
+            runnable.run(); 
+            return null; 
+        });
+        executor.execute(result);
+        return result;
+    }
+    
+    /**
+     * Returns a new {@link Promise} that is asynchronously resolved by a task running in the given executor 
+     * with the value obtained by calling the given {@link Supplier}.
+     * @param <U>
+     *   the function's return type
+     * @param supplier
+     *   a function returning the value to be used to resolve the returned {@link Promise}
+     * @param executor
+     *   the executor to use for asynchronous execution
+     * @return
+     *   the new {@link Promise}
+     */
+    public static <U> Promise<U> supplyAsync(Supplier<U> supplier, Executor executor) {
+        final CompletableTask<U> result = new CompletableTask<>(executor, () -> supplier.get());
+        executor.execute(result);
+        return result;
     }
 
     @Override

@@ -51,7 +51,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
                 // Should not happen when isDone() returns true
                 throw new RuntimeException(ex);
             } catch (ExecutionException ex) {
-                throw new CompletionException(ex);
+                throw new CompletionException(null != ex.getCause() ? ex.getCause() : ex);
             }
         } else {
             return valueIfAbsent.get();
