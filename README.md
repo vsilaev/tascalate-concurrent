@@ -61,7 +61,7 @@ Promise<SomeValue> p1 = CompletableTask.supplyAsync(() -> {
   return blockingCalculationOfSomeValue();
 }, myExecutor);
 
-Promise<Void> p2 = CompletableTask.supplyAsync(this::someIoBoundMethod, myExecutor);
+Promise<Void> p2 = CompletableTask.runAsync(this::someIoBoundMethod, myExecutor);
 ```
 
 Most importantly, all composed promises support true cancellation (incl. interrupting thread) for the functions supplied as arguments:
