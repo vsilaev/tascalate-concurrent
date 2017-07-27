@@ -250,8 +250,28 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                 // IMPORTANT: it COULD be shared, but typically is not
                 // So in very rare case some nasty behavior MAY exist 
                 // if others depends on it
+                
+                // TEST: There is a race when fn.apply(r) is completed
+                // normally and nextStage is cancelled before returned is set
+                // as its nextStage's cancellableOrigins. In this case,
+                // execution of returned continues as nextStage cannot be
+                // cancelled for a second time. However, completion stages after
+                // nextStage are completed exceptionally (correctly) since when
+                // moveToNextStage is executed nextStage is already completed
+                // (cancelled) from cancel(...) -> onError(...). In order to
+                // cancel returned here, I think you need to know whether
+                // nextStage might have been interrupted.
+                // try {
+                //    Thread.sleep(100);
+                //} catch (InterruptedException ex) {
+                //}
+                
                 nextStage.resetCancellableOrigins(returned);
-                returned.whenComplete(moveToNextStage);   
+                if (nextStage.isCancelled()) {
+                	nextStage.cancelOrigins(true);
+                } else {
+                	returned.whenComplete(moveToNextStage);
+                }
             }), 
             e -> { 
                 moveToNextStage.accept(null, e); 
