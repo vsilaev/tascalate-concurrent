@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 public class RecursiveCancellationPromise<T> extends AbstractDelegatingPromise<T, Promise<T>> {
     
@@ -15,7 +16,10 @@ public class RecursiveCancellationPromise<T> extends AbstractDelegatingPromise<T
     
     protected RecursiveCancellationPromise(Promise<T> delegate, List<CompletionStage<?>> cancellableOrigins) {
         super(delegate);
-        this.cancellableOrigins = cancellableOrigins == null ? new LinkedBlockingQueue<>() : new LinkedBlockingQueue<>(cancellableOrigins);
+        this.cancellableOrigins = 
+            cancellableOrigins == null ? 
+            new LinkedBlockingQueue<>() : 
+            new LinkedBlockingQueue<>(cancellableOrigins);
     }
     
     public static <U> RecursiveCancellationPromise<U> from(Promise<U> source) {
@@ -64,6 +68,15 @@ public class RecursiveCancellationPromise<T> extends AbstractDelegatingPromise<T
         return completionStage.get(timeout, unit);
     }
 
+    @Override
+    public T getNow(T valueIfAbsent) {
+        return completionStage.getNow(valueIfAbsent);
+    }
+    
+    public T getNow(Supplier<T> valueIfAbsent) {
+        return completionStage.getNow(valueIfAbsent);
+    }
+    
     @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {
         return new RecursiveCancellationPromise<>((Promise<U>)original, Collections.singletonList(this));
