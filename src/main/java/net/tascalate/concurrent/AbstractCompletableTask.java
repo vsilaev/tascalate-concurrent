@@ -22,6 +22,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -58,6 +59,24 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         this.action = action;
         this.task = new StageTransition(action);
     }
+    
+    private CompletionStage<?>[] cancellableOrigins;
+    private Object cancellableOriginsLock = new Object();
+    
+    protected void resetCancellableOrigins(CompletionStage<?>... origins) {
+        synchronized (cancellableOriginsLock) {
+            this.cancellableOrigins = origins; 
+        }
+    }
+    
+    protected void cancelOrigins(boolean mayInterruptIfRunning) {
+        synchronized (cancellableOriginsLock) {
+            if (null == cancellableOrigins) {
+                return;
+            }
+            Arrays.stream(cancellableOrigins).forEach(p -> CompletablePromise.cancelPromise(p, mayInterruptIfRunning)); 
+        }
+    }
 
     abstract Runnable setupTransition(Callable<T> code);
 
@@ -65,6 +84,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     public boolean cancel(boolean mayInterruptIfRunning) {
         if (task.cancel(mayInterruptIfRunning)) {
             onError(new CancellationException());
+            cancelOrigins(mayInterruptIfRunning);
             return true;
         } else {
             return false;
@@ -201,27 +221,42 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
 
-        AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
         AbstractCompletableTask<Void> tempStage = internalCreateCompletionStage(executor);
+        AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
+        // Need to enlist tempStage while it is non-visible outside
+        // and may not be used to interrupt fn.apply();
+        nextStage.resetCancellableOrigins(tempStage);
 
         // We must ALWAYS run through the execution
         // of nextStage.task when this nextStage is
         // exposed to the client, even in a "trivial" case:
         // Success path, just return value
         // Failure path, just re-throw exception
-        Executor helperExecutor = SAME_THREAD_EXECUTOR;
         BiConsumer<? super U, ? super Throwable> moveToNextStage = (r, e) -> {
             if (null == e)
-                runDirectly(nextStage, Function.identity(), r, helperExecutor);
+                runDirectly(nextStage, Function.identity(), r, executor);
             else
-                runDirectly(nextStage, AbstractCompletableTask::forwardException, e, helperExecutor);
+                runDirectly(nextStage, AbstractCompletableTask::forwardException, e, executor);
         };
 
         // Important -- tempStage is the target here
         addCallbacks(
             tempStage, 
-            consumerAsFunction(r -> fn.apply(r).whenComplete(moveToNextStage)), 
-            e -> { moveToNextStage.accept(null, e); return null; }, /* must-have if fn.apply above failed */
+            consumerAsFunction(r -> {
+                CompletionStage<U> returned = fn.apply(r);
+                // tempStage is completed successfully, so no sense
+                // to include it in cancellableOrigins
+                // However, nextStage is in progress
+                // IMPORTANT: it COULD be shared, but typically is not
+                // So in very rare case some nasty behavior MAY exist 
+                // if others depends on it
+                nextStage.resetCancellableOrigins(returned);
+                returned.whenComplete(moveToNextStage);   
+            }), 
+            e -> { 
+                moveToNextStage.accept(null, e); 
+                return null; 
+            }, /* must-have if fn.apply above failed */
             executor
         );
 

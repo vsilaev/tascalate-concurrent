@@ -4,7 +4,7 @@
 	 
 	<groupId>net.tascalate.concurrent</groupId>
 	<artifactId>net.tascalate.concurrent.lib</artifactId>
-	<version>0.5.2</version>
+	<version>0.5.3-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>Tascalate Concurrenct</name>
