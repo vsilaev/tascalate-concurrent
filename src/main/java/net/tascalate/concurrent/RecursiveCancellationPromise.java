@@ -42,9 +42,11 @@ public class RecursiveCancellationPromise<T> extends AbstractDelegatingPromise<T
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         final boolean result = completionStage.cancel(mayInterruptIfRunning);
-        final ArrayList<CompletionStage<?>> toCancel = new ArrayList<>();
-        cancellableOrigins.drainTo(toCancel);
-        toCancel.stream().forEach(p -> CompletablePromise.cancelPromise(p, mayInterruptIfRunning));
+        if (result) {
+        	final ArrayList<CompletionStage<?>> toCancel = new ArrayList<>();
+        	cancellableOrigins.drainTo(toCancel);
+        	toCancel.stream().forEach(p -> CompletablePromise.cancelPromise(p, mayInterruptIfRunning));
+        }
         return result;
     }
 
