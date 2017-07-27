@@ -233,7 +233,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         // Success path, just return value
         // Failure path, just re-throw exception
         BiConsumer<? super U, ? super Throwable> moveToNextStage = (r, e) -> {
-            if (null == e)
+            if (null == e) 
                 runDirectly(nextStage, Function.identity(), r, executor);
             else
                 runDirectly(nextStage, AbstractCompletableTask::forwardException, e, executor);
