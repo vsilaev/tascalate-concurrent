@@ -1,4 +1,4 @@
-[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate.concurrent/net.tascalate.concurrent.lib.svg)](https://search.maven.org/#artifactdetails%7Cnet.tascalate.concurrent%7Cnet.tascalate.concurrent.lib%7C0.5.1%7Cpom) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.1) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate.concurrent/net.tascalate.concurrent.lib.svg)](https://search.maven.org/#artifactdetails%7Cnet.tascalate.concurrent%7Cnet.tascalate.concurrent.lib%7C0.5.2%7Cpom) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.2) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the CompletionStage interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound) - unlike Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks.
 # Why a CompletableFuture is not enough?
@@ -13,7 +13,7 @@ Add Maven dependency
 <dependency>
     <groupId>net.tascalate.concurrent</groupId>
     <artifactId>net.tascalate.concurrent.lib</artifactId>
-    <version>0.5.1</version>
+    <version>0.5.2</version>
 </dependency>
 ```
 
@@ -41,6 +41,29 @@ CompletableTask
 ```  
 All of `myValueGenerator`, `myConsumer`, `myActtion` will be executed using `myExecutor`
 
+b.	`CompletableTask.complete(T value, Executor executor)`
+
+Same as above, but the starting point is a resolved Promise with a specified value:
+```
+CompletableTask
+   .complete("Hello!", myExecutor)
+   .thenApplyAsync(myMapper)
+   .thenApplyAsync(myTransformer)   
+   .thenAcceptAsync(myConsumer)
+   .thenRunAsync(myAction);
+```  
+All of `myMapper`, `myTransformer`, `myConsumer`, `myActtion` will be executed using `myExecutor`
+
+Additionally, you may submit [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html) / [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) to the [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) right away, in a similar way as with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html):
+
+```
+Promise<SomeValue> p1 = CompletableTask.supplyAsync(() -> {
+  return blockingCalculationOfSomeValue();
+}, myExecutor);
+
+Promise<Void> p2 = CompletableTask.runAsync(this::someIoBoundMethod, myExecutor);
+```
+
 Most importantly, all composed promises support true cancellation (incl. interrupting thread) for the functions supplied as arguments:
 ```
 Promise<?> p1 =
@@ -54,19 +77,6 @@ Promise<?> p2 = p1.thenRunAsync(myAction);
 p1.cancel(true);
 ```  
 In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty: `p1` with [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html) and `p2` with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html).
-
-b.	`CompletableTask.complete(T value, Executor executor)`
-
-Same as above, but the starting point is a resolved Promise with a specified value:
-```
-CompletableTask
-   .complete("Hello!", myExecutor)
-   .thenApplyAsync(myMapper)
-   .thenApplyAsync(myTransformer)   
-   .thenAcceptAsync(myConsumer)
-   .thenRunAsync(myAction);
-```  
-All of `myMapper`, `myTransformer`, `myConsumer`, `myActtion` will be executed using `myExecutor`
 
 ## 3. Helper class Promises
 The class
