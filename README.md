@@ -115,7 +115,7 @@ Additionally, it's possible to convert to `Promise` API ready value:
 
 `public static <T> Promise<T> from(CompletionStage<T> stage)`
 
-## 3. Extensions to ExecutorService API
+## 4. Extensions to ExecutorService API
 
 It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
 
