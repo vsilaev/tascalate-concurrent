@@ -125,7 +125,28 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> all(CompletionStage<? extends T>... promises) {
-        return atLeast(promises.length, 0, true, promises);
+        return all(true, promises);
+    }
+    
+    /**
+     * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters are completed normally; 
+     * if any promise completed exceptionally, then resulting promise is resolved faulty as well.
+     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
+     * argument at corresponding positions.
+     * <p>When resulting promise is resolved faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
+     * all remaining incomplete {@link CompletionStage}-s are cancelled.  
+     * @param <T>
+     *   a common supertype of the resulting values
+     * @param cancelRemaining
+     *   when true and resulting promise is resolved faulty all incomplete {@link CompletionStage}-s are cancelled
+     * @param promises
+     *   an array of {@link CompletionStage}-s to combine
+     * @return
+     *   a combined promise
+     */
+    @SafeVarargs
+    public static <T> Promise<List<T>> all(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return atLeast(promises.length, 0, cancelRemaining, promises);
     }
 
     /**
@@ -144,9 +165,32 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<T> any(CompletionStage<? extends T>... promises) {
-        return unwrap(atLeast(1, promises.length - 1, true, promises), false);
+        return any(true, promises);
     }
 
+    /**
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
+     * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
+     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
+     * argument.
+     * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
+     * all remaining incomplete {@link CompletionStage}-s are cancelled.
+     * 
+     * @param <T>
+     *   a common supertype of the resulting values 
+     * @param cancelRemaining
+     *   when true and resulting promise is resolved faulty all incomplete {@link CompletionStage}-s are cancelled   
+     * @param promises
+     *   an array of {@link CompletionStage}-s to combine
+     * @return
+     *   a combined promise
+     */
+    @SafeVarargs
+    public static <T> Promise<T> any(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return unwrap(atLeast(1, promises.length - 1, cancelRemaining, promises), false);
+    }
+    
+    
     /**
      * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
      * if any promise completed exceptionally before first result is available, then resulting promise is resolved faulty as well 
@@ -163,9 +207,31 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<T> anyStrict(CompletionStage<? extends T>... promises) {
-        return unwrap(atLeast(1, 0, true, promises), true);
+        return anyStrict(true, promises);
     }
 
+    /**
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
+     * if any promise completed exceptionally before first result is available, then resulting promise is resolved faulty as well 
+     * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
+     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
+     * argument.
+     * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
+     * all remaining incomplete {@link CompletionStage}-s are cancelled. 
+     * @param <T>
+     *   a common supertype of the resulting values 
+     * @param cancelRemaining
+     *   when true and resulting promise is resolved faulty all incomplete {@link CompletionStage}-s are cancelled     
+     * @param promises
+     *   an array of {@link CompletionStage}-s to combine
+     * @return
+     *   a combined promise
+     */
+    @SafeVarargs
+    public static <T> Promise<T> anyStrict(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return unwrap(atLeast(1, 0, cancelRemaining, promises), true);
+    }    
+    
     /**
      * <p>Generalization of the {@link Promises#any(CompletionStage...)} method.</p>
      * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
@@ -186,9 +252,35 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> atLeast(int minResultsCount, CompletionStage<? extends T>... promises) {
-        return atLeast(minResultsCount, promises.length - minResultsCount, true, promises);
+        return atLeast(minResultsCount, true, promises);
     }
 
+    /**
+     * <p>Generalization of the {@link Promises#any(CompletionStage...)} method.</p>
+     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
+     * are completed normally (race is possible); if less than <code>minResultCount</code> of promises completed normally, then resulting promise 
+     * is resolved faulty.
+     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
+     * argument at corresponding positions. Non-completed or completed exceptionally promises have <code>null</code> values.
+     * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
+     * all remaining incomplete {@link CompletionStage}-s are cancelled.  
+     * 
+     * @param <T>
+     *   a common supertype of the resulting values 
+     * @param minResultsCount
+     *   a minimum number of promises that should be completed normally to resolve resulting promise successfully 
+     * @param cancelRemaining
+     *   when true and resulting promise is resolved faulty all incomplete {@link CompletionStage}-s are cancelled    
+     * @param promises
+     *   an array of {@link CompletionStage}-s to combine 
+     * @return
+     *   a combined promise 
+     */
+    @SafeVarargs
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return atLeast(minResultsCount, promises.length - minResultsCount, cancelRemaining, promises);
+    }    
+    
     /**
      * <p>Generalization of the {@link Promises#anyStrict(CompletionStage...)} method.</p>
      * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
@@ -210,9 +302,36 @@ public class Promises {
      */    
     @SafeVarargs
     public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, CompletionStage<? extends T>... promises) {
-        return atLeast(minResultsCount, 0, true, promises);
+        return atLeastStrict(minResultsCount, true, promises);
     }
 
+    /**
+     * <p>Generalization of the {@link Promises#anyStrict(CompletionStage...)} method.</p>
+     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
+     * are completed normally (race is possible); if less than <code>minResultCount</code> of promises completed normally, then resulting promise 
+     * is resolved faulty. If any promise completed exceptionally <em>before</em> <code>minResultCount</code> of results are available, then 
+     * resulting promise is resolved faulty as well. 
+     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
+     * argument at corresponding positions. Non-completed promises have <code>null</code> values.
+     * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
+     * all remaining incomplete {@link CompletionStage}-s are cancelled.
+     *  
+     * @param <T>
+     *   a common supertype of the resulting values 
+     * @param minResultsCount
+     *   a minimum number of promises that should be completed normally to resolve resulting promise successfully 
+     * @param cancelRemaining
+     *   when true and resulting promise is resolved faulty all incomplete {@link CompletionStage}-s are cancelled     
+     * @param promises
+     *   an array of {@link CompletionStage}-s to combine 
+     * @return
+     *   a combined promise 
+     */    
+    @SafeVarargs
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return atLeast(minResultsCount, 0, cancelRemaining, promises);
+    }    
+    
     /**
      * <p>General method to combine several {@link CompletionStage}-s passed as arguments into single promise.</p>
      * <p>The resulting promise is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
