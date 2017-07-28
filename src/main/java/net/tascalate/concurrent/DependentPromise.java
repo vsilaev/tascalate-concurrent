@@ -85,8 +85,8 @@ public class DependentPromise<T> implements Promise<T> {
         if (result.isCancelled()) {
             // Wrapped over already cancelled Promise
             // So result.cancel() has no effect
-            // and we have to cancel explicitly right
-            // after construction
+            // and we have to cancel origins explicitly
+            // right after construction
             result.cancelOrigins(true);
         }
         return result;
@@ -450,7 +450,7 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     private List<DependentPromise<T>> self(boolean enlist) {
-        return enlist ? Collections.emptyList() : Collections.singletonList(this);
+        return enlist ? Collections.singletonList(this) : Collections.emptyList();
     }
     
     private List<CompletionStage<?>> selfAndParam(CompletionStage<?> param, Set<PromiseOrigin> enlistOptions) {
