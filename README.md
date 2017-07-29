@@ -24,14 +24,14 @@ The interface may be best described by the formula:
 Promise == CompletionStage + Future
 ```
 
-I.e., it combines both blocking [Future](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html)’s API, including `cancel()` [method](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html#cancel-boolean-), AND composition capabilities of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)’s API. Importantly, all composition methods of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) API (`thenAccept`, `thenCombine`, `whenComplete` etc.) are re-declared to return `Promise` as well.
+I.e., it combines both blocking [Future](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html)’s API, including `cancel(boolean mayInterruptIfRunning)` [method](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html#cancel-boolean-), AND composition capabilities of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)’s API. Importantly, all composition methods of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) API (`thenAccept`, `thenCombine`, `whenComplete` etc.) are re-declared to return `Promise` as well.
 
 ## 2. CompletableTask 
 This is why this project was ever started. `CompletableTask` is the implementation of the `Promise` API for long-running blocking tasks. There are 2 unit operations to create a `CompletableTask`:
 
 a.	`CompletableTask.asyncOn(Executor executor)`
 
-Returns a resolved no-value `Promise` that is “bound” to specified executor. I.e. any function passed to composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
+Returns a resolved no-value `Promise` that is “bound” to the specified executor. I.e. any function passed to composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
 ```
 CompletableTask
   .asyncOn(myExecutor)
@@ -39,11 +39,11 @@ CompletableTask
   .thenAcceptAsync(myConsumer)
   .thenRunAsync(myAction);
 ```  
-All of `myValueGenerator`, `myConsumer`, `myActtion` will be executed using `myExecutor`
+All of `myValueGenerator`, `myConsumer`, `myActtion` will be executed using `myExecutor`.
 
 b.	`CompletableTask.complete(T value, Executor executor)`
 
-Same as above, but the starting point is a resolved Promise with a specified value:
+Same as above, but the starting point is a resolved `Promise` with the specified value:
 ```
 CompletableTask
    .complete("Hello!", myExecutor)
@@ -52,7 +52,7 @@ CompletableTask
    .thenAcceptAsync(myConsumer)
    .thenRunAsync(myAction);
 ```  
-All of `myMapper`, `myTransformer`, `myConsumer`, `myActtion` will be executed using `myExecutor`
+All of `myMapper`, `myTransformer`, `myConsumer`, `myActtion` will be executed using `myExecutor`.
 
 Additionally, you may submit [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html) / [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) to the [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) right away, in a similar way as with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html):
 
@@ -76,9 +76,9 @@ Promise<?> p2 = p1.thenRunAsync(myAction);
 ...
 p1.cancel(true);
 ```  
-In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty: `p1` with [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html) and `p2` with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html).
+In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty: `p1` with a [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html) and `p2` with a [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html).
 
-## 3. Helper class Promises
+## 3. Utility class Promises
 The class
 provides convenient methods to combine several `CompletionStage`-s:
 
@@ -121,14 +121,14 @@ It’s not mandatory to use any specific subclasses of `Executor` with `Completa
 
 a. Interface `TaskExecutorService`
 
-Specialization of ExecutorService that uses `Promise` as a result of `submit(...)` methods.
+Specialization of [ExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html) that uses `Promise` as a result of `submit(...)` methods.
 
 b. Class `ThreadPoolTaskExecutor`
-A subclass of standard [ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) that implements `TaskExecutorService` interface.
+A subclass of the standard [ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) that implements `TaskExecutorService` interface.
 
 c. Class `TaskExecutors`
 
-A drop-in replacement for [Executors](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executors.html) utility class that returns various useful implementations of `TaskExecutorService` instead of standard `ExecutorService`.
+A drop-in replacement for [Executors](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executors.html) utility class that returns various useful implementations of `TaskExecutorService` instead of the standard [ExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html).
 
 # Acknowledgements
 
