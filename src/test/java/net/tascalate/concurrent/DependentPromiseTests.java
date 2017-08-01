@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Adam.
+ * Copyright 2017 Adam Jurčík
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -93,9 +93,8 @@ public class DependentPromiseTests {
     public void testRecursiveCancellation() {
         State s = new State();
         
-        DependentPromise<Void> p = DependentPromise.from(
-                    CompletableTask.runAsync(() -> longTask(5, s), executor)
-                ).thenRun(this::dummyTask);   
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s))
+                .thenRun(this::dummyTask, true);   
         
         trySleep(2);
         p.cancel(true);
@@ -104,183 +103,239 @@ public class DependentPromiseTests {
         assertCancelled("s", s);
     }
     
-//    @Test
-//    public void testComposeRecursiveCancellation1() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .thenComposeAsync(r -> otherLongTask(5, s2))
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(2);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertCancelled("s1", s1);
-//        assertNotStarted("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testComposeRecursiveCancellation2() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .thenComposeAsync(r -> otherLongTask(5, s2))
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(8);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertDone("s1", s1);
-//        assertCancelled("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testThenApplyRecursiveCancellation1() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .thenApplyAsync(r -> {
-//                    longTask(5, s2);
-//                    return null;
-//                })
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(2);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertCancelled("s1", s1);
-//        assertNotStarted("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testThenApplyRecursiveCancellation2() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .thenApplyAsync(r -> {
-//                    longTask(5, s2);
-//                    return null;
-//                })
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(8);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertDone("s1", s1);
-//        assertCancelled("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testCombineRecursiveCancellation1() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> null)
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(2);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertCancelled("s1", s1);
-//        assertCancelled("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testCombineRecursiveCancellation2() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        State s3 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> { longTask(5, s3); return null; })
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(8);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertDone("s1", s1);
-//        assertDone("s2", s2);
-//        assertCancelled("s3", s3);
-//    }
-//    
-//    @Test
-//    public void testRunAfterEitherRecursiveCancellation() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .runAfterEitherAsync(otherLongTask(5, s2), this::dummyTask)
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(2);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertCancelled("s1", s1);
-//        assertCancelled("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testRunAfterBothRecursiveCancellation() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .runAfterBothAsync(otherLongTask(5, s2), this::dummyTask)
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(2);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertCancelled("s1", s1);
-//        assertCancelled("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testHandleAsyncRecursiveCancellation1() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .handleAsync((r, e) -> { longTask(5, s2); return null; })
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(2);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertCancelled("s1", s1);
-//        assertNotStarted("s2", s2);
-//    }
-//    
-//    @Test
-//    public void testHandleAsyncRecursiveCancellation2() {
-//        State s1 = new State();
-//        State s2 = new State();
-//        
-//        Promise<Void> p = executor.submit(() -> longTask(5, s1))
-//                .handleAsync((r, e) -> { longTask(5, s2); return null; })
-//                .thenRun(this::dummyTask);
-//        
-//        trySleep(8);
-//        p.cancel(true);
-//        trySleep(1);
-//        
-//        assertDone("s1", s1);
-//        assertCancelled("s2", s2);
-//    }
+    @Test
+    public void testComposeRecursiveCancellation1() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenComposeAsync(r -> otherLongTask(5, s2), true)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertCancelled("s1", s1);
+        assertNotStarted("s2", s2);
+    }
+    
+    @Test
+    public void testComposeRecursiveCancellation2() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenComposeAsync(r -> otherLongTask(5, s2), true)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(8);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertDone("s1", s1);
+        assertCancelled("s2", s2);
+    }
+    
+    @Test
+    public void testThenApplyRecursiveCancellation1() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenApplyAsync(r -> {
+                    longTask(5, s2);
+                    return null;
+                }, true)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertCancelled("s1", s1);
+        assertNotStarted("s2", s2);
+    }
+    
+    @Test
+    public void testThenApplyRecursiveCancellation2() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenApplyAsync(r -> {
+                    longTask(5, s2);
+                    return null;
+                }, true)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(8);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertDone("s1", s1);
+        assertCancelled("s2", s2);
+    }
+    
+    @Test
+    public void testCombineRecursiveCancellation1() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> null, PromiseOrigin.THIS_ONLY) 
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(5);
+        
+        assertCancelled("s1", s1);
+        assertDone("s2", s2);
+    }
+    
+    @Test
+    public void testCombineRecursiveCancellation2() {
+        State s1 = new State();
+        State s2 = new State();
+        State s3 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> { longTask(5, s3); return null; }, PromiseOrigin.THIS_ONLY)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(8);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertDone("s1", s1);
+        assertDone("s2", s2);
+        assertCancelled("s3", s3);
+    }
+    
+    @Test
+    public void testCombineAllRecursiveCancellation() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> null, PromiseOrigin.ALL)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertCancelled("s1", s1);
+        assertCancelled("s2", s2);
+    }
+    
+    @Test
+    public void testRunAfterEitherRecursiveCancellation() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .runAfterEitherAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.THIS_ONLY) 
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(5);
+        
+        assertCancelled("s1", s1);
+        assertDone("s2", s2);
+    }
+    
+    @Test
+    public void testRunAfterEitherAllRecursiveCancellation() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .runAfterEitherAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.ALL)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertCancelled("s1", s1);
+        assertCancelled("s2", s2);
+    }
+    
+    @Test
+    public void testRunAfterBothRecursiveCancellation() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .runAfterBothAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.THIS_ONLY) 
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(5);
+        
+        assertCancelled("s1", s1);
+        assertDone("s2", s2);
+    }
+    
+    @Test
+    public void testRunAfterBothAllRecursiveCancellation() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .runAfterBothAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.ALL)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertCancelled("s1", s1);
+        assertCancelled("s2", s2);
+    }
+    
+    @Test
+    public void testHandleAsyncRecursiveCancellation1() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .handleAsync((r, e) -> { longTask(5, s2); return null; }, true)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(2);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertCancelled("s1", s1);
+        assertNotStarted("s2", s2);
+    }
+    
+    @Test
+    public void testHandleAsyncRecursiveCancellation2() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .handleAsync((r, e) -> { longTask(5, s2); return null; }, true)
+                .thenRun(this::dummyTask, true);
+        
+        trySleep(8);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertDone("s1", s1);
+        assertCancelled("s2", s2);
+    }
+    
+    private DependentPromise<Void> runDepedentAsync(Runnable r) {
+        return DependentPromise.from(
+                CompletableTask.runAsync(r, executor));
+    }
     
     private void longTask(int units, State state) {
         state.start();

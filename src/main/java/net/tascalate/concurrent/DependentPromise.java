@@ -1,8 +1,7 @@
 package net.tascalate.concurrent;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -16,21 +15,59 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * 
+ * <p>{@link Promise} wrapper that may keep track origin of this promise and cancel them
+ * along with this promise itself.
+ * 
+ * For example:
+ * <pre>
+ * <code>
+ * DependentPromise<?> p1 = DependentPromise.from(CallableTask.runAsync(this::someLongRunningMethod, myExecutor));
+ * DependentPromise<?> p2 = p1.thenRunAsync(this::someOtherLongRunningTask, true);
+ * ...
+ * p2.cancel(true); 
+ *  
+ * </code>
+ * </pre>
+ * <p>In the example <code>p2</code> is created with specifying <code>p1</code> as origin (last argument is <code>true</code>).
+ * Now when canceling <code>p2</code> both <code>p2</code> and <code>p1</code> will be cancelled if not completed yet. 
+ * 
+ * <p>The class add overloads to all composition methods declared in {@link CompletionStage} interface.
+ * 
+ * <p>The ones that accepts another {@link CompletionStage} as argument (named <code>*Both*</code> and
+ * <code>*Either*</code> are overloaded with a set of @{link {@link PromiseOrigin} as an argument to let
+ * you specify what to enlist as origin: "this" related to method call or the parameter.
+ * 
+ * <p>Rest of methods from  {@link CompletionStage} API are overloaded with boolean argument 
+ * <code>enlistOrigin</code> that specify whether or not the {@link Promise} object whose
+ * method is invoiked should be added as an origin to result.
+ * 
+ * <p>All methods originally  specified in {@link CompletionStage} does not add "this" as an origin to
+ * resulting promise.
+ * 
+ * @author vsilaev
+ *
+ * @param <T>
+ *   a type of the successfully resolved promise value    
+ */
 public class DependentPromise<T> implements Promise<T> {
     final private Promise<T> completionStage;
-    final private List<? extends CompletionStage<?>> cancellableOrigins;
+    final private CompletionStage<?>[] cancellableOrigins;
     
-    protected DependentPromise(Promise<T> delegate, List<? extends CompletionStage<?>> cancellableOrigins) {
+    protected DependentPromise(Promise<T> delegate, CompletionStage<?>[] cancellableOrigins) {
         this.completionStage = delegate;
         this.cancellableOrigins = cancellableOrigins; 
     }
     
     public static <U> DependentPromise<U> from(Promise<U> source) {
-        return doWrap(source, Collections.emptyList());
+        return doWrap(source, null);
     }
     
     protected void cancelOrigins(boolean mayInterruptIfRunning) {
-        cancellableOrigins.stream().forEach(p -> cancelPromise(p, mayInterruptIfRunning));
+        if (null != cancellableOrigins) {
+            Arrays.stream(cancellableOrigins).filter(p -> p != null).forEach(p -> cancelPromise(p, mayInterruptIfRunning));
+        }
     }
     
     protected boolean cancelPromise(CompletionStage<?> promise, boolean mayInterruptIfRunning) {
@@ -76,12 +113,12 @@ public class DependentPromise<T> implements Promise<T> {
         return completionStage.getNow(valueIfAbsent);
     }
 
-    protected <U> DependentPromise<U> wrap(CompletionStage<U> original, List<? extends CompletionStage<?>> cancellableOrigins) {
+    protected <U> DependentPromise<U> wrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
         return doWrap(original, cancellableOrigins);
     }
     
-    private static <U> DependentPromise<U> doWrap(CompletionStage<U> original, List<? extends CompletionStage<?>> cancellableOrigins) {
-        final DependentPromise<U> result = new DependentPromise<>((Promise<U>)original, cancellableOrigins);
+    private static <U> DependentPromise<U> doWrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
+        final DependentPromise<U> result = new DependentPromise<>(original, cancellableOrigins);
         if (result.isCancelled()) {
             // Wrapped over already cancelled Promise
             // So result.cancel() has no effect
@@ -93,15 +130,15 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn) {
-        return thenApply(fn, true);
+        return thenApply(fn, false);
     }
 
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn) {
-        return thenApplyAsync(fn, true);
+        return thenApplyAsync(fn, false);
     }
 
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
-        return thenApplyAsync(fn, executor, true);
+        return thenApplyAsync(fn, executor, false);
     }
 
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn, boolean enlistOrigin) {
@@ -117,15 +154,15 @@ public class DependentPromise<T> implements Promise<T> {
     }    
     
     public DependentPromise<Void> thenAccept(Consumer<? super T> action) {
-        return thenAccept(action, true);
+        return thenAccept(action, false);
     }
 
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action) {
-        return thenAcceptAsync(action, true);
+        return thenAcceptAsync(action, false);
     }
 
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor) {
-        return thenAcceptAsync(action, executor, true);
+        return thenAcceptAsync(action, executor, false);
     }
     
     public DependentPromise<Void> thenAccept(Consumer<? super T> action, boolean enlistOrigin) {
@@ -141,15 +178,15 @@ public class DependentPromise<T> implements Promise<T> {
     }    
 
     public DependentPromise<Void> thenRun(Runnable action) {
-        return thenRun(action, true);
+        return thenRun(action, false);
     }
 
     public DependentPromise<Void> thenRunAsync(Runnable action) {
-        return thenRunAsync(action, true);
+        return thenRunAsync(action, false);
     }
 
     public DependentPromise<Void> thenRunAsync(Runnable action, Executor executor) {
-        return thenRunAsync(action, executor, true);
+        return thenRunAsync(action, executor, false);
     }
     
     public DependentPromise<Void> thenRun(Runnable action, boolean enlistOrigin) {
@@ -165,18 +202,18 @@ public class DependentPromise<T> implements Promise<T> {
     }
 
     public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
-        return thenCombine(other, fn, PromiseOrigin.THIS_ONLY);
+        return thenCombine(other, fn, PromiseOrigin.NONE);
     }
 
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
-        return thenCombineAsync(other, fn, PromiseOrigin.THIS_ONLY);
+        return thenCombineAsync(other, fn, PromiseOrigin.NONE);
     }
 
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                                        BiFunction<? super T, ? super U, ? extends V> fn, 
                                                        Executor executor) {
         
-        return thenCombineAsync(other, fn, executor, PromiseOrigin.THIS_ONLY);
+        return thenCombineAsync(other, fn, executor, PromiseOrigin.NONE);
     }
     
     public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
@@ -201,18 +238,18 @@ public class DependentPromise<T> implements Promise<T> {
     
 
     public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
-        return thenAcceptBoth(other, action, PromiseOrigin.THIS_ONLY);
+        return thenAcceptBoth(other, action, PromiseOrigin.NONE);
     }
 
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
-        return thenAcceptBothAsync(other, action, PromiseOrigin.THIS_ONLY);
+        return thenAcceptBothAsync(other, action, PromiseOrigin.NONE);
     }
 
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                           BiConsumer<? super T, ? super U> action, 
                                                           Executor executor) {
         
-        return thenAcceptBothAsync(other, action, executor, PromiseOrigin.THIS_ONLY);
+        return thenAcceptBothAsync(other, action, executor, PromiseOrigin.NONE);
     }
 
     public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
@@ -236,17 +273,17 @@ public class DependentPromise<T> implements Promise<T> {
     }    
     
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
-        return runAfterBoth(other, action, PromiseOrigin.THIS_ONLY);
+        return runAfterBoth(other, action, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action) {
-        return runAfterBothAsync(other, action, PromiseOrigin.THIS_ONLY);
+        return runAfterBothAsync(other, action, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                                     Runnable action, 
                                                     Executor executor) {
-        return runAfterBothAsync(other, action, executor, PromiseOrigin.THIS_ONLY);
+        return runAfterBothAsync(other, action, executor, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
@@ -266,18 +303,18 @@ public class DependentPromise<T> implements Promise<T> {
     
     
     public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn) {
-        return applyToEither(other, fn, PromiseOrigin.THIS_ONLY);
+        return applyToEither(other, fn, PromiseOrigin.NONE);
     }
 
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
-        return applyToEitherAsync(other, fn, PromiseOrigin.THIS_ONLY);
+        return applyToEitherAsync(other, fn, PromiseOrigin.NONE);
     }
 
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
                                                       Executor executor) {
         
-        return applyToEitherAsync(other, fn, executor, PromiseOrigin.THIS_ONLY);
+        return applyToEitherAsync(other, fn, executor, PromiseOrigin.NONE);
     }
     
     public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
@@ -301,18 +338,18 @@ public class DependentPromise<T> implements Promise<T> {
     }    
 
     public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action) {
-        return acceptEither(other, action, PromiseOrigin.THIS_ONLY);
+        return acceptEither(other, action, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action) {
-        return acceptEitherAsync(other, action, PromiseOrigin.THIS_ONLY);
+        return acceptEitherAsync(other, action, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
                                                     Executor executor) {
         
-        return acceptEitherAsync(other, action, executor, PromiseOrigin.THIS_ONLY);
+        return acceptEitherAsync(other, action, executor, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
@@ -336,17 +373,17 @@ public class DependentPromise<T> implements Promise<T> {
     }    
     
     public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
-        return runAfterEither(other, action, PromiseOrigin.THIS_ONLY);
+        return runAfterEither(other, action, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
-        return runAfterEitherAsync(other, action, PromiseOrigin.THIS_ONLY);
+        return runAfterEitherAsync(other, action, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                       Runnable action, 
                                                       Executor executor) {
-        return runAfterEitherAsync(other, action, executor, PromiseOrigin.THIS_ONLY);
+        return runAfterEitherAsync(other, action, executor, PromiseOrigin.NONE);
     }
 
     public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
@@ -365,15 +402,15 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
-        return thenCompose(fn, true);
+        return thenCompose(fn, false);
     }
 
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
-        return thenComposeAsync(fn, true);
+        return thenComposeAsync(fn, false);
     }
 
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
-        return thenComposeAsync(fn, executor, true);
+        return thenComposeAsync(fn, executor, false);
     }
     
     public <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn, boolean enlistOrigin) {
@@ -389,7 +426,7 @@ public class DependentPromise<T> implements Promise<T> {
     }
 
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn) {
-        return exceptionally(fn, true);
+        return exceptionally(fn, false);
     }
 
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
@@ -397,15 +434,15 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
-        return whenComplete(action, true);
+        return whenComplete(action, false);
     }
 
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action) {
-        return whenCompleteAsync(action, true);
+        return whenCompleteAsync(action, false);
     }
 
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
-        return whenCompleteAsync(action, executor, true);
+        return whenCompleteAsync(action, executor, false);
     }
     
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
@@ -421,15 +458,15 @@ public class DependentPromise<T> implements Promise<T> {
     }
 
     public <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn) {
-        return handle(fn, true);
+        return handle(fn, false);
     }
 
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn) {
-        return handleAsync(fn, true);
+        return handleAsync(fn, false);
     }
 
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
-        return handleAsync(fn, executor, true);
+        return handleAsync(fn, executor, false);
     }
     
     public <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin) {
@@ -449,19 +486,27 @@ public class DependentPromise<T> implements Promise<T> {
         return completionStage.toCompletableFuture();
     }
     
-    private List<DependentPromise<T>> self(boolean enlist) {
-        return enlist ? Collections.singletonList(this) : Collections.emptyList();
+    private DependentPromise<T>[] self(boolean enlist) {
+        if (enlist) {
+            @SuppressWarnings("unchecked")
+            DependentPromise<T>[] result = (DependentPromise<T>[])Array.newInstance(DependentPromise.class, 1);
+            result[0] = this;
+            return result;
+        } else {
+            return null;
+        }
     }
     
-    private List<CompletionStage<?>> selfAndParam(CompletionStage<?> param, Set<PromiseOrigin> enlistOptions) {
-        final List<CompletionStage<?>> result = new ArrayList<>();
+    private CompletionStage<?>[] selfAndParam(CompletionStage<?> param, Set<PromiseOrigin> enlistOptions) {
+        final CompletionStage<?>[] result = new CompletionStage<?>[enlistOptions.size()];
+        int idx = 0;
         if (enlistOptions.contains(PromiseOrigin.THIS)) {
-            result.add(this);
+            result[idx++] = this;
         }
         if (enlistOptions.contains(PromiseOrigin.PARAM) && param != null) {
-            result.add(param);
+            result[idx++] = param;
         }
-        return Collections.unmodifiableList(result);
+        return result;
     }
     
 }
