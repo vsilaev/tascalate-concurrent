@@ -23,8 +23,8 @@ import java.util.function.Supplier;
  * For example:
  * <pre>
  * <code>
- * DependentPromise<?> p1 = DependentPromise.from(CallableTask.runAsync(this::someLongRunningMethod, myExecutor));
- * DependentPromise<?> p2 = p1.thenRunAsync(this::someOtherLongRunningTask, true);
+ * DependentPromise&lt;?&gt; p1 = DependentPromise.from(CallableTask.runAsync(this::someLongRunningMethod, myExecutor));
+ * DependentPromise&lt;?&gt; p2 = p1.thenRunAsync(this::someOtherLongRunningTask, true);
  * ...
  * p2.cancel(true); 
  *  
