@@ -15,11 +15,13 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -56,6 +58,14 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         } else {
             return valueIfAbsent.get();
         }
+    }
+    
+    default Promise<T> orTimeout(Duration duration) {
+        return applyToEitherAsync(Timeouts.failAfter(duration), Function.identity());
+    }
+    
+    default Promise<T> orTimeout(long timeout, TimeUnit unit) {
+        return applyToEitherAsync(Timeouts.failAfter(timeout, unit), Function.identity());
     }
    
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);
