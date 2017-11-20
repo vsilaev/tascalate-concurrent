@@ -60,14 +60,48 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         }
     }
     
-    default Promise<T> orTimeout(Duration duration) {
-        return applyToEitherAsync(Timeouts.failAfter(duration), Function.identity());
+    default Promise<T> orTimeout(long timeout, TimeUnit unit) {
+        return orTimeout(Promises.toDuration(timeout, unit));
     }
     
-    default Promise<T> orTimeout(long timeout, TimeUnit unit) {
-        return applyToEitherAsync(Timeouts.failAfter(timeout, unit), Function.identity());
+    default Promise<T> orTimeout(Duration duration) {
+        // Use *async to execute on default "this" executor
+        return DependentPromise.from(this).applyToEitherAsync(
+            Promises.failAfter(duration), Function.identity(), PromiseOrigin.PARAM_ONLY
+        );
     }
-   
+    
+    default Promise<T> completeOnTimeout(T value, long timeout, TimeUnit unit) {
+        return completeOnTimeout(value, Promises.toDuration(timeout, unit));
+    }
+
+    default Promise<T> completeOnTimeout(T value, Duration duration) {
+        return DependentPromise.from(this)
+            .applyToEitherAsync(// Use *async to execute on default "this" executor
+                // timeout converted to onTimeout value
+                DependentPromise.from(Promises.delay(duration)).thenApply(d -> value, true),
+                Function.identity(), 
+                PromiseOrigin.PARAM_ONLY
+            );
+    }
+    
+    default Promise<T> completeOnTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
+        return completeOnTimeout(supplier, Promises.toDuration(timeout, unit));
+    }
+    
+    default Promise<T> completeOnTimeout(Supplier<T> supplier, Duration duration) {
+        Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
+        return DependentPromise.from(this)
+            .thenApply(valueToSupplier, false) // ready this value converted to supplier
+            .applyToEitherAsync(// Use *async to execute on default "this" executor
+                // timeout converted to supplier of onTimeout value
+                DependentPromise.from(Promises.delay(duration)).thenApply(d -> supplier, true),
+                Function.identity(), 
+                PromiseOrigin.PARAM_ONLY
+             )
+            .thenApply(s -> s.get(), true);
+    }
+    
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);
 
     public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn);

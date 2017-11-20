@@ -20,9 +20,12 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * The {@link CompletablePromise} is an adapter of a {@link CompletableFuture} to the {@link Promise} API 
@@ -80,6 +83,15 @@ public class CompletablePromise<T> extends AbstractDelegatingPromise<T, Completa
         return completionStage.getNow(valueIfAbsent);
     }
 
+    public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier) {
+        return completeAsync(supplier, ForkJoinPool.commonPool());
+    }
+    
+    public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
+        CompletableTask.supplyAsync(supplier, executor).thenAccept(v -> onSuccess(v) );
+        return this;
+    }
+    
     static boolean cancelPromise(CompletionStage<?> promise, boolean mayInterruptIfRunning) {
         if (promise instanceof Future) {
             Future<?> future = (Future<?>) promise;

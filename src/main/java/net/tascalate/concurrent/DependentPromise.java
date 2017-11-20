@@ -1,6 +1,7 @@
 package net.tascalate.concurrent;
 
 import java.lang.reflect.Array;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -127,6 +128,75 @@ public class DependentPromise<T> implements Promise<T> {
             result.cancelOrigins(true);
         }
         return result;
+    }
+
+    
+    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit) {
+        return orTimeout(timeout, unit, false);
+    }
+
+    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean enlistOrigin) {
+        return orTimeout(Promises.toDuration(timeout, unit), enlistOrigin);
+    }
+    
+    public DependentPromise<T> orTimeout(Duration duration) {
+        return orTimeout(duration, false);
+    }
+    
+    public DependentPromise<T> orTimeout(Duration duration, boolean enlistOrigin) {
+        // Use *async to execute on default "this" executor
+        return applyToEitherAsync(
+            Promises.failAfter(duration), 
+            Function.identity(), 
+            enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
+        );
+    }
+    
+    public DependentPromise<T> completeOnTimeout(T value, long timeout, TimeUnit unit) {
+        return completeOnTimeout(value, timeout, unit, false);
+    }
+    
+    public DependentPromise<T> completeOnTimeout(T value, long timeout, TimeUnit unit, boolean enlistOrigin) {
+        return completeOnTimeout(value, Promises.toDuration(timeout, unit), enlistOrigin);
+    }
+    
+    public DependentPromise<T> completeOnTimeout(T value, Duration duration) {
+        return completeOnTimeout(value, duration, false);
+    }
+
+    public DependentPromise<T> completeOnTimeout(T value, Duration duration, boolean enlistOrigin) {
+        // Use *async to execute on default "this" executor
+        return applyToEitherAsync(
+            // timeout converted to onTimeout value                
+            DependentPromise.from(Promises.delay(duration)).thenApply(d -> value, true), 
+            Function.identity(), 
+            enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
+        );
+    }
+    
+    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
+        return completeOnTimeout(supplier, timeout, unit, false);
+    }
+    
+    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean enlistOrigin) {
+        return completeOnTimeout(supplier, Promises.toDuration(timeout, unit), enlistOrigin);
+    }
+    
+    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, Duration duration) {
+        return completeOnTimeout(supplier, duration, false);
+    }
+
+    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, Duration duration, boolean enlistOrigin) {
+        Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
+        return this
+            .thenApply(valueToSupplier, enlistOrigin) // ready this value converted to supplier
+            .applyToEitherAsync(// Use *async to execute on default "this" executor
+                // timeout converted to supplier of onTimeout value
+                DependentPromise.from(Promises.delay(duration)).thenApply(d -> supplier, true),
+                Function.identity(), 
+                PromiseOrigin.ALL
+             )
+            .thenApply(s -> s.get(), true);
     }
     
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn) {

@@ -15,10 +15,19 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -55,8 +64,8 @@ public class Promises {
      * @return 
      *   a faulty resolved {@link Promise} with an exception provided
      */    
-    public static Promise<?> failure(Throwable exception) {
-        CompletablePromise<?> result = new CompletablePromise<>();
+    public static <T> Promise<T> failure(Throwable exception) {
+        CompletablePromise<T> result = new CompletablePromise<>();
         result.onFailure(exception);
         return result;
     }
@@ -373,6 +382,39 @@ public class Promises {
             return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
         }
     }
+    
+    public static Promise<Duration> delay(Duration duration) {
+        final CompletablePromise<Duration> promise = new CompletablePromise<>();
+        final Future<?> timeout = scheduler.schedule(
+            () -> promise.onSuccess(duration), 
+            duration.toMillis(), TimeUnit.MILLISECONDS
+        );
+        promise.whenComplete((r, e) -> {
+          if (null != e) {
+              timeout.cancel(true);
+          }
+        });
+        return promise;
+    }
+    
+    public static Promise<Duration> delay(long delay, TimeUnit timeUnit) {
+        return delay( toDuration(delay, timeUnit) );
+    }
+
+    public static <T> Promise<T> failAfter(Duration duration) {
+        final CompletablePromise<T> promise = new CompletablePromise<>();
+        final Future<?> timeout = scheduler.schedule(
+            () -> promise.onFailure(new TimeoutException("Timeout after " + duration)), 
+            duration.toMillis(), TimeUnit.MILLISECONDS
+        );
+        promise.whenComplete((r, e) -> timeout.cancel(true));
+        return promise;
+    }
+    
+    public static <T> Promise<T> failAfter(long delay, TimeUnit timeUnit) {
+        return failAfter( toDuration(delay, timeUnit) );
+    }
+        
 
     private static <T> Promise<T> unwrap(CompletionStage<List<T>> original, boolean unwrapException) {
         return from(
@@ -402,5 +444,41 @@ public class Promises {
     private static <T, U> Consumer<? super T> acceptConverted(Consumer<? super U> target, Function<? super T, ? extends U> converter) {
         return t -> target.accept(converter.apply(t));
     }
+    
+    static Duration toDuration(long delay, TimeUnit timeUnit) {
+        return Duration.of(delay, toChronoUnit(timeUnit));
+    }
+    
+    private static ChronoUnit toChronoUnit(TimeUnit unit) { 
+        Objects.requireNonNull(unit, "unit"); 
+        switch (unit) { 
+            case NANOSECONDS: 
+                return ChronoUnit.NANOS; 
+            case MICROSECONDS: 
+                return ChronoUnit.MICROS; 
+            case MILLISECONDS: 
+                return ChronoUnit.MILLIS; 
+            case SECONDS: 
+                return ChronoUnit.SECONDS; 
+            case MINUTES: 
+                return ChronoUnit.MINUTES; 
+            case HOURS: 
+                return ChronoUnit.HOURS; 
+            case DAYS: 
+                return ChronoUnit.DAYS; 
+            default: 
+                throw new IllegalArgumentException("Unknown TimeUnit constant"); 
+        } 
+    }     
 
+    
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            final Thread result = Executors.defaultThreadFactory().newThread(r);
+            result.setDaemon(true);
+            result.setName("net.tascalate.concurrent.Timeouts");
+            return result;
+        }
+    });
 }
