@@ -97,7 +97,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
                 // timeout converted to supplier of onTimeout value
                 DependentPromise.from(Promises.delay(duration)).thenApply(d -> supplier, true),
                 Function.identity(), 
-                PromiseOrigin.PARAM_ONLY
+                PromiseOrigin.ALL
              )
             .thenApply(s -> s.get(), true);
     }
