@@ -136,71 +136,106 @@ public class DependentPromise<T> implements Promise<T> {
 
     
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit) {
-        return orTimeout(timeout, unit, false);
+        return orTimeout(timeout, unit, true);
+    }
+    
+    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+        return orTimeout(timeout, unit, cancelOnTimeout, false);
     }
 
-    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean enlistOrigin) {
-        return orTimeout(Promises.toDuration(timeout, unit), enlistOrigin);
+    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+        return orTimeout(Promises.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
     public DependentPromise<T> orTimeout(Duration duration) {
-        return orTimeout(duration, false);
+        return orTimeout(duration, true);
     }
     
-    public DependentPromise<T> orTimeout(Duration duration, boolean enlistOrigin) {
+    public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
+        return orTimeout(duration, cancelOnTimeout, false);
+    }
+    
+    public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
+        Promise<T> onTimeout = Promises.failAfter(duration);
         // Use *async to execute on default "this" executor
-        return applyToEitherAsync(
-            Promises.failAfter(duration), 
-            Function.identity(), 
+        return Promises.dependent(this).applyToEitherAsync(
+            onTimeout, 
+            v -> {
+                if (cancelOnTimeout) {
+                    cancel(true);
+                }
+                onTimeout.cancel(true); 
+                return v; 
+            }, 
             enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
-        );
+        );        
     }
     
-    public DependentPromise<T> completeOnTimeout(T value, long timeout, TimeUnit unit) {
-        return completeOnTimeout(value, timeout, unit, false);
+    public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit) {
+        return onTimeout(value, timeout, unit, true);
     }
     
-    public DependentPromise<T> completeOnTimeout(T value, long timeout, TimeUnit unit, boolean enlistOrigin) {
-        return completeOnTimeout(value, Promises.toDuration(timeout, unit), enlistOrigin);
+    public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+        return onTimeout(value, timeout, unit, cancelOnTimeout, false);
     }
     
-    public DependentPromise<T> completeOnTimeout(T value, Duration duration) {
-        return completeOnTimeout(value, duration, false);
+    public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+        return onTimeout(value, Promises.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+    }
+    
+    public DependentPromise<T> onTimeout(T value, Duration duration) {
+        return onTimeout(value, duration, true);
+    }
+    
+    public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
+        return onTimeout(value, duration, cancelOnTimeout, false);
     }
 
-    public DependentPromise<T> completeOnTimeout(T value, Duration duration, boolean enlistOrigin) {
-        // Use *async to execute on default "this" executor
-        return applyToEitherAsync(
-            // timeout converted to onTimeout value                
-            DependentPromise.from(Promises.delay(duration)).thenApply(d -> value, true), 
-            Function.identity(), 
-            enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
-        );
+    public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
+        return onTimeout(() -> value, duration, enlistOrigin); 
     }
     
-    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
-        return completeOnTimeout(supplier, timeout, unit, false);
+    public DependentPromise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
+        return onTimeout(supplier, timeout, unit, true);
     }
     
-    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean enlistOrigin) {
-        return completeOnTimeout(supplier, Promises.toDuration(timeout, unit), enlistOrigin);
+    public DependentPromise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+        return onTimeout(supplier, Promises.toDuration(timeout, unit), false);
     }
     
-    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, Duration duration) {
-        return completeOnTimeout(supplier, duration, false);
+    public DependentPromise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+        return onTimeout(supplier, Promises.toDuration(timeout, unit), enlistOrigin);
+    }
+    
+    public DependentPromise<T> onTimeout(Supplier<T> supplier, Duration duration) {
+        return onTimeout(supplier, duration, true);
+    }
+    
+    public DependentPromise<T> onTimeout(Supplier<T> supplier, Duration duration, boolean cancelOnTimeout) {
+        return onTimeout(supplier, duration, cancelOnTimeout, false);
     }
 
-    public DependentPromise<T> completeOnTimeout(Supplier<T> supplier, Duration duration, boolean enlistOrigin) {
+    public DependentPromise<T> onTimeout(Supplier<T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
-        return this
-            .thenApply(valueToSupplier, enlistOrigin) // ready this value converted to supplier
-            .applyToEitherAsync(// Use *async to execute on default "this" executor
-                // timeout converted to supplier of onTimeout value
-                DependentPromise.from(Promises.delay(duration)).thenApply(d -> supplier, true),
-                Function.identity(), 
+        
+        // timeout converted to supplier
+        Promise<Supplier<T>> onTimeout = Promises.dependent(Promises.delay(duration)).thenApply(d -> supplier, true);
+        
+        return Promises.dependent(this)
+            // resolved value converted to supplier
+            .thenApply(valueToSupplier, enlistOrigin)
+            // Use *async to execute on default "this" executor
+            .applyToEitherAsync(
+                onTimeout, 
+                s -> {
+                   if (cancelOnTimeout) {
+                       cancel(true);
+                   }
+                   onTimeout.cancel(true); 
+                   return s.get(); 
+                }, 
                 PromiseOrigin.ALL
-             )
-            .thenApply(s -> s.get(), true);
+             );        
     }
     
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn) {

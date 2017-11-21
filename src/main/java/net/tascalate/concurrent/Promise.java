@@ -61,45 +61,82 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit) {
-        return orTimeout(Promises.toDuration(timeout, unit));
+        return orTimeout(timeout, unit, true);
+    }
+    
+    default Promise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+        return orTimeout(Promises.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default Promise<T> orTimeout(Duration duration) {
+        return orTimeout(duration, true);
+    }
+    
+    default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
+        Promise<T> onTimeout = Promises.failAfter(duration);
         // Use *async to execute on default "this" executor
-        return DependentPromise.from(this).applyToEitherAsync(
-            Promises.failAfter(duration), Function.identity(), PromiseOrigin.PARAM_ONLY
+        return Promises.dependent(this).applyToEitherAsync(
+            onTimeout, 
+            v -> {
+                if (cancelOnTimeout) {
+                    cancel(true);
+                }
+                onTimeout.cancel(true); 
+                return v; 
+            }, 
+            PromiseOrigin.PARAM_ONLY
         );
     }
     
-    default Promise<T> completeOnTimeout(T value, long timeout, TimeUnit unit) {
-        return completeOnTimeout(value, Promises.toDuration(timeout, unit));
+    default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
+        return onTimeout(value, timeout, unit, true);
+    }
+    
+    default Promise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+        return onTimeout(value, Promises.toDuration(timeout, unit));
     }
 
-    default Promise<T> completeOnTimeout(T value, Duration duration) {
-        return DependentPromise.from(this)
-            .applyToEitherAsync(// Use *async to execute on default "this" executor
-                // timeout converted to onTimeout value
-                DependentPromise.from(Promises.delay(duration)).thenApply(d -> value, true),
-                Function.identity(), 
-                PromiseOrigin.PARAM_ONLY
-            );
+    default Promise<T> onTimeout(T value, Duration duration) {
+        return onTimeout(value, duration, true);
     }
     
-    default Promise<T> completeOnTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
-        return completeOnTimeout(supplier, Promises.toDuration(timeout, unit));
+    default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
+        return onTimeout(() -> value, duration, cancelOnTimeout);
     }
     
-    default Promise<T> completeOnTimeout(Supplier<T> supplier, Duration duration) {
+    default Promise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
+        return onTimeout(supplier, timeout, unit, true);
+    }
+    
+    default Promise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+        return onTimeout(supplier, Promises.toDuration(timeout, unit), cancelOnTimeout);
+    }
+    
+    default Promise<T> onTimeout(Supplier<T> supplier, Duration duration) {
+        return onTimeout(supplier, duration, true);
+    }
+    
+    default Promise<T> onTimeout(Supplier<T> supplier, Duration duration, boolean cancelOnTimeout) {
         Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
-        return DependentPromise.from(this)
-            .thenApply(valueToSupplier, false) // ready this value converted to supplier
-            .applyToEitherAsync(// Use *async to execute on default "this" executor
-                // timeout converted to supplier of onTimeout value
-                DependentPromise.from(Promises.delay(duration)).thenApply(d -> supplier, true),
-                Function.identity(), 
+        
+        // timeout converted to supplier
+        Promise<Supplier<T>> onTimeout = Promises.dependent(Promises.delay(duration)).thenApply(d -> supplier, true);
+        
+        return Promises.dependent(this)
+            // resolved value converted to supplier
+            .thenApply(valueToSupplier, false)
+            // Use *async to execute on default "this" executor
+            .applyToEitherAsync(
+                onTimeout, 
+                s -> {
+                   if (cancelOnTimeout) {
+                       cancel(true);
+                   }
+                   onTimeout.cancel(true); 
+                   return s.get(); 
+                }, 
                 PromiseOrigin.ALL
-             )
-            .thenApply(s -> s.get(), true);
+             );
     }
     
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);

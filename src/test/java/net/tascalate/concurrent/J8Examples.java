@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -24,8 +25,14 @@ public class J8Examples {
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
         
+        Promises.success("ABC").applyToEither(Promises.failure(new IllegalArgumentException()),r -> {
+           System.out.println("Race won by value: " + r);
+           return r;
+        });
+        
         CompletableTask
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
+            .onTimeout(123456789, Duration.ofMillis(200))
             .thenAcceptAsync(J8Examples::onComplete)
             .get(); 
         
@@ -127,6 +134,7 @@ public class J8Examples {
             return i * 1000;
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
+            System.out.println("awaitAndProduceN interrupted, requested value " + i);
             return -1;
         }
     }
