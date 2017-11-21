@@ -88,7 +88,7 @@ public class CompletablePromise<T> extends AbstractDelegatingPromise<T, Completa
     }
     
     public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
-        CompletableTask.supplyAsync(supplier, executor).thenAccept(v -> onSuccess(v) );
+        CompletableTask.supplyAsync(supplier, executor).thenAccept(this::onSuccess);
         return this;
     }
     

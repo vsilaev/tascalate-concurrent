@@ -62,7 +62,11 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public static <U> DependentPromise<U> from(Promise<U> source) {
-        return doWrap(source, null);
+        if (source instanceof DependentPromise) {
+            return (DependentPromise<U>)source;
+        } else {
+            return doWrap(source, null);
+        }
     }
     
     protected void cancelOrigins(boolean mayInterruptIfRunning) {

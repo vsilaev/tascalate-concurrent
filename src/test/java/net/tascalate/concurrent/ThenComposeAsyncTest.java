@@ -57,6 +57,7 @@ public class ThenComposeAsyncTest {
                     return 10 * n;
                  }));
         
+        @SuppressWarnings("unused")
         Promise<?> pThen = p.thenRunAsync(() -> {
                     ran.set(true);
                 });

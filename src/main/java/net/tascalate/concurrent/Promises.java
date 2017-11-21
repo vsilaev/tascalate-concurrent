@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -104,6 +105,32 @@ public class Promises {
         ));
         return result;
     }
+    
+    /**
+     * Converts {@link CompletionStage} to a {@link DependentPromise}
+     * @param stage
+     * original CompletionStage
+     * @param <T>
+     * a type of the successfully resolved promise value  
+     * @return
+     * created DependentPromise
+     */
+    public static <T> DependentPromise<T> dependent(CompletionStage<T> stage) {
+        return dependent(from(stage));
+    }
+
+    /**
+     * Converts {@link Promise} to a {@link DependentPromise}
+     * @param stage
+     * original Promise
+     * @param <T>
+     * a type of the successfully resolved promise value 
+     * @return
+     * created DependentPromise
+     */
+    public static <T> DependentPromise<T> dependent(Promise<T> stage) {
+        return DependentPromise.from(stage);
+    }
 
     private static <T, R> CompletablePromise<R> createLinkedPromise(CompletionStage<T> stage) {
         return new CompletablePromise<R>() {
@@ -134,9 +161,13 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> all(CompletionStage<? extends T>... promises) {
-        return all(true, promises);
+        return all(Arrays.asList(promises));
     }
     
+    
+    public static <T> Promise<List<T>> all(List<CompletionStage<? extends T>> promises) {
+        return all(true, promises);        
+    }
     /**
      * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters are completed normally; 
      * if any promise completed exceptionally, then resulting promise is resolved faulty as well.
@@ -155,9 +186,12 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> all(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
-        return atLeast(promises.length, 0, cancelRemaining, promises);
+        return all(cancelRemaining, Arrays.asList(promises));
     }
 
+    public static <T> Promise<List<T>> all(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+        return atLeast(null != promises ? promises.size() : 0, 0, cancelRemaining, promises);
+    }
     /**
      * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
      * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
@@ -174,9 +208,12 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<T> any(CompletionStage<? extends T>... promises) {
-        return any(true, promises);
+        return any(Arrays.asList(promises));
     }
 
+    public static <T> Promise<T> any(List<CompletionStage<? extends T>> promises) {
+        return any(true, promises);
+    }
     /**
      * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
      * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
@@ -196,9 +233,12 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<T> any(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
-        return unwrap(atLeast(1, promises.length - 1, cancelRemaining, promises), false);
+        return any(cancelRemaining, Arrays.asList(promises));
     }
     
+    public static <T> Promise<T> any(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+        return unwrap(atLeast(1, (promises == null ? 0 : promises.size()) - 1, cancelRemaining, promises), false);
+    }
     
     /**
      * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
@@ -216,7 +256,11 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<T> anyStrict(CompletionStage<? extends T>... promises) {
-        return anyStrict(true, promises);
+        return anyStrict(Arrays.asList(promises)); 
+    }
+    
+    public static <T> Promise<T> anyStrict(List<CompletionStage<? extends T>> promises) {
+        return anyStrict(true, promises);        
     }
 
     /**
@@ -238,8 +282,12 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<T> anyStrict(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return anyStrict(cancelRemaining, Arrays.asList(promises));
+    }
+    
+    public static <T> Promise<T> anyStrict(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
         return unwrap(atLeast(1, 0, cancelRemaining, promises), true);
-    }    
+    }
     
     /**
      * <p>Generalization of the {@link Promises#any(CompletionStage...)} method.</p>
@@ -261,6 +309,10 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> atLeast(int minResultsCount, CompletionStage<? extends T>... promises) {
+        return atLeast(minResultsCount, Arrays.asList(promises));
+    }
+    
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, List<CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, true, promises);
     }
 
@@ -287,8 +339,12 @@ public class Promises {
      */
     @SafeVarargs
     public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, CompletionStage<? extends T>... promises) {
-        return atLeast(minResultsCount, promises.length - minResultsCount, cancelRemaining, promises);
-    }    
+        return atLeast(minResultsCount, cancelRemaining, Arrays.asList(promises));
+    }
+    
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+        return atLeast(minResultsCount, (promises == null ? 0 : promises.size()) - minResultsCount, cancelRemaining, promises);
+    }
     
     /**
      * <p>Generalization of the {@link Promises#anyStrict(CompletionStage...)} method.</p>
@@ -311,6 +367,10 @@ public class Promises {
      */    
     @SafeVarargs
     public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, CompletionStage<? extends T>... promises) {
+        return atLeastStrict(minResultsCount, Arrays.asList(promises));
+    }
+    
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, List<CompletionStage<? extends T>> promises) {
         return atLeastStrict(minResultsCount, true, promises);
     }
 
@@ -338,8 +398,12 @@ public class Promises {
      */    
     @SafeVarargs
     public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, CompletionStage<? extends T>... promises) {
-        return atLeast(minResultsCount, 0, cancelRemaining, promises);
+        return atLeast(minResultsCount, cancelRemaining, Arrays.asList(promises));
     }    
+    
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+        return atLeast(minResultsCount, 0, cancelRemaining, promises);
+    }
     
     /**
      * <p>General method to combine several {@link CompletionStage}-s passed as arguments into single promise.</p>
@@ -369,20 +433,33 @@ public class Promises {
      */    
     @SafeVarargs
     public static <T> Promise<List<T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
-                                               CompletionStage<? extends T>... promises) {
+            CompletionStage<? extends T>... promises) {
+        return atLeast(minResultsCount, maxErrorsCount, cancelRemaining, Arrays.asList(promises));
+    }
+    
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
+                                               List<CompletionStage<? extends T>> promises) {
         
-        if (minResultsCount > promises.length) {
+        int size = null == promises ? 0 : promises.size();
+        if (minResultsCount > size) {
             throw new IllegalArgumentException(
                     "The number of futures supplied is less than a number of futures to await");
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
-        } else if (promises.length == 1) {
-            return from(promises[0], Collections::singletonList, Function.<Throwable> identity());
+        } else if (size == 1) {
+            return from(promises.get(0), Collections::singletonList, Function.<Throwable> identity());
         } else {
             return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
         }
     }
     
+    /**
+     * Creates a promise that is resolved successfully after delay specified
+     * @param duration
+     * the duration of timeout
+     * @return
+     * the new promise
+     */
     public static Promise<Duration> delay(Duration duration) {
         final CompletablePromise<Duration> promise = new CompletablePromise<>();
         final Future<?> timeout = scheduler.schedule(
@@ -397,10 +474,26 @@ public class Promises {
         return promise;
     }
     
+    /**
+     * Creates a promise that is resolved after delay specified
+     * @param delay
+     * the duration of timeout
+     * @param timeUnit
+     * the time unit of the delay
+     * @return
+     * the new promise
+     */
     public static Promise<Duration> delay(long delay, TimeUnit timeUnit) {
         return delay( toDuration(delay, timeUnit) );
     }
 
+    /**
+     * Creates a promise that is resolved erronously with {@link TimeoutException} after delay specified
+     * @param duration
+     * the duration of timeout
+     * @return
+     * the new promise
+     */
     public static <T> Promise<T> failAfter(Duration duration) {
         final CompletablePromise<T> promise = new CompletablePromise<>();
         final Future<?> timeout = scheduler.schedule(
@@ -410,7 +503,16 @@ public class Promises {
         promise.whenComplete((r, e) -> timeout.cancel(true));
         return promise;
     }
-    
+
+    /**
+     * Creates a promise that is resolved erronously with {@link TimeoutException} after delay specified
+     * @param delay
+     * the duration of timeout
+     * @param timeUnit
+     * the time unit of the delay
+     * @return
+     * the new promise
+     */    
     public static <T> Promise<T> failAfter(long delay, TimeUnit timeUnit) {
         return failAfter( toDuration(delay, timeUnit) );
     }
