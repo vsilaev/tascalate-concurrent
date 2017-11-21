@@ -158,7 +158,7 @@ public class DependentPromise<T> implements Promise<T> {
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Promise<T> onTimeout = Promises.failAfter(duration);
         // Use *async to execute on default "this" executor
-        return Promises.dependent(this).applyToEitherAsync(
+        return applyToEitherAsync(
             onTimeout, 
             v -> {
                 if (cancelOnTimeout) {
@@ -221,7 +221,7 @@ public class DependentPromise<T> implements Promise<T> {
         // timeout converted to supplier
         Promise<Supplier<T>> onTimeout = Promises.dependent(Promises.delay(duration)).thenApply(d -> supplier, true);
         
-        return Promises.dependent(this)
+        return this
             // resolved value converted to supplier
             .thenApply(valueToSupplier, enlistOrigin)
             // Use *async to execute on default "this" executor
