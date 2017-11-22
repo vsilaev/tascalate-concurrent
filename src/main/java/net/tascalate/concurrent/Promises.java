@@ -21,14 +21,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -130,6 +134,14 @@ public class Promises {
      */
     public static <T> DependentPromise<T> dependent(Promise<T> stage) {
         return DependentPromise.from(stage);
+    }
+    
+    public static Promise<Void> task(Executor executor) {
+        return CompletableTask.asyncOn(executor);
+    }
+    
+    public static <T> Promise<T> task(CompletionStage<T> stage, Executor executor) {
+        return dependent(task(executor)).thenCombineAsync(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY);
     }
 
     private static <T, R> CompletablePromise<R> createLinkedPromise(CompletionStage<T> stage) {
@@ -517,6 +529,78 @@ public class Promises {
         return failAfter( toDuration(delay, timeUnit) );
     }
         
+    
+    public static <T> Promise<T> poll(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
+        return pollOptional(() -> Optional.ofNullable(codeBlock.call()), executor, retryPolicy);
+    }
+    
+    public static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
+        final CompletablePromise<T> promise = new CompletablePromise<>();
+        final AtomicReference<Promise<?>> callPromiseRef = new AtomicReference<>();
+        // Cleanup latest timeout on completion;
+        promise.whenComplete(
+            (r, e) -> 
+                Optional
+                .of(callPromiseRef)
+                .map(AtomicReference::get)
+                .ifPresent( p -> p.cancel(true) )
+        );
+        RetryContext ctx = RetryContext.initial(retryPolicy);
+        pollOnce(codeBlock, executor, ctx, promise, callPromiseRef);
+        return promise;
+    }
+    
+    private static <T> void pollOnce(Callable<Optional<? extends T>> codeBlock, 
+                                     Executor executor, RetryContext ctx, 
+                                     CompletablePromise<T> resultPromise, 
+                                     AtomicReference<Promise<?>> callPromiseRef) {
+        
+        // Promise may be cancelled outside of polling
+        if (resultPromise.isDone()) {
+            return;
+        }
+        
+        long executionDelayMillis = ctx.executionDelayMillis();
+        if (executionDelayMillis >= 0) {
+            Runnable doCall = () -> {
+                long startTime = System.currentTimeMillis();
+                try {
+                    Optional<? extends T> result = codeBlock.call();
+                    if (result.isPresent()) {
+                        resultPromise.onSuccess(result.get());
+                    } else {
+                        long finishTime = System.currentTimeMillis();
+                        RetryContext nextCtx = ctx.getNextRetry(finishTime - startTime);
+                        pollOnce(codeBlock, executor, nextCtx, resultPromise, callPromiseRef);
+                    }
+                } catch (Exception ex) {
+                    long finishTime = System.currentTimeMillis();
+                    RetryContext nextCtx = ctx.getNextRetry(finishTime - startTime, ex);
+                    pollOnce(codeBlock, executor, nextCtx, resultPromise, callPromiseRef);
+                }
+            };
+            
+            Promise<?> callPromise;
+            if (executionDelayMillis > 0) {
+                // Timeout itself
+                Promise<?> timeout = delay(Duration.ofMillis(executionDelayMillis));
+                // Call should be done via CompletableTask to let it be interruptible
+                callPromise = dependent(task(executor)).runAfterBothAsync(timeout, doCall, PromiseOrigin.PARAM_ONLY);
+            } else {
+                // Immediately send to executor
+                callPromise = CompletableTask.runAsync(doCall, executor); 
+            }
+            callPromiseRef.set(callPromise);
+            // If result promise is cancelled after callPromise was set need to stop;
+            if (resultPromise.isDone()) {
+                callPromise.cancel(true);
+                return;
+            }
+
+        } else {
+            resultPromise.onFailure(ctx.getLastThrowable());
+        }
+    }
 
     private static <T> Promise<T> unwrap(CompletionStage<List<T>> original, boolean unwrapException) {
         return from(
