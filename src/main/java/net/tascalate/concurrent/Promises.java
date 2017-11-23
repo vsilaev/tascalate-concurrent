@@ -657,6 +657,17 @@ public class Promises {
         return Duration.of(delay, toChronoUnit(timeUnit));
     }
     
+    static <T, U> BiConsumer<T, U> timeoutsCleanup(Promise<T> self, Promise<?> onTimeout, boolean cancelOnTimeout) {
+    	return (r, e) -> {
+        	// Result comes from timeout and cancel-on-timeout is set
+        	// If both are done then cancel has no effect anyway
+            if ((onTimeout.isDone() && !onTimeout.isCancelled()) && cancelOnTimeout) {
+                self.cancel(true);
+            }
+            onTimeout.cancel(true);
+    	};
+    }
+    
     private static ChronoUnit toChronoUnit(TimeUnit unit) { 
         Objects.requireNonNull(unit, "unit"); 
         switch (unit) { 

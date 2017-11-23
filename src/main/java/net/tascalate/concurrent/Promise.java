@@ -75,16 +75,11 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
         Promise<T> onTimeout = Promises.failAfter(duration);
         // Use *async to execute on default "this" executor
-        return Promises.dependent(this)
-            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY)
-            .whenComplete((v, e) -> {
-            	// Result comes from timeout and cancel-on-timeout is set
-            	// If both are done then cancel has no effect anyway
-                if (onTimeout.isDone() && cancelOnTimeout) {
-                    cancel(true);
-                }
-                onTimeout.cancel(true); 
-            }, true);
+        Promise<T> result = Promises.dependent(this)
+            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
+        
+        result.whenComplete(Promises.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        return result;
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -123,19 +118,14 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             .dependent(Promises.delay(duration))
             .thenApply(d -> supplier, true);
         
-        return Promises.dependent(this)
+        Promise<T> result = Promises.dependent(this)
             // resolved value converted to supplier
             .thenApply(valueToSupplier, false)
             // Use *async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
-            .whenComplete((v, e) -> {
-            	// Result comes from timeout and cancel-on-timeout is set
-            	// If both are done then cancel has no effect anyway
-                if (onTimeout.isDone() && cancelOnTimeout) {
-                    cancel(true);
-                }
-                onTimeout.cancel(true);
-            }, true);
+            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL);
+        
+        result.whenComplete(Promises.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        return result;
     }
     
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);
