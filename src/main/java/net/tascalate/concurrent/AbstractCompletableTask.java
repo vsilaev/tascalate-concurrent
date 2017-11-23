@@ -418,7 +418,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         if (ex.getCause() instanceof CompletionException) {
             Throwable completionExceptionReason = ex.getCause().getCause();
             if (null != completionExceptionReason) {
-                return new ExecutionException(ex.getMessage(), completionExceptionReason);
+                return new ExecutionException(completionExceptionReason);
             }
         }
         return ex;
