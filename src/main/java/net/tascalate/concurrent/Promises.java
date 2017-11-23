@@ -136,12 +136,9 @@ public class Promises {
         return DependentPromise.from(stage);
     }
     
-    public static Promise<Void> task(Executor executor) {
-        return CompletableTask.asyncOn(executor);
-    }
-    
     public static <T> Promise<T> task(CompletionStage<T> stage, Executor executor) {
-        return dependent(task(executor)).thenCombineAsync(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY);
+        return dependent(CompletableTask.asyncOn(executor))
+               .thenCombineAsync(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY);
     }
 
     private static <T, R> CompletablePromise<R> createLinkedPromise(CompletionStage<T> stage) {
@@ -531,7 +528,11 @@ public class Promises {
         
     
     public static <T> Promise<T> poll(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        return pollOptional(() -> Optional.ofNullable(codeBlock.call()), executor, retryPolicy);
+        Promise<ObjectRef<T>> wrappedResult = pollOptional(
+            () -> Optional.of(new ObjectRef<T>( codeBlock.call() )), 
+            executor, retryPolicy
+        );
+        return dependent(wrappedResult).thenApply(ObjectRef::dereference, true);
     }
     
     public static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
@@ -560,8 +561,8 @@ public class Promises {
             return;
         }
         
-        long executionDelayMillis = ctx.executionDelayMillis();
-        if (executionDelayMillis >= 0) {
+        RetryPolicy.Outcome answer = ctx.shouldContinue();
+        if (answer.shouldExecute()) {
             Runnable doCall = () -> {
                 long startTime = System.currentTimeMillis();
                 try {
@@ -570,35 +571,43 @@ public class Promises {
                         resultPromise.onSuccess(result.get());
                     } else {
                         long finishTime = System.currentTimeMillis();
-                        RetryContext nextCtx = ctx.getNextRetry(finishTime - startTime);
+                        RetryContext nextCtx = ctx.nextRetry(finishTime - startTime);
                         pollOnce(codeBlock, executor, nextCtx, resultPromise, callPromiseRef);
                     }
                 } catch (Exception ex) {
                     long finishTime = System.currentTimeMillis();
-                    RetryContext nextCtx = ctx.getNextRetry(finishTime - startTime, ex);
+                    RetryContext nextCtx = ctx.nextRetry(finishTime - startTime, ex);
                     pollOnce(codeBlock, executor, nextCtx, resultPromise, callPromiseRef);
                 }
             };
             
             Promise<?> callPromise;
-            if (executionDelayMillis > 0) {
+            Promise<?> finalPromise;
+            long backoffDelayMillis = answer.backoffDelayMillis();
+            if (backoffDelayMillis > 0) {
                 // Timeout itself
-                Promise<?> timeout = delay(Duration.ofMillis(executionDelayMillis));
-                // Call should be done via CompletableTask to let it be interruptible
-                callPromise = dependent(task(executor)).runAfterBothAsync(timeout, doCall, PromiseOrigin.PARAM_ONLY);
+                Promise<?> backoff = delay(Duration.ofMillis(backoffDelayMillis));
+                // Call should be done via CompletableTask to let it be interruptible                
+                finalPromise = CompletableTask.asyncOn(executor).runAfterBothAsync(backoff, doCall);
+                callPromise  = backoff; // Canceling timeout will cancel the chain above 
             } else {
                 // Immediately send to executor
-                callPromise = CompletableTask.runAsync(doCall, executor); 
+                callPromise = finalPromise = CompletableTask.runAsync(doCall, executor); 
             }
             callPromiseRef.set(callPromise);
             // If result promise is cancelled after callPromise was set need to stop;
             if (resultPromise.isDone()) {
                 callPromise.cancel(true);
-                return;
+            } else if (answer.hasTimeout()) {
+                // Restrict execution time of the final promise
+                // Timeout should be a sum of policy timeout and policy backoff 
+                // while timer is set up immediately 
+                long totalTimeout = Math.max(0, answer.timeoutDelayMillis()) + Math.max(0, answer.backoffDelayMillis());
+                finalPromise.orTimeout(Duration.ofMillis(totalTimeout), true);
             }
 
         } else {
-            resultPromise.onFailure(ctx.getLastThrowable());
+            resultPromise.onFailure(ctx.asFailure());
         }
     }
 
@@ -667,4 +676,16 @@ public class Promises {
             return result;
         }
     });
+    
+    private static class ObjectRef<T> {
+        private final T reference;
+        
+        ObjectRef(T reference) {
+            this.reference = reference;
+        }
+        
+        T dereference() {
+            return reference;
+        }
+    }
 }

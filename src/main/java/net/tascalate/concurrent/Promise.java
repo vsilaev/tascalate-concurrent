@@ -75,16 +75,15 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
         Promise<T> onTimeout = Promises.failAfter(duration);
         // Use *async to execute on default "this" executor
-        return Promises.dependent(this).applyToEitherAsync(
-            onTimeout, 
-            v -> {
+        return Promises.dependent(this)
+            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY)
+            .whenComplete((v, e) -> {
                 if (cancelOnTimeout) {
                     cancel(true);
                 }
                 onTimeout.cancel(true); 
-                return v; 
             }, 
-            PromiseOrigin.PARAM_ONLY
+            true
         );
     }
     
@@ -126,17 +125,13 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             // resolved value converted to supplier
             .thenApply(valueToSupplier, false)
             // Use *async to execute on default "this" executor
-            .applyToEitherAsync(
-                onTimeout, 
-                s -> {
-                   if (cancelOnTimeout) {
-                       cancel(true);
-                   }
-                   onTimeout.cancel(true); 
-                   return s.get(); 
-                }, 
-                PromiseOrigin.ALL
-             );
+            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
+            .whenComplete((v, e) -> {
+                if (cancelOnTimeout) {
+                    cancel(true);
+                }
+                onTimeout.cancel(true);
+            }, true);
     }
     
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);
