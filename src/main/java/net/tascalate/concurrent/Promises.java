@@ -547,15 +547,23 @@ public class Promises {
                 .map(AtomicReference::get)
                 .ifPresent( p -> p.cancel(true) )
         );
+        Consumer<Promise<?>> changeCallPromiseRef = p -> {
+        	// If result promise is cancelled after callPromise was set need to stop;            	
+        	callPromiseRef.set( p );	
+            if (promise.isDone()) {
+                p.cancel(true);
+            }
+        };
+        
         RetryContext ctx = RetryContext.initial(retryPolicy);
-        pollOnce(codeBlock, executor, ctx, promise, callPromiseRef);
+        pollOnce(codeBlock, executor, ctx, promise, changeCallPromiseRef);
         return promise;
     }
     
     private static <T> void pollOnce(Callable<Optional<? extends T>> codeBlock, 
                                      Executor executor, RetryContext ctx, 
                                      CompletablePromise<T> resultPromise, 
-                                     AtomicReference<Promise<?>> callPromiseRef) {
+                                     Consumer<Promise<?>> changeCallPromiseRef) {
         
         // Promise may be cancelled outside of polling
         if (resultPromise.isDone()) {
@@ -579,12 +587,12 @@ public class Promises {
                     } else {
                         long finishTime = System.currentTimeMillis();
                         RetryContext nextCtx = ctx.nextRetry(finishTime - startTime);
-                        pollOnce(codeBlock, executor, nextCtx, resultPromise, callPromiseRef);
+                        pollOnce(codeBlock, executor, nextCtx, resultPromise, changeCallPromiseRef);
                     }
                 } catch (Exception ex) {
                     long finishTime = System.currentTimeMillis();
                     RetryContext nextCtx = ctx.nextRetry(finishTime - startTime, ex);
-                    pollOnce(codeBlock, executor, nextCtx, resultPromise, callPromiseRef);
+                    pollOnce(codeBlock, executor, nextCtx, resultPromise, changeCallPromiseRef);
                 }
             };
             
@@ -592,19 +600,10 @@ public class Promises {
                 // Call should be done via CompletableTask to let it be interruptible               
             	Promise<?> p = CompletableTask.runAsync(doCall, executor);
             	if (answer.hasTimeout()) {
-            		p.orTimeout( Duration.ofMillis(Math.max(0, answer.timeoutDelayMillis()) ) );
+                    p.orTimeout( Duration.ofMillis(Math.max(0, answer.timeoutDelayMillis()) ) );
             	}
             	return p;
             };
-            
-            Consumer<Promise<?>> changeCallPromiseRef = p -> {
-            	// If result promise is cancelled after callPromise was set need to stop;            	
-            	callPromiseRef.set( p );	
-                if (resultPromise.isDone()) {
-                    p.cancel(true);
-                }
-            };
-            
 
             long backoffDelayMillis = answer.backoffDelayMillis();
             if (backoffDelayMillis > 0) {
