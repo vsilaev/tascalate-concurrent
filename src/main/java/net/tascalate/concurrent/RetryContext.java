@@ -69,5 +69,21 @@ public class RetryContext {
         }
         return new RetryContext(policy, retry - 1, lastCallDuration, lastThrowable);
     }
+    
+    public static RetryContext current() {
+        return CURRENT_CONTEXT.get();
+    }
+    
+    void enter() {
+        CURRENT_CONTEXT.set(this);
+    }
+    
+    void exit() {
+        if (CURRENT_CONTEXT.get() == this) {
+            CURRENT_CONTEXT.remove();
+        }
+    }
+    
+    private static final ThreadLocal<RetryContext> CURRENT_CONTEXT = new ThreadLocal<>();
 
 }

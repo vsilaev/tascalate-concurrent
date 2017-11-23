@@ -566,7 +566,13 @@ public class Promises {
             Runnable doCall = () -> {
                 long startTime = System.currentTimeMillis();
                 try {
-                    Optional<? extends T> result = codeBlock.call();
+                    Optional<? extends T> result;
+                    ctx.enter();
+                    try {
+                        result = codeBlock.call();
+                    } finally {
+                        ctx.exit();
+                    }
                     if (result.isPresent()) {
                         resultPromise.onSuccess(result.get());
                     } else {
