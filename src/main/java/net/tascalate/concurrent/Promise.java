@@ -78,13 +78,13 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         return Promises.dependent(this)
             .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY)
             .whenComplete((v, e) -> {
-                if (cancelOnTimeout) {
+            	// Result comes from timeout and cancel-on-timeout is set
+            	// If both are done then cancel has no effect anyway
+                if (onTimeout.isDone() && cancelOnTimeout) {
                     cancel(true);
                 }
                 onTimeout.cancel(true); 
-            }, 
-            true
-        );
+            }, true);
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -119,7 +119,9 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
         
         // timeout converted to supplier
-        Promise<Supplier<T>> onTimeout = Promises.dependent(Promises.delay(duration)).thenApply(d -> supplier, true);
+        Promise<Supplier<T>> onTimeout = Promises
+            .dependent(Promises.delay(duration))
+            .thenApply(d -> supplier, true);
         
         return Promises.dependent(this)
             // resolved value converted to supplier
@@ -127,7 +129,9 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             // Use *async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
             .whenComplete((v, e) -> {
-                if (cancelOnTimeout) {
+            	// Result comes from timeout and cancel-on-timeout is set
+            	// If both are done then cancel has no effect anyway
+                if (onTimeout.isDone() && cancelOnTimeout) {
                     cancel(true);
                 }
                 onTimeout.cancel(true);

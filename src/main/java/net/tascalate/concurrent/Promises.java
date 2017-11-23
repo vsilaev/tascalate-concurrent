@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Utility class to create a resolved (either successfully or faulty) {@link Promise}-s; 
@@ -587,29 +588,35 @@ public class Promises {
                 }
             };
             
-            Promise<?> callPromise;
-            Promise<?> finalPromise;
+            Supplier<Promise<?>> submittedCall = () -> {
+                // Call should be done via CompletableTask to let it be interruptible               
+            	Promise<?> p = CompletableTask.runAsync(doCall, executor);
+            	if (answer.hasTimeout()) {
+            		p.orTimeout( Duration.ofMillis(Math.max(0, answer.timeoutDelayMillis()) ) );
+            	}
+            	return p;
+            };
+            
+            Consumer<Promise<?>> changeCallPromiseRef = p -> {
+            	// If result promise is cancelled after callPromise was set need to stop;            	
+            	callPromiseRef.set( p );	
+                if (resultPromise.isDone()) {
+                    p.cancel(true);
+                }
+            };
+            
+
             long backoffDelayMillis = answer.backoffDelayMillis();
             if (backoffDelayMillis > 0) {
                 // Timeout itself
-                Promise<?> backoff = delay(Duration.ofMillis(backoffDelayMillis));
-                // Call should be done via CompletableTask to let it be interruptible                
-                finalPromise = CompletableTask.asyncOn(executor).runAfterBothAsync(backoff, doCall);
-                callPromise  = backoff; // Canceling timeout will cancel the chain above 
+                Promise<?> backoff = delay( Duration.ofMillis(backoffDelayMillis) );
+                // Invocation after timeout
+                backoff.thenAccept(d -> changeCallPromiseRef.accept( submittedCall.get() ));
+                // Canceling timeout will cancel the chain above
+                changeCallPromiseRef.accept( backoff );
             } else {
                 // Immediately send to executor
-                callPromise = finalPromise = CompletableTask.runAsync(doCall, executor); 
-            }
-            callPromiseRef.set(callPromise);
-            // If result promise is cancelled after callPromise was set need to stop;
-            if (resultPromise.isDone()) {
-                callPromise.cancel(true);
-            } else if (answer.hasTimeout()) {
-                // Restrict execution time of the final promise
-                // Timeout should be a sum of policy timeout and policy backoff 
-                // while timer is set up immediately 
-                long totalTimeout = Math.max(0, answer.timeoutDelayMillis()) + Math.max(0, answer.backoffDelayMillis());
-                finalPromise.orTimeout(Duration.ofMillis(totalTimeout), true);
+            	changeCallPromiseRef.accept( submittedCall.get() ); 
             }
 
         } else {

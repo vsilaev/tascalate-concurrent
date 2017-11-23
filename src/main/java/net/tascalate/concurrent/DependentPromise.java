@@ -173,15 +173,16 @@ public class DependentPromise<T> implements Promise<T> {
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Promise<T> onTimeout = Promises.failAfter(duration);
         // Use *async to execute on default "this" executor
-        return applyToEitherAsync(
-            onTimeout, Function.identity(), 
-            enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
-        ).whenComplete((v, e) -> {
-            if (cancelOnTimeout) {
-                cancel(true);
-            }
-            onTimeout.cancel(true); 
-        }, true);        
+        return this
+            .applyToEitherAsync(onTimeout, Function.identity(), enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY)
+            .whenComplete((v, e) -> {
+        	    // Result comes from timeout and cancel-on-timeout is set
+        	    // If both are done then cancel has no effect anyway
+                if (onTimeout.isDone() && cancelOnTimeout) {
+                    cancel(true);
+                }
+                onTimeout.cancel(true); 
+            }, true);        
     }
     
     public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -232,7 +233,9 @@ public class DependentPromise<T> implements Promise<T> {
         Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
         
         // timeout converted to supplier
-        Promise<Supplier<T>> onTimeout = Promises.dependent(Promises.delay(duration)).thenApply(d -> supplier, true);
+        Promise<Supplier<T>> onTimeout = Promises
+            .dependent(Promises.delay(duration))
+            .thenApply(d -> supplier, true);
         
         return this
             // resolved value converted to supplier
@@ -240,7 +243,9 @@ public class DependentPromise<T> implements Promise<T> {
             // Use *async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, Supplier::get,  PromiseOrigin.ALL)
             .whenComplete((v, e) -> {
-                if (cancelOnTimeout) {
+            	// Result comes from timeout and cancel-on-timeout is set
+            	// If both are done then cancel has no effect anyway
+                if (onTimeout.isDone() && cancelOnTimeout) {
                     cancel(true);
                 }
                 onTimeout.cancel(true);                 
