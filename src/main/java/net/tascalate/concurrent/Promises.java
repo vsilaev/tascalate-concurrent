@@ -526,7 +526,14 @@ public class Promises {
     public static <T> Promise<T> failAfter(long delay, TimeUnit timeUnit) {
         return failAfter( toDuration(delay, timeUnit) );
     }
-        
+    
+    public static Promise<Void> poll(Runnable codeBlock, Executor executor, RetryPolicy retryPolicy) {
+        Promise<Object> wrappedResult = pollOptional(
+                () -> { codeBlock.run(); return Optional.of(new Object()); }, 
+                executor, retryPolicy
+            );
+            return dependent(wrappedResult).thenApply(v -> null, true);  
+    }
     
     public static <T> Promise<T> poll(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
         Promise<ObjectRef<T>> wrappedResult = pollOptional(
