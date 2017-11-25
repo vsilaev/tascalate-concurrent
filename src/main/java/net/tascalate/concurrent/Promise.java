@@ -45,7 +45,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         return getNow(() -> valueIfAbsent);
     }
     
-    default public T getNow(Supplier<T> valueIfAbsent) {
+    default public T getNow(Supplier<? extends T> valueIfAbsent) {
         if (isDone()) {
             try {
                 return get();
@@ -98,23 +98,23 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         return onTimeout(() -> value, duration, cancelOnTimeout);
     }
     
-    default Promise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
+    default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
         return onTimeout(supplier, timeout, unit, true);
     }
     
-    default Promise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+    default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return onTimeout(supplier, Promises.toDuration(timeout, unit), cancelOnTimeout);
     }
     
-    default Promise<T> onTimeout(Supplier<T> supplier, Duration duration) {
+    default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
         return onTimeout(supplier, duration, true);
     }
     
-    default Promise<T> onTimeout(Supplier<T> supplier, Duration duration, boolean cancelOnTimeout) {
-        Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
+    default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
+        Function<T, Supplier<? extends T>> valueToSupplier = v -> () -> v;
         
         // timeout converted to supplier
-        Promise<Supplier<T>> onTimeout = Promises
+        Promise<Supplier<? extends T>> onTimeout = Promises
             .delay(duration)
             .dependent()
             .thenApply(d -> supplier, true);

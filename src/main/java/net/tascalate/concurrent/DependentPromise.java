@@ -129,7 +129,7 @@ public class DependentPromise<T> implements Promise<T> {
         return completionStage.getNow(valueIfAbsent);
     }
     
-    public T getNow(Supplier<T> valueIfAbsent) {
+    public T getNow(Supplier<? extends T> valueIfAbsent) {
         return completionStage.getNow(valueIfAbsent);
     }
 
@@ -203,31 +203,31 @@ public class DependentPromise<T> implements Promise<T> {
         return onTimeout(() -> value, duration, enlistOrigin); 
     }
     
-    public DependentPromise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit) {
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
         return onTimeout(supplier, timeout, unit, true);
     }
     
-    public DependentPromise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return onTimeout(supplier, Promises.toDuration(timeout, unit), false);
     }
     
-    public DependentPromise<T> onTimeout(Supplier<T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
         return onTimeout(supplier, Promises.toDuration(timeout, unit), enlistOrigin);
     }
     
-    public DependentPromise<T> onTimeout(Supplier<T> supplier, Duration duration) {
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
         return onTimeout(supplier, duration, true);
     }
     
-    public DependentPromise<T> onTimeout(Supplier<T> supplier, Duration duration, boolean cancelOnTimeout) {
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
         return onTimeout(supplier, duration, cancelOnTimeout, false);
     }
 
-    public DependentPromise<T> onTimeout(Supplier<T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Function<T, Supplier<T>> valueToSupplier = v -> () -> v;
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
+        Function<T, Supplier<? extends T>> valueToSupplier = v -> () -> v;
         
         // timeout converted to supplier
-        Promise<Supplier<T>> onTimeout = Promises
+        Promise<Supplier<? extends T>> onTimeout = Promises
             .delay(duration)
             .dependent()
             .thenApply(d -> supplier, true);

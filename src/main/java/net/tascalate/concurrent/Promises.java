@@ -99,7 +99,7 @@ public class Promises {
         return result;
     }
 
-    static <T, R> Promise<R> from(CompletionStage<T> stage, 
+    static <T, R> Promise<R> from(CompletionStage<? extends T> stage, 
                                   Function<? super T, ? extends R> resultConverter,
                                   Function<? super Throwable, ? extends Throwable> errorConverter) {
         
@@ -111,13 +111,13 @@ public class Promises {
         return result;
     }
     
-    public static <T> Promise<T> task(CompletionStage<T> stage, Executor executor) {
+    public static <T> Promise<T> task(CompletionStage<? extends T> stage, Executor executor) {
         return CompletableTask.asyncOn(executor)
                .dependent()
                .thenCombineAsync(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY);
     }
 
-    private static <T, R> CompletablePromise<R> createLinkedPromise(CompletionStage<T> stage) {
+    private static <T, R> CompletablePromise<R> createLinkedPromise(CompletionStage<? extends T> stage) {
         return new CompletablePromise<R>() {
             @Override
             public boolean cancel(boolean mayInterruptIfRunning) {
