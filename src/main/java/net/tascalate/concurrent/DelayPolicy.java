@@ -24,6 +24,7 @@ package net.tascalate.concurrent;
 
 import net.tascalate.concurrent.delays.BoundedMaxDelayPolicy;
 import net.tascalate.concurrent.delays.BoundedMinDelayPolicy;
+import net.tascalate.concurrent.delays.ExponentialDelayPolicy;
 import net.tascalate.concurrent.delays.FirstRetryNoDelayPolicy;
 import net.tascalate.concurrent.delays.FixedIntervalDelayPolicy;
 import net.tascalate.concurrent.delays.ProportionalRandomDelayPolicy;
@@ -31,9 +32,25 @@ import net.tascalate.concurrent.delays.UniformRandomDelayPolicy;
 
 public interface DelayPolicy {
     public static final DelayPolicy DEFAULT = new FirstRetryNoDelayPolicy(new FixedIntervalDelayPolicy());
-    public static final DelayPolicy INVALID_DELAY = ctx -> -1;
+    public static final DelayPolicy INVALID = ctx -> -1;
     
     abstract public long delayMillis(RetryContext context);
+    
+    public static DelayPolicy fixedInterval() {
+    	return new FixedIntervalDelayPolicy();
+    }
+    		
+    public static DelayPolicy fixedInterval(long intervalMillis) {
+    	return new FixedIntervalDelayPolicy(intervalMillis);
+    }
+    
+    public static DelayPolicy exponential(double multiplier) {
+    	return new ExponentialDelayPolicy(multiplier);
+    }
+    
+    public static DelayPolicy exponential(long initialDelayMillis, double multiplier) {
+    	return new ExponentialDelayPolicy(initialDelayMillis, multiplier);
+    }
     
     default DelayPolicy withUniformJitter() {
         return new UniformRandomDelayPolicy(this);

@@ -156,7 +156,7 @@ public class RetryPolicy {
              Collections.emptySet(), Collections.emptySet(), 
              ctx -> true, ctx -> false, 
              DelayPolicy.DEFAULT,
-             DelayPolicy.INVALID_DELAY
+             DelayPolicy.INVALID
         );
     }
 

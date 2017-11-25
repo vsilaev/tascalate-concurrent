@@ -29,6 +29,10 @@ public class ExponentialDelayPolicy implements DelayPolicy {
     private final long initialDelayMillis;
     private final double multiplier;
 
+    public ExponentialDelayPolicy(double multiplier) {
+    	this(FixedIntervalDelayPolicy.DEFAULT_PERIOD_MILLIS, multiplier);
+    }
+    
     public ExponentialDelayPolicy(long initialDelayMillis, double multiplier) {
         if (initialDelayMillis <= 0) {
             throw new IllegalArgumentException("Initial delay must be positive but was: " + initialDelayMillis);
