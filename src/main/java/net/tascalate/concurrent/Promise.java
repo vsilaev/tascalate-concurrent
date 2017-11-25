@@ -41,11 +41,11 @@ import java.util.function.Supplier;
  */
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
-    default public T getNow(T valueIfAbsent) {
+    default T getNow(T valueIfAbsent) {
         return getNow(() -> valueIfAbsent);
     }
     
-    default public T getNow(Supplier<? extends T> valueIfAbsent) {
+    default T getNow(Supplier<? extends T> valueIfAbsent) {
         if (isDone()) {
             try {
                 return get();
@@ -138,86 +138,86 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     	return DependentPromise.from(this);
     }
     
-    public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);
+    <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);
 
-    public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn);
+    <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn);
 
-    public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor);
+    <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor);
     
-    public Promise<Void> thenAccept(Consumer<? super T> action);
+    Promise<Void> thenAccept(Consumer<? super T> action);
 
-    public Promise<Void> thenAcceptAsync(Consumer<? super T> action);
+    Promise<Void> thenAcceptAsync(Consumer<? super T> action);
 
-    public Promise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor);
+    Promise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor);
 
-    public Promise<Void> thenRun(Runnable action);
+    Promise<Void> thenRun(Runnable action);
 
-    public Promise<Void> thenRunAsync(Runnable action);
+    Promise<Void> thenRunAsync(Runnable action);
 
-    public Promise<Void> thenRunAsync(Runnable action, Executor executor);
+    Promise<Void> thenRunAsync(Runnable action, Executor executor);
 
-    public <U, V> Promise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+    <U, V> Promise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
 
-    public <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+    <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
 
-    public <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other,
+    <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                               BiFunction<? super T, ? super U, ? extends V> fn, 
                                               Executor executor);
 
-    public <U> Promise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+    <U> Promise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
     
-    public <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+    <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
 
-    public <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
+    <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                  BiConsumer<? super T, ? super U> action, 
                                                  Executor executor);
 
-    public Promise<Void> runAfterBoth(CompletionStage<?> other, Runnable action);
+    Promise<Void> runAfterBoth(CompletionStage<?> other, Runnable action);
 
-    public Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action);
+    Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action);
 
-    public Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor);
+    Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor);
 
-    public <U> Promise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn);
+    <U> Promise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn);
     
-    public <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn);
+    <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn);
 
-    public <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
+    <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                              Function<? super T, U> fn,
                                              Executor executor);
 
-    public Promise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action);
+    Promise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action);
 
-    public Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action);
+    Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action);
 
-    public Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
+    Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                            Consumer<? super T> action,
                                            Executor executor);
 
-    public Promise<Void> runAfterEither(CompletionStage<?> other, Runnable action);
+    Promise<Void> runAfterEither(CompletionStage<?> other, Runnable action);
 
-    public Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action);
+    Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action);
 
-    public Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor);
+    Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor);
 
-    public <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
+    <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
 
-    public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn);
+    <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn);
 
-    public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor);
+    <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor);
 
-    public Promise<T> exceptionally(Function<Throwable, ? extends T> fn);
+    Promise<T> exceptionally(Function<Throwable, ? extends T> fn);
 
-    public Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
+    Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
 
-    public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action);
+    Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action);
 
-    public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor);
+    Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor);
 
-    public <U> Promise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn);
+    <U> Promise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn);
 
-    public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn);
+    <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn);
 
-    public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor);
+    <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor);
 
  }

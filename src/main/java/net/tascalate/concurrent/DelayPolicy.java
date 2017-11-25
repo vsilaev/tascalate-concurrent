@@ -34,7 +34,7 @@ public interface DelayPolicy {
     public static final DelayPolicy DEFAULT = new FirstRetryNoDelayPolicy(new FixedIntervalDelayPolicy());
     public static final DelayPolicy INVALID = ctx -> -1;
     
-    abstract public long delayMillis(RetryContext context);
+    long delayMillis(RetryContext context);
     
     public static DelayPolicy fixedInterval() {
     	return new FixedIntervalDelayPolicy();

@@ -32,11 +32,11 @@ import java.util.function.Predicate;
 public class RetryPolicy {
     
     public static interface Outcome {
-        abstract public boolean shouldExecute();
-        abstract public long backoffDelayMillis();
-        abstract public long timeoutDelayMillis();
+        boolean shouldExecute();
+        long backoffDelayMillis();
+        long timeoutDelayMillis();
         
-        default public boolean hasTimeout() {
+        default boolean hasTimeout() {
             return timeoutDelayMillis() > 0;
         }
     }
