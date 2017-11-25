@@ -115,8 +115,8 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         
         // timeout converted to supplier
         Promise<Supplier<T>> onTimeout = Promises
-        	.delay(duration)
-        	.dependent()
+            .delay(duration)
+            .dependent()
             .thenApply(d -> supplier, true);
         
         Promise<T> result = dependent()

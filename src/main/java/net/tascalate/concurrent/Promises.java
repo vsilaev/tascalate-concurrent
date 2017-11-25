@@ -428,7 +428,8 @@ public class Promises {
         int size = null == promises ? 0 : promises.size();
         if (minResultsCount > size) {
             throw new IllegalArgumentException(
-                    "The number of futures supplied is less than a number of futures to await");
+                "The number of futures supplied is less than a number of futures to await"
+            );
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
         } else if (size == 1) {
@@ -504,10 +505,10 @@ public class Promises {
     
     public static Promise<Void> poll(Runnable codeBlock, Executor executor, RetryPolicy retryPolicy) {
         Promise<Object> wrappedResult = pollOptional(
-                () -> { codeBlock.run(); return Optional.of(new Object()); }, 
-                executor, retryPolicy
-            );
-            return wrappedResult.dependent().thenApply(v -> null, true);  
+            () -> { codeBlock.run(); return Optional.of(new Object()); }, 
+            executor, retryPolicy
+        );
+        return wrappedResult.dependent().thenApply(v -> null, true);  
     }
     
     public static <T> Promise<T> poll(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
@@ -531,7 +532,7 @@ public class Promises {
         );
         Consumer<Promise<?>> changeCallPromiseRef = p -> {
         	// If result promise is cancelled after callPromise was set need to stop;            	
-        	callPromiseRef.set( p );	
+            callPromiseRef.set( p );	
             if (promise.isDone()) {
                 p.cancel(true);
             }
