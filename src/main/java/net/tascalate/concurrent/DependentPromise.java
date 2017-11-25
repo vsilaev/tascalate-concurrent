@@ -228,7 +228,8 @@ public class DependentPromise<T> implements Promise<T> {
         
         // timeout converted to supplier
         Promise<Supplier<T>> onTimeout = Promises
-            .dependent(Promises.delay(duration))
+            .delay(duration)
+            .dependent()
             .thenApply(d -> supplier, true);
         
         DependentPromise<T> result = this
@@ -239,6 +240,11 @@ public class DependentPromise<T> implements Promise<T> {
         
         result.whenComplete(Promises.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
+    }
+    
+    @Override
+    public DependentPromise<T> dependent() {
+    	return this;
     }
     
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn) {

@@ -111,34 +111,9 @@ public class Promises {
         return result;
     }
     
-    /**
-     * Converts {@link CompletionStage} to a {@link DependentPromise}
-     * @param stage
-     * original CompletionStage
-     * @param <T>
-     * a type of the successfully resolved promise value  
-     * @return
-     * created DependentPromise
-     */
-    public static <T> DependentPromise<T> dependent(CompletionStage<T> stage) {
-        return dependent(from(stage));
-    }
-
-    /**
-     * Converts {@link Promise} to a {@link DependentPromise}
-     * @param stage
-     * original Promise
-     * @param <T>
-     * a type of the successfully resolved promise value 
-     * @return
-     * created DependentPromise
-     */
-    public static <T> DependentPromise<T> dependent(Promise<T> stage) {
-        return DependentPromise.from(stage);
-    }
-    
     public static <T> Promise<T> task(CompletionStage<T> stage, Executor executor) {
-        return dependent(CompletableTask.asyncOn(executor))
+        return CompletableTask.asyncOn(executor)
+               .dependent()
                .thenCombineAsync(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY);
     }
 
@@ -532,7 +507,7 @@ public class Promises {
                 () -> { codeBlock.run(); return Optional.of(new Object()); }, 
                 executor, retryPolicy
             );
-            return dependent(wrappedResult).thenApply(v -> null, true);  
+            return wrappedResult.dependent().thenApply(v -> null, true);  
     }
     
     public static <T> Promise<T> poll(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
@@ -540,7 +515,7 @@ public class Promises {
             () -> Optional.of(new ObjectRef<T>( codeBlock.call() )), 
             executor, retryPolicy
         );
-        return dependent(wrappedResult).thenApply(ObjectRef::dereference, true);
+        return wrappedResult.dependent().thenApply(ObjectRef::dereference, true);
     }
     
     public static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
