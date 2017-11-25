@@ -161,44 +161,48 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
 
     <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other,
-                                              BiFunction<? super T, ? super U, ? extends V> fn, 
-                                              Executor executor);
+                                       BiFunction<? super T, ? super U, ? extends V> fn, 
+                                       Executor executor);
 
     <U> Promise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
     
     <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
 
     <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
-                                                 BiConsumer<? super T, ? super U> action, 
-                                                 Executor executor);
+                                          BiConsumer<? super T, ? super U> action, 
+                                          Executor executor);
 
     Promise<Void> runAfterBoth(CompletionStage<?> other, Runnable action);
 
     Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action);
 
-    Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Executor executor);
+    Promise<Void> runAfterBothAsync(CompletionStage<?> other, 
+    		                        Runnable action, 
+    		                        Executor executor);
 
     <U> Promise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn);
     
     <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn);
 
     <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
-                                             Function<? super T, U> fn,
-                                             Executor executor);
+                                      Function<? super T, U> fn,
+                                      Executor executor);
 
     Promise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action);
 
     Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action);
 
     Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
-                                           Consumer<? super T> action,
-                                           Executor executor);
+                                    Consumer<? super T> action,
+                                    Executor executor);
 
     Promise<Void> runAfterEither(CompletionStage<?> other, Runnable action);
 
     Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action);
 
-    Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Executor executor);
+    Promise<Void> runAfterEitherAsync(CompletionStage<?> other, 
+    		                          Runnable action, 
+    		                          Executor executor);
 
     <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
 
