@@ -161,7 +161,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
 
     <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other,
-                                       BiFunction<? super T, ? super U, ? extends V> fn, 
+                                       BiFunction<? super T, ? super U, ? extends V> fn,
                                        Executor executor);
 
     <U> Promise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
@@ -169,7 +169,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
 
     <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
-                                          BiConsumer<? super T, ? super U> action, 
+                                          BiConsumer<? super T, ? super U> action,
                                           Executor executor);
 
     Promise<Void> runAfterBoth(CompletionStage<?> other, Runnable action);
@@ -177,8 +177,8 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action);
 
     Promise<Void> runAfterBothAsync(CompletionStage<?> other, 
-    		                        Runnable action, 
-    		                        Executor executor);
+                                    Runnable action,
+                                    Executor executor);
 
     <U> Promise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn);
     
@@ -201,8 +201,8 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action);
 
     Promise<Void> runAfterEitherAsync(CompletionStage<?> other, 
-    		                          Runnable action, 
-    		                          Executor executor);
+                                      Runnable action,
+                                      Executor executor);
 
     <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
 
