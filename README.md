@@ -81,14 +81,14 @@ In the example above `myConsumer` will be interrupted if already in progress. Bo
 ## 3. DependentPromise
 As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping[CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
 
-However, then you cancel derrived `Promise`, the original `Promise` is not cancelled: 
+However, when you cancel derived `Promise`, the original `Promise` is not cancelled: 
 ```java
 Promise<?> original = CompletableTask.supplyAsync(() -> someIoBoundMethod(), myExecutor);
-Promise<?> derrived = original.thenRunAsync(() -> someMethod() );
+Promise<?> derived = original.thenRunAsync(() -> someMethod() );
 ...
-derrived.cancel(true);
+derived.cancel(true);
 ```
-So if you cancel `derrived` above it's [Runnable](https://docs.oracle.com/javase/7/docs/api/java/lang/Runnable.html) method, wrapping `someMethod`, is interrupted. However `original` promise is not cancelled and `someIoBoundMethod` keeps running. This is not always a desired behavior, consider the following method:
+So if you cancel `derived` above it's [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) method, wrapping `someMethod`, is interrupted. However the `original` promise is not cancelled and `someIoBoundMethod` keeps running. This is not always a desired behavior, consider the following method:
 
 ```java
 public Promise<DataStructure> loadData(String url) {
@@ -121,8 +121,8 @@ if (someCondition()) {
 }
 ```
 [DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) overloads methods like `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc with additional argument:
-- if method accepts no other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenApply` / `thenRun` / `thenAccept` etc, then it's a boolean flag `enlistOrigin` to specify whether or not original `Promise` should be enlisted for cancelation.
-- if method accepts other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenCombine` / `applyToEither` / `thenAcceptBoth` etc, then it's a set of [PromiseOrigin](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/PromiseOrigin.java) enum values, that specifies whether or not original `Promise` and/or `CompletionStage` supplied as argument should be enlisted for cancelation along with resulting promise, for example:
+- if method accepts no other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenApply` / `thenRun` / `thenAccept` etc, then it's a boolean flag `enlistOrigin` to specify whether or not the original `Promise` should be enlisted for the cancellation.
+- if method accepts other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenCombine` / `applyToEither` / `thenAcceptBoth` etc, then it's a set of [PromiseOrigin](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/PromiseOrigin.java) enum values, that specifies whether or not the original `Promise` and/or a `CompletionStage` supplied as argument should be enlisted for the cancellation along with the resulting promise, for example:
 
 ```java
 public Promise<DataStructure> loadData(String url) {
