@@ -142,7 +142,7 @@ Please note, then in release 0.5.4 there is a new default method `dependent` in 
 ```java
 public Promise<DataStructure> loadData(String url) {
    return CompletableTask
-          .supplyAsync( () -> loadXml(url) ))
+          .supplyAsync( () -> loadXml(url) )
           .dependent()
           .thenApplyAsync( xml -> parseXml(xml), true ); 
 }
