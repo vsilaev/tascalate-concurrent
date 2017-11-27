@@ -9,7 +9,7 @@ There are several shortcomings associated with [CompletableFuture](https://docs.
 
 # How to use?
 Add Maven dependency
-```
+```xml
 <dependency>
     <groupId>net.tascalate.concurrent</groupId>
     <artifactId>net.tascalate.concurrent.lib</artifactId>
@@ -20,7 +20,7 @@ Add Maven dependency
 # What is inside?
 ## 1.	Promise interface
 The interface may be best described by the formula: 
-```
+```java
 Promise == CompletionStage + Future
 ```
 
@@ -32,7 +32,7 @@ This is why this project was ever started. `CompletableTask` is the implementati
 a.	`CompletableTask.asyncOn(Executor executor)`
 
 Returns a resolved no-value `Promise` that is “bound” to the specified executor. I.e. any function passed to composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
-```
+```java
 CompletableTask
   .asyncOn(myExecutor)
   .thenApplyAsync(myValueGenerator)
@@ -44,7 +44,7 @@ All of `myValueGenerator`, `myConsumer`, `myActtion` will be executed using `myE
 b.	`CompletableTask.complete(T value, Executor executor)`
 
 Same as above, but the starting point is a resolved `Promise` with the specified value:
-```
+```java
 CompletableTask
    .complete("Hello!", myExecutor)
    .thenApplyAsync(myMapper)
@@ -56,7 +56,7 @@ All of `myMapper`, `myTransformer`, `myConsumer`, `myActtion` will be executed u
 
 Additionally, you may submit [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html) / [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) to the [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) right away, in a similar way as with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html):
 
-```
+```java
 Promise<SomeValue> p1 = CompletableTask.supplyAsync(() -> {
   return blockingCalculationOfSomeValue();
 }, myExecutor);
@@ -65,7 +65,7 @@ Promise<Void> p2 = CompletableTask.runAsync(this::someIoBoundMethod, myExecutor)
 ```
 
 Most importantly, all composed promises support true cancellation (incl. interrupting thread) for the functions supplied as arguments:
-```
+```java
 Promise<?> p1 =
 CompletableTask
   .asyncOn(myExecutor)
@@ -78,7 +78,77 @@ p1.cancel(true);
 ```  
 In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty: `p1` with a [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html) and `p2` with a [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html).
 
-## 3. Utility class Promises
+## 3. DependentPromise
+As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping[CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
+
+However, then you cancel derrived `Promise`, the original `Promise` is not cancelled: 
+```java
+Promise<?> original = CompletableTask.supplyAsync(() -> someIoBoundMethod(), myExecutor);
+Promise<?> derrived = original.thenRunAsync(() -> someMethod() );
+...
+derrived.cancel(true);
+```
+So if you cancel `derrived` above it's [Runnable](https://docs.oracle.com/javase/7/docs/api/java/lang/Runnable.html) method, wrapping `someMethod`, is interrupted. However `original` promise is not cancelled and `someIoBoundMethod` keeps running. This is not always a desired behavior, consider the following method:
+
+```java
+public Promise<DataStructure> loadData(String url) {
+   return CompletableTask.supplyAsync( () -> loadXml(url) ).thenApplyAsync( xml -> parseXml(xml) ); 
+}
+
+...
+Promise<DataStructure> p = loadData("http://someserver.com/rest/ds");
+...
+if (someCondition()) {
+  // Only second promise is canceled, parseXml.
+  p.cancel(true);
+}
+```
+
+Clients of this method see only derrived promise, and once they decide to cancel it, it is expected that any of `loadXml` and `parseXml` will be interrupted if not completed yet. To address this issue the library provides [DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) class:
+```java
+public Promise<DataStructure> loadData(String url) {
+   return DependentPromise
+          .from(CompletableTask.supplyAsync( () -> loadXml(url) ))
+          .thenApplyAsync( xml -> parseXml(xml), true ); 
+}
+
+...
+Promise<DataStructure> p = loadData("http://someserver.com/rest/ds");
+...
+if (someCondition()) {
+  // Now the whole chain is canceled.
+  p.cancel(true);
+}
+```
+[DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) overloads methods like `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc with additional argument:
+- if method accepts no other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenApply` / `thenRun` / `thenAccept` etc, then it's a boolean flag `enlistOrigin` to specify whether or not original `Promise` should be enlisted for cancelation.
+- if method accepts other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenCombine` / `applyToEither` / `thenAcceptBoth` etc, then it's a set of [PromiseOrigin](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/PromiseOrigin.java) enum values, that specifies whether or not original `Promise` and/or `CompletionStage` supplied as argument should be enlisted for cancelation along with resulting promise, for example:
+
+```java
+public Promise<DataStructure> loadData(String url) {
+   return DependentPromise
+          .from(CompletableTask.supplyAsync( () -> loadXml(url + "/source1") ))
+          .thenCombine( 
+              CompletableTask.supplyAsync( () -> loadXml(url + "/source2") ), 
+              (xml1, xml2) -> Arrays.asList(xml1, xml2),
+              PromiseOrigin.ALL
+          )          .
+          .thenApplyAsync( xmls -> parseXmlsList(xmls), true ); 
+}
+```
+
+Please note, then in release 0.5.4 there is a new default method `dependent` in interface [Promise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/Promise.java) that serves the same purpose and allows to write chained calls:
+
+```java
+public Promise<DataStructure> loadData(String url) {
+   return CompletableTask
+          .supplyAsync( () -> loadXml(url) ))
+          .dependent()
+          .thenApplyAsync( xml -> parseXml(xml), true ); 
+}
+```
+
+## 4. Utility class Promises
 The class
 provides convenient methods to combine several `CompletionStage`-s:
 
@@ -115,7 +185,7 @@ Additionally, it's possible to convert to `Promise` API ready value:
 
 `public static <T> Promise<T> from(CompletionStage<T> stage)`
 
-## 4. Extensions to ExecutorService API
+## 5. Extensions to ExecutorService API
 
 It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
 
