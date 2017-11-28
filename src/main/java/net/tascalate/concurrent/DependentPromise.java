@@ -228,7 +228,7 @@ public class DependentPromise<T> implements Promise<T> {
     }
 
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(() -> value, duration, enlistOrigin); 
+        return onTimeout(() -> value, duration, cancelOnTimeout, enlistOrigin); 
     }
     
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
@@ -236,11 +236,11 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), false);
+        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), enlistOrigin);
+        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {

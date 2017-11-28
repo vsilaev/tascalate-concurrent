@@ -87,7 +87,7 @@ public class RetryPolicy {
         return retryOn(Arrays.asList(retryOnThrowables));
     }
     
-    public final RetryPolicy retryOn(Collection<Class<? extends Throwable>> retryOnThrowables) {
+    public RetryPolicy retryOn(Collection<Class<? extends Throwable>> retryOnThrowables) {
         return new RetryPolicy(maxRetries, setPlusElems(retryOn, retryOnThrowables), abortOn, retryPredicate, abortPredicate, backoff, timeout);
     }
 
@@ -96,7 +96,7 @@ public class RetryPolicy {
         return abortOn(Arrays.asList(abortOnThrowables));
     }
 
-    public final RetryPolicy abortOn(Collection<Class<? extends Throwable>> abortOnThrowables) {
+    public RetryPolicy abortOn(Collection<Class<? extends Throwable>> abortOnThrowables) {
         return new RetryPolicy(maxRetries, retryOn, setPlusElems(abortOn, abortOnThrowables), retryPredicate, abortPredicate, backoff, timeout);
     }
     

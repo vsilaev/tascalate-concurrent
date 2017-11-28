@@ -25,13 +25,30 @@ public class J8Examples {
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
         
-        Promises.success("ABC").applyToEither(Promises.failure(new IllegalArgumentException()),r -> {
-           System.out.println("Race won by value: " + r);
-           return r;
-        });
+
+        Promise<String> poller = Promises.poll(
+            J8Examples::pollingMethod, executorService, 
+            RetryPolicy.DEFAULT
+            .withMaxRetries(10)
+            .withTimeout(DelayPolicy.fixedInterval(3200))
+            .withBackoff(DelayPolicy.fixedInterval(200).withMinDelay(100).withFirstRetryNoDelay())
+        );
+        
+        System.out.println("Poller: " + poller.get());
+
+        CompletableTask
+        .delay( Duration.ofMillis(100), executorService )
+        .thenRun(() -> System.out.println("After initial delay"));
+
         
         CompletableTask
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
+            .dependent()
+            .delay( Duration.ofMillis(100), true, true )
+            .thenApply(v -> {
+                System.out.println("After delay: " + v);
+                return v;
+            }, true)
             .onTimeout(123456789, Duration.ofMillis(200))
             .thenAcceptAsync(J8Examples::onComplete)
             .get(); 
@@ -127,7 +144,7 @@ public class J8Examples {
     private static int awaitAndProduceN(int i) {
         try {
             System.out.println("Delay N + " + i + " in " + Thread.currentThread());
-            Thread.sleep(500);
+            Thread.sleep(1500);
             if (i % 2 == 0) {
                 throw new RuntimeException("Even value: " + i);
             }
@@ -136,6 +153,24 @@ public class J8Examples {
             Thread.currentThread().interrupt();
             System.out.println("awaitAndProduceN interrupted, requested value " + i);
             return -1;
+        }
+    }
+    
+    private static String pollingMethod() throws InterruptedException {
+        RetryContext ctx = RetryContext.current();
+        System.out.println("Polling method, #" + ctx.getRetryCount());
+        try {
+            if (ctx.getRetryCount() < 5) {
+                Thread.sleep((5 - ctx.getRetryCount()) * 1000);
+            }
+            if (ctx.getRetryCount() < 7) {
+                throw new IllegalStateException();
+            }
+            return "Result " + ctx.getRetryCount();
+        } catch (final InterruptedException ex) {
+            System.out.println("Polling method, #" + ctx.getRetryCount() + ", interrupted!");
+            Thread.currentThread().interrupt();
+            throw ex;
         }
     }
     
