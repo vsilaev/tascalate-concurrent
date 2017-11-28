@@ -58,6 +58,8 @@ public class Promises {
     
     /**
      * Method to create a faulty resolved {@link Promise} with an exception provided 
+     * @param <T>
+     *   a type of the value 
      * @param exception
      *   an exception to wrap
      * @return 
