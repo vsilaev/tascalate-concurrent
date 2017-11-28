@@ -149,6 +149,34 @@ public class DependentPromise<T> implements Promise<T> {
         return result;
     }
 
+    public DependentPromise<T> delay(long timeout, TimeUnit unit) {
+        return delay(timeout, unit, true);
+    }
+    
+    public DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
+        return delay(timeout, unit, delayOnError, false);
+    }
+    
+    public DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError, boolean enlistOrigin) {
+        return delay(Timeouts.toDuration(timeout, unit), delayOnError, enlistOrigin);
+    }
+    
+    public DependentPromise<T> delay(Duration duration) {
+        return delay(duration, true);
+    }
+    
+    public DependentPromise<T> delay(Duration duration, boolean delayOnError) {
+        return delay(duration, delayOnError, false);
+    }
+    
+    public DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin) {
+        CompletablePromise<?> delayed = new CompletablePromise<>();
+        whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
+        // Use *async to execute on default "this" executor
+        return thenCombineAsync(
+            delayed, (r, d) -> r, enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
+        );
+    }
     
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit) {
         return orTimeout(timeout, unit, true);
@@ -159,7 +187,7 @@ public class DependentPromise<T> implements Promise<T> {
     }
 
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return orTimeout(Promises.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
     public DependentPromise<T> orTimeout(Duration duration) {
@@ -171,11 +199,11 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Promise<T> onTimeout = Promises.failAfter(duration);
+        Promise<T> onTimeout = Timeouts.failAfter(duration);
         // Use *async to execute on default "this" executor
         DependentPromise<T> result = this
             .applyToEitherAsync(onTimeout, Function.identity(), enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY);
-        result.whenComplete(Promises.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
     }
     
@@ -188,7 +216,7 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(value, Promises.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
     public DependentPromise<T> onTimeout(T value, Duration duration) {
@@ -208,11 +236,11 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(supplier, Promises.toDuration(timeout, unit), false);
+        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), false);
     }
     
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(supplier, Promises.toDuration(timeout, unit), enlistOrigin);
+        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), enlistOrigin);
     }
     
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
@@ -227,7 +255,7 @@ public class DependentPromise<T> implements Promise<T> {
         Function<T, Supplier<? extends T>> valueToSupplier = v -> () -> v;
         
         // timeout converted to supplier
-        Promise<Supplier<? extends T>> onTimeout = Promises
+        Promise<Supplier<? extends T>> onTimeout = Timeouts
             .delay(duration)
             .dependent()
             .thenApply(d -> supplier, true);
@@ -238,7 +266,7 @@ public class DependentPromise<T> implements Promise<T> {
             // Use *async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, Supplier::get,  PromiseOrigin.ALL);
         
-        result.whenComplete(Promises.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
     }
     

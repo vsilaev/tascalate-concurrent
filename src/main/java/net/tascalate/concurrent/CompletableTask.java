@@ -15,9 +15,12 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -141,7 +144,26 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
         executor.execute(result);
         return result;
     }
-
+    
+    public static <T> Promise<T> await(CompletionStage<? extends T> stage, Executor executor) {
+        return await(stage, executor, false);
+    }
+    
+    public static <T> Promise<T> await(CompletionStage<? extends T> stage, Executor executor, boolean enlistOrigin) {
+        return asyncOn(executor).dependent()
+               .thenCombineAsync(
+                   stage, (u, v) -> v, enlistOrigin ? PromiseOrigin.PARAM_ONLY : PromiseOrigin.NONE
+               );
+    }
+    
+    public static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor) {
+        return delay(Timeouts.toDuration(timeout, unit), executor);
+    }
+    
+    public static Promise<Duration> delay(Duration duration, Executor executor) {
+        return await(Timeouts.delay(duration), executor, true);
+    }
+    
     @Override
     Runnable setupTransition(Callable<T> code) {
         throw new UnsupportedOperationException();

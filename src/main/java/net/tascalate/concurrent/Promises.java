@@ -16,22 +16,15 @@
 package net.tascalate.concurrent;
 
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -109,12 +102,6 @@ public class Promises {
             acceptConverted(result::onFailure, errorConverter)
         ));
         return result;
-    }
-    
-    public static <T> Promise<T> task(CompletionStage<? extends T> stage, Executor executor) {
-        return CompletableTask.asyncOn(executor)
-               .dependent()
-               .thenCombineAsync(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY);
     }
 
     private static <T, R> CompletablePromise<R> createLinkedPromise(CompletionStage<? extends T> stage) {
@@ -439,73 +426,9 @@ public class Promises {
         }
     }
     
-    /**
-     * Creates a promise that is resolved successfully after delay specified
-     * @param duration
-     * the duration of timeout
-     * @return
-     * the new promise
-     */
-    public static Promise<Duration> delay(Duration duration) {
-        final CompletablePromise<Duration> promise = new CompletablePromise<>();
-        final Future<?> timeout = scheduler.schedule(
-            () -> promise.onSuccess(duration), 
-            duration.toMillis(), TimeUnit.MILLISECONDS
-        );
-        promise.whenComplete((r, e) -> {
-          if (null != e) {
-              timeout.cancel(true);
-          }
-        });
-        return promise;
-    }
-    
-    /**
-     * Creates a promise that is resolved after delay specified
-     * @param delay
-     * the duration of timeout
-     * @param timeUnit
-     * the time unit of the delay
-     * @return
-     * the new promise
-     */
-    public static Promise<Duration> delay(long delay, TimeUnit timeUnit) {
-        return delay( toDuration(delay, timeUnit) );
-    }
-
-    /**
-     * Creates a promise that is resolved erronously with {@link TimeoutException} after delay specified
-     * @param duration
-     * the duration of timeout
-     * @return
-     * the new promise
-     */
-    public static <T> Promise<T> failAfter(Duration duration) {
-        final CompletablePromise<T> promise = new CompletablePromise<>();
-        final Future<?> timeout = scheduler.schedule(
-            () -> promise.onFailure(new TimeoutException("Timeout after " + duration)), 
-            duration.toMillis(), TimeUnit.MILLISECONDS
-        );
-        promise.whenComplete((r, e) -> timeout.cancel(true));
-        return promise;
-    }
-
-    /**
-     * Creates a promise that is resolved erronously with {@link TimeoutException} after delay specified
-     * @param delay
-     * the duration of timeout
-     * @param timeUnit
-     * the time unit of the delay
-     * @return
-     * the new promise
-     */    
-    public static <T> Promise<T> failAfter(long delay, TimeUnit timeUnit) {
-        return failAfter( toDuration(delay, timeUnit) );
-    }
-    
     public static Promise<Void> poll(Runnable codeBlock, Executor executor, RetryPolicy retryPolicy) {
         Promise<Object> wrappedResult = pollOptional(
-            () -> { codeBlock.run(); return Optional.of(new Object()); }, 
+            () -> { codeBlock.run(); return Optional.of(IGNORE); }, 
             executor, retryPolicy
         );
         return wrappedResult.dependent().thenApply(v -> null, true);  
@@ -591,7 +514,7 @@ public class Promises {
             long backoffDelayMillis = answer.backoffDelayMillis();
             if (backoffDelayMillis > 0) {
                 // Timeout itself
-                Promise<?> backoff = delay( Duration.ofMillis(backoffDelayMillis) );
+                Promise<?> backoff = Timeouts.delay( Duration.ofMillis(backoffDelayMillis) );
                 // Invocation after timeout
                 backoff.thenAccept(d -> changeCallPromiseRef.accept( submittedCall.get() ));
                 // Canceling timeout will cancel the chain above
@@ -603,6 +526,15 @@ public class Promises {
 
         } else {
             resultPromise.onFailure(ctx.asFailure());
+        }
+    }
+    
+
+    static CompletionException wrapException(Throwable e) {
+        if (e instanceof CompletionException) {
+            return (CompletionException) e;
+        } else {
+            return new CompletionException(e);
         }
     }
 
@@ -634,54 +566,7 @@ public class Promises {
     private static <T, U> Consumer<? super T> acceptConverted(Consumer<? super U> target, Function<? super T, ? extends U> converter) {
         return t -> target.accept(converter.apply(t));
     }
-    
-    static Duration toDuration(long delay, TimeUnit timeUnit) {
-        return Duration.of(delay, toChronoUnit(timeUnit));
-    }
-    
-    static <T, U> BiConsumer<T, U> timeoutsCleanup(Promise<T> self, Promise<?> onTimeout, boolean cancelOnTimeout) {
-    	return (r, e) -> {
-        	// Result comes from timeout and cancel-on-timeout is set
-        	// If both are done then cancel has no effect anyway
-            if ((onTimeout.isDone() && !onTimeout.isCancelled()) && cancelOnTimeout) {
-                self.cancel(true);
-            }
-            onTimeout.cancel(true);
-    	};
-    }
-    
-    private static ChronoUnit toChronoUnit(TimeUnit unit) { 
-        Objects.requireNonNull(unit, "unit"); 
-        switch (unit) { 
-            case NANOSECONDS: 
-                return ChronoUnit.NANOS; 
-            case MICROSECONDS: 
-                return ChronoUnit.MICROS; 
-            case MILLISECONDS: 
-                return ChronoUnit.MILLIS; 
-            case SECONDS: 
-                return ChronoUnit.SECONDS; 
-            case MINUTES: 
-                return ChronoUnit.MINUTES; 
-            case HOURS: 
-                return ChronoUnit.HOURS; 
-            case DAYS: 
-                return ChronoUnit.DAYS; 
-            default: 
-                throw new IllegalArgumentException("Unknown TimeUnit constant"); 
-        } 
-    }     
 
-    
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
-        @Override
-        public Thread newThread(Runnable r) {
-            final Thread result = Executors.defaultThreadFactory().newThread(r);
-            result.setDaemon(true);
-            result.setName("net.tascalate.concurrent.Timeouts");
-            return result;
-        }
-    });
     
     private static class ObjectRef<T> {
         private final T reference;
@@ -694,4 +579,6 @@ public class Promises {
             return reference;
         }
     }
+    
+    private static final Object IGNORE = new Object();
 }

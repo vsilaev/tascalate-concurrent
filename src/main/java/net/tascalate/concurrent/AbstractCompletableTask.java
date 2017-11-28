@@ -371,7 +371,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             if (failure == null) {
                 nextStage.onSuccess(result);
             } else {
-                nextStage.onError(wrapException(failure));
+                nextStage.onError(Promises.wrapException(failure));
             }
         };
         // only the first result is accepted by completion stage,
@@ -403,15 +403,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     }
 
     private static <U> U forwardException(Throwable e) {
-        throw wrapException(e);
-    }
-
-    private static CompletionException wrapException(Throwable e) {
-        if (e instanceof CompletionException) {
-            return (CompletionException) e;
-        } else {
-            return new CompletionException(e);
-        }
+        throw Promises.wrapException(e);
     }
     
     private static ExecutionException rewrapExecutionException(ExecutionException ex) {

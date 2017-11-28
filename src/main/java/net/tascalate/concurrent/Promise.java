@@ -59,13 +59,35 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             return valueIfAbsent.get();
         }
     }
+
+    default Promise<T> delay(long timeout, TimeUnit unit) {
+        return delay(timeout, unit, true);
+    }
+    
+    default Promise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
+        return delay(Timeouts.toDuration(timeout, unit), delayOnError);
+    }
+    
+    default Promise<T> delay(Duration duration) {
+        return delay(duration, true);
+    }
+    
+    default Promise<T> delay(Duration duration, boolean delayOnError) {
+        CompletablePromise<?> delayed = new CompletablePromise<>();
+        whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
+        // Use *async to execute on default "this" executor
+        return dependent().thenCombineAsync(
+            delayed, (r, d) -> r, PromiseOrigin.PARAM_ONLY
+        );
+    }
+
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit) {
         return orTimeout(timeout, unit, true);
     }
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return orTimeout(Promises.toDuration(timeout, unit), cancelOnTimeout);
+        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default Promise<T> orTimeout(Duration duration) {
@@ -73,12 +95,12 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        Promise<T> onTimeout = Promises.failAfter(duration);
+        Promise<T> timeout = Timeouts.failAfter(duration);
         // Use *async to execute on default "this" executor
         Promise<T> result = dependent()
-            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
+            .applyToEitherAsync(timeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
         
-        result.whenComplete(Promises.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
         return result;
     }
     
@@ -87,7 +109,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(value, Promises.toDuration(timeout, unit));
+        return onTimeout(value, Timeouts.toDuration(timeout, unit));
     }
 
     default Promise<T> onTimeout(T value, Duration duration) {
@@ -103,7 +125,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(supplier, Promises.toDuration(timeout, unit), cancelOnTimeout);
+        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
@@ -114,7 +136,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Function<T, Supplier<? extends T>> valueToSupplier = v -> () -> v;
         
         // timeout converted to supplier
-        Promise<Supplier<? extends T>> onTimeout = Promises
+        Promise<Supplier<? extends T>> timeout = Timeouts
             .delay(duration)
             .dependent()
             .thenApply(d -> supplier, true);
@@ -123,9 +145,9 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             // resolved value converted to supplier
             .thenApply(valueToSupplier, false)
             // Use *async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL);
+            .applyToEitherAsync(timeout, Supplier::get, PromiseOrigin.ALL);
         
-        result.whenComplete(Promises.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
         return result;
     }
     
