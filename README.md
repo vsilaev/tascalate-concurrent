@@ -79,7 +79,7 @@ p1.cancel(true);
 In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty: `p1` with a [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html) and `p2` with a [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html).
 
 ## 3. DependentPromise
-As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping[CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
+As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
 
 However, when you cancel derived `Promise`, the original `Promise` is not cancelled: 
 ```java
@@ -153,35 +153,39 @@ The class
 provides convenient methods to combine several `CompletionStage`-s:
 
 ```java
-public static <T> Promise<List<T>> all(CompletionStage<? extends T>... promises)
+public static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ````
 
 Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well
 
 ```java
-public static <T> Promise<T> any(final CompletionStage<? extends T>... promises)
+public static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ```
 
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well
 
 ```java
-public static <T> Promise<T> anyStrict(CompletionStage<? extends T>... promises)
+public static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ```
 
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if result is available at all)
 
 ```java
-public static <T> Promise<List<T>> atLeast(int minResultsCount, CompletionStage<? extends T>... promises)
+public static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ```
 
 Generalization of the `any` method. Returns a promise that is completed normally when at least `minResultCount`
 of `CompletionStage`-s passed as parameters are completed normally (race is possible); if less than `minResultCount` of promises completed normally, then resulting promise is completed exceptionally
 
 ```java
-public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, CompletionStage<? extends T>... promises)
+public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ```
 
 Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of results are available at all)
+
+Please note that since library's version 0.5.3 it is possible to define explicitly whether or not to eagerly cancel remaining `promises` once the result of the invocation is known. The option is controlled by the parameter `cancelRemaining`. When ommitted, it means implicitly `cancelRemaining = true`.
+
+The version 0.5.4 of the library adds additional overloads to aforementioned methods - now it's possible to supply a [list](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `Promise`-s instead of the latest varagr parameter.
 
 Additionally, it's possible to convert to `Promise` API ready value:
 
@@ -192,7 +196,7 @@ public static <T> Promise<T> success(T value)
 ...exception:
 
 ```java
-public static Promise<?> failure(Throwable exception)
+public static <T> Promise<T> failure(Throwable exception)
 ```
 
 ...or arbitrary `CompletionStage` implementation:
