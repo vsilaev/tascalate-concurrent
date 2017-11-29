@@ -151,7 +151,7 @@ public Promise<DataStructure> loadData(String url) {
 ## 5. Timeouts
 Any robust application requires certain level of functionality, that handle situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release 0.5.4 the library fills the gap in this functionality with timeout-related stuff.
 
-An application developer now have the following options to control execution time of the `Promise`:
+An application developer now have the following options to control execution time of the `Promise` (declared in Promise interface itself):
 ```java
 <T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> orTimeout(Duration duration[, boolean cancelOnTimeout = true])
@@ -221,6 +221,21 @@ Promise<List<String>> resultPromise = CompletableTask
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v), PromiseOrigin.ALL)
     .orTimeout( Duration.ofSeconds(5) ); // now timeout will cancel the whole chain
 ```
+Another useful timeout-related methods declared in Promise interface are:
+```java
+<T> Promise<T> onTimeout(T value, long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
+<T> Promise<T> onTimeout(T value, Duration duration[, boolean cancelOnTimeout = true])
+<T> Promise<T> onTimeout(Supplier<? extends T>, long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
+<T> Promise<T> onTimeout(Supplier<? extends T>, Duration duration[, boolean cancelOnTimeout = true])
+```
+The `onTimeout` family of methods are similar in all regards to the `orTimeout` methods with the single obvious difference - instead of resolving resulting `Promise` exceptionally with the `TimeoutException` when time is expired, they are resolving it successfully with the `value` supplied (either directly or via [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html)):
+```java
+Executor myExecutor = ...; // Get an executor
+Promise<String> callPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
+    .onTimeout( "Timed-out!", Duration.ofSeconds(3000) );
+```
+The example shows, that `callPromise` will be resolved within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or with a default value `"Timed-out!"` when time exceeded.
 
 ## 5. Utility class Promises
 The class
