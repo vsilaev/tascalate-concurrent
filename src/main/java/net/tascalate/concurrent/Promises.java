@@ -41,6 +41,8 @@ import java.util.function.Supplier;
  */
 public class Promises {
 
+    private Promises() {}
+    
     /**
      * Method to create a successfully resolved {@link Promise} with a value provided 
      * @param <T>
