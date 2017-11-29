@@ -292,34 +292,34 @@ The class
 provides convenient methods to combine several `CompletionStage`-s:
 
 ```java
-public static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ````
 
 Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well
 
 ```java
-public static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ```
 
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well
 
 ```java
-public static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 ```
 
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if result is available at all)
 
 ```java
-public static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] 
-                                           CompletionStage<? extends T>... promises)
+static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] 
+                                    CompletionStage<? extends T>... promises)
 ```
 
 Generalization of the `any` method. Returns a promise that is completed normally when at least `minResultCount`
 of `CompletionStage`-s passed as parameters are completed normally (race is possible); if less than `minResultCount` of promises completed normally, then resulting promise is completed exceptionally
 
 ```java
-public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
-                                                 CompletionStage<? extends T>... promises)
+static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
+                                          CompletionStage<? extends T>... promises)
 ```
 
 Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of results are available at all)
@@ -331,19 +331,19 @@ The version 0.5.4 of the library adds additional overloads to aforementioned met
 Additionally, it's possible to convert to `Promise` API ready value:
 
 ```java
-public static <T> Promise<T> success(T value)
+static <T> Promise<T> success(T value)
 ```
 
 ...exception:
 
 ```java
-public static <T> Promise<T> failure(Throwable exception)
+static <T> Promise<T> failure(Throwable exception)
 ```
 
 ...or arbitrary `CompletionStage` implementation:
 
 ```java
-public static <T> Promise<T> from(CompletionStage<T> stage)
+static <T> Promise<T> from(CompletionStage<T> stage)
 ```
 
 ## 7. Extensions to ExecutorService API
