@@ -152,38 +152,54 @@ public Promise<DataStructure> loadData(String url) {
 The class
 provides convenient methods to combine several `CompletionStage`-s:
 
-`public static <T> Promise<List<T>> all(CompletionStage<? extends T>... promises)`
+```java
+public static <T> Promise<List<T>> all(CompletionStage<? extends T>... promises)
+````
 
 Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well
 
-`public static <T> Promise<T> any(final CompletionStage<? extends T>... promises)`
+```java
+public static <T> Promise<T> any(final CompletionStage<? extends T>... promises)
+```
 
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well
 
-`public static <T> Promise<T> anyStrict(CompletionStage<? extends T>... promises)`
+```java
+public static <T> Promise<T> anyStrict(CompletionStage<? extends T>... promises)
+```
 
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if result is available at all)
 
-`public static <T> Promise<List<T>> atLeast(int minResultsCount, CompletionStage<? extends T>... promises)`
+```java
+public static <T> Promise<List<T>> atLeast(int minResultsCount, CompletionStage<? extends T>... promises)
+```
 
 Generalization of the `any` method. Returns a promise that is completed normally when at least `minResultCount`
 of `CompletionStage`-s passed as parameters are completed normally (race is possible); if less than `minResultCount` of promises completed normally, then resulting promise is completed exceptionally
 
-`public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, CompletionStage<? extends T>... promises)`
+```java
+public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, CompletionStage<? extends T>... promises)
+```
 
 Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of results are available at all)
 
 Additionally, it's possible to convert to `Promise` API ready value:
 
-`public static <T> Promise<T> success(T value)`
+```java
+public static <T> Promise<T> success(T value)
+```
 
 ...exception:
 
-`public static Promise<?> failure(Throwable exception)`
+```java
+public static Promise<?> failure(Throwable exception)
+```
 
 ...or arbitrary `CompletionStage` implementation:
 
-`public static <T> Promise<T> from(CompletionStage<T> stage)`
+```java
+public static <T> Promise<T> from(CompletionStage<T> stage)
+```
 
 ## 5. Extensions to ExecutorService API
 
