@@ -148,7 +148,81 @@ public Promise<DataStructure> loadData(String url) {
 }
 ```
 
-## 4. Utility class Promises
+## 5. Timeouts
+Any robust application requires certain level of functionality, that handle situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release 0.5.4 the library fills the gap in this functionality with timeout-related stuff.
+
+An application developer now have the following options to control execution time of the `Promise`:
+```java
+<T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
+<T> Promise<T> orTimeout(Duration duration[, boolean cancelOnTimeout = true])
+```
+These methods creates a new `Promise` that is either resolved sucessfully/exceptionally when original promise is resolved within a timeout given; or it is resolved exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
+```java
+Executor myExecutor = ...; // Get an executor
+Promise<String> callPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
+    .orTimeout( Duration.ofSeconds(3000) );
+```
+In the example above `callPromise` will be resolved within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or exceptionally with a `TimeoutException`.
+
+The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when skipped. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete.
+
+This is a desired behavior in most cases but not always. The library provides an option to set several non-cancelling timeouts like in example below:
+```java
+Executor myExecutor = ...; // Get an executor
+Promise<String> resultPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor );
+
+// Show UI message to user to let him/her know that everything is under control
+Promise<?> t1 = resultPromise
+    .orTimeout( Duration.ofSeconds(2000) )
+    .exceptionally( e -> {
+      if (e instanceof TimeoutException) {
+        UI.showMessage("Operation takes longer than expected, please wait...");
+      }
+      return null;
+    }, false); 
+
+// Show UI confirmation to user to let him/her cancel operation explicitly
+Promise<?> t2 = resultPromise
+    .orTimeout( Duration.ofSeconds(5000) )
+    .exceptionally( e -> {
+      if (e instanceof TimeoutException) {
+        UI.showConfirmation("Service does not responding. Do you whant to cancel (Y/N)?");
+      }
+      return null;
+    }, false); 
+
+// Cancel in 10 seconds
+resultPromise.orTimeout( Duration.ofSeconds(10), true );
+```
+Please note that the timeout is started from the call to the `orTimeout` method. Hence, if you have a chain of unresolved promises ending with the `orTimeout` call then the whole chain should be completed within time given:
+```java
+Executor myExecutor = ...; // Get an executor
+Promise<String> parallelPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningDbCall(), executor );
+Promise<List<String>> resultPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
+    .thenApplyAsync( v -> converterMethod() )
+    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
+    .orTimeout( Duration.ofSeconds(5) );
+```
+In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. Moreover, in the example above only the call to `thenCombineAsync` will be cancelled on timeout, to cancel the whole tree please use the functionality of the `DependentPromise` class:
+```java
+Executor myExecutor = ...; // Get an executor
+Promise<String> parallelPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningDbCall(), executor );
+Promise<List<String>> resultPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
+    .dependent()
+    // enlist promise of someLongRunningIoBoundMehtod for cancellation
+    .thenApplyAsync( v -> converterMethod(), true )  
+    // enlist result of thenApplyAsync and parallelPromise for cancellation
+    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v), PromiseOrigin.ALL)
+    .orTimeout( Duration.ofSeconds(5) ); // now timeout will cancel the whole chain
+```
+
+## 5. Utility class Promises
 The class
 provides convenient methods to combine several `CompletionStage`-s:
 
@@ -207,7 +281,7 @@ public static <T> Promise<T> failure(Throwable exception)
 public static <T> Promise<T> from(CompletionStage<T> stage)
 ```
 
-## 5. Extensions to ExecutorService API
+## 6. Extensions to ExecutorService API
 
 It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
 
