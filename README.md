@@ -240,7 +240,7 @@ The example shows, that `callPromise` will be resolved within 3 seconds either s
 Finally, the `Promise` interface provides an option to insert delays into the call chain:
 ```java
 <T> Promise<T> delay(long timeout, TimeUnit unit[, boolean delayOnError = true])
-<T> Promise<T> delay(T value, Duration duration[, boolean delayOnError = true])
+<T> Promise<T> delay(Duration duration[, boolean delayOnError = true])
 ```
 The delay is started only after the original `Promise` is completed either successfully or exceptionally (unlike `orTimeout` / `onTimeout` methods where timeout is strated immediately). The resulting delay `Promise` is resolved after the timeout specified with the same result as the original `Promise`. Like with other timeout-related methods, delay is completed on the default asynchronous `Executor` of the original `Promise`. The latest methods' argument - `delayOnError` - specifies whether or not we should delay if original Promise is resolved exceptionally, by default this argument is true. If false, then delay `Promise` is completed immediately after the failed original `Promise`. 
 ```java
