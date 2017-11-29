@@ -237,7 +237,57 @@ Promise<String> callPromise = CompletableTask
 ```
 The example shows, that `callPromise` will be resolved within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or with a default value `"Timed-out!"` when time exceeded.
 
-## 5. Utility class Promises
+Finally, the `Promise` interface provides an option to insert delays into the call chain:
+```java
+<T> Promise<T> delay(long timeout, TimeUnit unit[, boolean delayOnError = true])
+<T> Promise<T> delay(T value, Duration duration[, boolean delayOnError = true])
+```
+The delay is started only after the original `Promise` is completed either successfully or exceptionally (unlike `orTimeout` / `onTimeout` methods where timeout is strated immediately). The resulting delay `Promise` is resolved after the timeout specified with the same result as the original `Promise`. Like with other timeout-related methods, delay is completed on the default asynchronous `Executor` of the original `Promise`. The latest methods' argument - `delayOnError` - specifies whether or not we should delay if original Promise is resolved exceptionally, by default this argument is true. If false, then delay `Promise` is completed immediately after the failed original `Promise`. 
+```java
+Executor myExecutor = ...; // Get an executor
+Promise<String> callPromise1 = CompletableTask
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
+    .delay( Duration.ofSeconds(1000) ) // Give a second for CPU to calm down :)
+    .thenApply(v -> convertValue(v));
+    
+Promise<String> callPromise2 = CompletableTask
+    .supplyAsync( () -> aletrnativeLongRunningIoBoundMehtod(), executor )
+    .delay( Duration.ofSeconds(1000), false ) // Give a second for CPU to calm down ONLY on success :)
+    .thenApply(v -> convertValue(v));
+```
+You may notice, that delay may be introduced only in the middle of the chain, but what to do if you'd like to back-off the whole chain execution? Just start with a resolved promise!
+```java
+// Option 1
+// Interruptible tasks chain on the executor supplied
+CompletableTask.asyncOn(executor)
+    .delay( Duration.ofSeconds(5) )
+    .thenApplyAsync(ignore -> produceValue());
+
+// Option2
+// Computational tasks on ForkJoinPool.commonPool()
+Promises.from(CompletableFuture.completedFuture(""))
+    .delay( Duration.ofSeconds(5) )
+    .thenApplyAsync(ignore -> produceValue());
+```
+As long as back-off execution is not a very rare case, the library provides the following convinient methods in the `CompletableTask` class:
+```java
+static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor);
+static Promise<Duration> delay(Duration duration, Executor executor);
+```
+
+## 5. Polling and asynchronous retry functionality
+Provided by utility class Promises but stands on its own
+```java
+static Promise<Void> poll(Runnable codeBlock, 
+                          Executor executor, RetryPolicy retryPolicy)
+static <T> Promise<T> poll(Callable<? extends T> codeBlock, 
+                           Executor executor, RetryPolicy retryPolicy)
+static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, 
+                                   Executor executor, RetryPolicy retryPolicy)
+```
+TBD
+
+## 6. Utility class Promises
 The class
 provides convenient methods to combine several `CompletionStage`-s:
 
@@ -296,7 +346,7 @@ public static <T> Promise<T> failure(Throwable exception)
 public static <T> Promise<T> from(CompletionStage<T> stage)
 ```
 
-## 6. Extensions to ExecutorService API
+## 7. Extensions to ExecutorService API
 
 It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
 
@@ -313,5 +363,5 @@ A drop-in replacement for [Executors](https://docs.oracle.com/javase/8/docs/api/
 
 # Acknowledgements
 
-Internal implementation details are greatly inspired [by the work](https://github.com/lukas-krecan/completion-stage) done by [Lukáš Křečan](https://github.com/lukas-krecan)
+Internal implementation details are greatly inspired [by the work](https://github.com/lukas-krecan/completion-stage) done by [Lukáš Křečan](https://github.com/lukas-krecan). The part of the polling / asynchronous retry functionality is adopted from the [async-retry] (https://github.com/nurkiewicz/async-retry) library by [Tomasz Nurkiewicz](http://nurkiewicz.com/)
 
