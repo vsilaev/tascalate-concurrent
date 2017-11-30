@@ -149,10 +149,12 @@ public class DependentPromise<T> implements Promise<T> {
         return result;
     }
 
+    @Override
     public DependentPromise<T> delay(long timeout, TimeUnit unit) {
         return delay(timeout, unit, true);
     }
     
+    @Override
     public DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
         return delay(timeout, unit, delayOnError, false);
     }
@@ -161,6 +163,7 @@ public class DependentPromise<T> implements Promise<T> {
         return delay(Timeouts.toDuration(timeout, unit), delayOnError, enlistOrigin);
     }
     
+    @Override
     public DependentPromise<T> delay(Duration duration) {
         return delay(duration, true);
     }
@@ -170,18 +173,20 @@ public class DependentPromise<T> implements Promise<T> {
     }
     
     public DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin) {
-        CompletablePromise<?> delayed = new CompletablePromise<>();
+        CompletablePromise<T> delayed = new CompletablePromise<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *async to execute on default "this" executor
         return thenCombineAsync(
             delayed, (r, d) -> r, enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
         );
     }
-    
+
+    @Override
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit) {
         return orTimeout(timeout, unit, true);
     }
     
+    @Override
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return orTimeout(timeout, unit, cancelOnTimeout, false);
     }
@@ -190,10 +195,12 @@ public class DependentPromise<T> implements Promise<T> {
         return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
+    @Override
     public DependentPromise<T> orTimeout(Duration duration) {
         return orTimeout(duration, true);
     }
     
+    @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
         return orTimeout(duration, cancelOnTimeout, false);
     }
@@ -207,10 +214,12 @@ public class DependentPromise<T> implements Promise<T> {
         return result;
     }
     
+    @Override
     public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit) {
         return onTimeout(value, timeout, unit, true);
     }
     
+    @Override
     public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return onTimeout(value, timeout, unit, cancelOnTimeout, false);
     }
@@ -219,10 +228,12 @@ public class DependentPromise<T> implements Promise<T> {
         return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
+    @Override
     public DependentPromise<T> onTimeout(T value, Duration duration) {
         return onTimeout(value, duration, true);
     }
     
+    @Override
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
         return onTimeout(value, duration, cancelOnTimeout, false);
     }
@@ -231,10 +242,12 @@ public class DependentPromise<T> implements Promise<T> {
         return onTimeout(() -> value, duration, cancelOnTimeout, enlistOrigin); 
     }
     
+    @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
         return onTimeout(supplier, timeout, unit, true);
     }
     
+    @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
@@ -243,10 +256,12 @@ public class DependentPromise<T> implements Promise<T> {
         return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
+    @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
         return onTimeout(supplier, duration, true);
     }
     
+    @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
         return onTimeout(supplier, duration, cancelOnTimeout, false);
     }

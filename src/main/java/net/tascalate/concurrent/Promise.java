@@ -73,7 +73,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> delay(Duration duration, boolean delayOnError) {
-        CompletablePromise<?> delayed = new CompletablePromise<>();
+        CompletablePromise<T> delayed = new CompletablePromise<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *async to execute on default "this" executor
         return dependent().thenCombineAsync(

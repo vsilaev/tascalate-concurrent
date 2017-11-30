@@ -268,9 +268,9 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                 
                 nextStage.resetCancellableOrigins(returned);
                 if (nextStage.isCancelled()) {
-                	nextStage.cancelOrigins(true);
+                    nextStage.cancelOrigins(true);
                 } else {
-                	returned.whenComplete(moveToNextStage);
+                    returned.whenComplete(moveToNextStage);
                 }
             }), 
             e -> { 

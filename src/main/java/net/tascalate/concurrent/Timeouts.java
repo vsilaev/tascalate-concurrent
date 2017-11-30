@@ -109,26 +109,23 @@ class Timeouts {
         };
     }
     
-    static <R, E extends Throwable> BiConsumer<R, E> configureDelay(Promise<?> self, CompletablePromise<?> delayed, Duration duration, boolean delayOnError) {
-        return (r, e) -> {
-            if (e == null || (!self.isCancelled() && delayOnError)) {
-                Promise<?> timeout = Timeouts.delay(duration);
-                delayed.whenComplete( (u, v) -> timeout.cancel(true) );
-                timeout.whenComplete( (u, v) -> {
-                    if (null != v) {
-                        // Timeout-related error
-                        delayed.onFailure(Promises.wrapException(v));
-                    } else if (null == e) {
-                        // Original error
-                        delayed.onSuccess(null);
+    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletablePromise<? super T> delayed, Duration duration, boolean delayOnError) {
+        return (originalResult, originalError) -> {
+            if (originalError == null || (!self.isCancelled() && delayOnError)) {
+                Promise<?> timeout = delay(duration);
+                delayed.whenComplete( (r, e) -> timeout.cancel(true) );
+                timeout.whenComplete( (r, timeoutError) -> {
+                    if (null != timeoutError) {
+                        delayed.onFailure(Promises.wrapException(timeoutError));
+                    } else if (null == originalError) {
+                        delayed.onSuccess(originalResult);
                     } else {
-                        // Original result
-                        delayed.onFailure(Promises.wrapException(e));
+                        delayed.onFailure(Promises.wrapException(originalError));
                     }
                 });
             } else {
                 // when error and should not delay on error
-                delayed.onFailure(Promises.wrapException(e));
+                delayed.onFailure(Promises.wrapException(originalError));
             }
         };
     }
