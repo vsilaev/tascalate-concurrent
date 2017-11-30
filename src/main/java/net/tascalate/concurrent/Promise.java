@@ -109,7 +109,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(value, Timeouts.toDuration(timeout, unit));
+        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
 
     default Promise<T> onTimeout(T value, Duration duration) {

@@ -19,12 +19,9 @@ import java.lang.reflect.Method;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
@@ -35,7 +32,7 @@ import java.util.function.Supplier;
  * @param <T>
  *   a type of the successfully resolved promise value   
  */
-public class CompletablePromise<T> extends AbstractDelegatingPromise<T, CompletableFuture<T>> implements Promise<T> {
+public class CompletablePromise<T> extends AbstractDelegatingFuture<T, CompletableFuture<T>> implements Promise<T> {
 
     public CompletablePromise() {
         this(new CompletableFuture<>());
@@ -46,43 +43,18 @@ public class CompletablePromise<T> extends AbstractDelegatingPromise<T, Completa
     }
 
     protected boolean onSuccess(T value) {
-        return completionStage.complete(value);
+        return delegate.complete(value);
     }
 
     protected boolean onFailure(Throwable ex) {
-        return completionStage.completeExceptionally(ex);
+        return delegate.completeExceptionally(ex);
     }
 
-    @Override
-    public boolean cancel(boolean mayInterruptIfRunning) {
-        return completionStage.cancel(mayInterruptIfRunning);
-    }
-
-    @Override
-    public boolean isCancelled() {
-        return completionStage.isCancelled();
-    }
-
-    @Override
-    public boolean isDone() {
-        return completionStage.isDone();
-    }
-
-    @Override
-    public T get() throws InterruptedException, ExecutionException {
-        return completionStage.get();
-    }
-
-    @Override
-    public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-        return completionStage.get(timeout, unit);
-    }
-    
     @Override
     public T getNow(T valueIfAbsent) {
-        return completionStage.getNow(valueIfAbsent);
+        return delegate.getNow(valueIfAbsent);
     }
-
+    
     public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier) {
         return completeAsync(supplier, ForkJoinPool.commonPool());
     }
