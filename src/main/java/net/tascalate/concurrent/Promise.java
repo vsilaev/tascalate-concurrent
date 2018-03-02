@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * @param <T>
  *   a type of the successfully resolved promise value   
  */
-public interface Promise<T> extends Future<T>, CompletionStage<T> {
+public interface Promise<T> extends Future<T>, CompletionStage<T>, PromiseDecorator<T> {
     
     default T getNow(T valueIfAbsent) {
         return getNow(() -> valueIfAbsent);
@@ -152,12 +152,34 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     /**
-     * Converts this {@link Promise} to a {@link DependentPromise}
+     * Converts this {@link Promise} to a {@link DefaultDependentPromise}
      * @return
      * created DependentPromise
      */
     default DependentPromise<T> dependent() {
-    	return DependentPromise.from(this);
+    	return DefaultDependentPromise.from(this);
+    }
+    
+    /**
+     * Decorate this {@link Promise} with a decorator specified
+     * @param <D>
+     *   type of the actual promise decorator
+     * @param decoratorFactory
+     *   a factory to create a concrete decorator
+     * @return
+     *   a decorator created
+     */
+    default <D extends PromiseDecorator<T>> D as(Function<? super Promise<T>, D> decoratorFactory) {
+        return decoratorFactory.apply(this);
+    }
+    
+    /**
+     * Unwraps underlying {@link Promise}
+     * @return
+     *   the underlying un-decorated {@link Promise}
+     */
+    default Promise<T> raw() {
+        return this;
     }
     
     <U> Promise<U> thenApply(Function<? super T, ? extends U> fn);

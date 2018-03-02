@@ -333,8 +333,7 @@ public class DependentPromiseTests {
     }
     
     private DependentPromise<Void> runDepedentAsync(Runnable r) {
-        return DependentPromise.from(
-                CompletableTask.runAsync(r, executor));
+        return CompletableTask.runAsync(r, executor).dependent();
     }
     
     private void longTask(int units, State state) {

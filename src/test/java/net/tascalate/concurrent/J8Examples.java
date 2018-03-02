@@ -18,6 +18,7 @@ package net.tascalate.concurrent;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class J8Examples {
@@ -43,13 +44,16 @@ public class J8Examples {
         
         CompletableTask
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
-            .dependent()
+            .as(DecoratingPromise<Integer, Promise<Integer>>::new)
+            //.dependent()
+            .as(DefaultDependentPromise::from)
+            .thenApply(Function.identity(), true)
             .delay( Duration.ofMillis(100), true, true )
             .thenApply(v -> {
                 System.out.println("After delay: " + v);
                 return v;
             }, true)
-            .onTimeout(123456789, Duration.ofMillis(200))
+            .onTimeout(123456789, Duration.ofMillis(2000))
             .thenAcceptAsync(J8Examples::onComplete)
             .get(); 
         

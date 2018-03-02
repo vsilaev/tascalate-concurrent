@@ -37,6 +37,11 @@ abstract public class AbstractDelegatingPromise<T, D extends Promise<T>>
     protected AbstractDelegatingPromise(D delegate) {
         super(delegate);
     }
+    
+    @Override
+    public Promise<T> raw() {
+        return delegate.raw();
+    }
 	
     @Override
     public Promise<T> delay(long timeout, TimeUnit unit) {
