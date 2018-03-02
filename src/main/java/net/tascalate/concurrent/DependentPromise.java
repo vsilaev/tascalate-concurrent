@@ -34,7 +34,7 @@ import java.util.function.Supplier;
  * For example:
  * <pre>
  * <code>
- * DependentPromise&lt;?&gt; p1 = DefaultDependentPromise.from(CallableTask.runAsync(this::someLongRunningMethod, myExecutor));
+ * DependentPromise&lt;?&gt; p1 = DependentPromise.from(CallableTask.runAsync(this::someLongRunningMethod, myExecutor));
  * DependentPromise&lt;?&gt; p2 = p1.thenRunAsync(this::someOtherLongRunningTask, true);
  * ...
  * p2.cancel(true); 
@@ -63,6 +63,10 @@ import java.util.function.Supplier;
  *   a type of the successfully resolved promise value    
  */
 public interface DependentPromise<T> extends Promise<T> {
+    
+    public static <U> DependentPromise<U> from(Promise<U> source) {
+        return DefaultDependentPromise.from(source);
+    }
     
     @Override
     default DependentPromise<T> dependent() {

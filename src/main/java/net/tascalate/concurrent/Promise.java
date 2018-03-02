@@ -152,12 +152,12 @@ public interface Promise<T> extends Future<T>, CompletionStage<T>, PromiseDecora
     }
     
     /**
-     * Converts this {@link Promise} to a {@link DefaultDependentPromise}
+     * Converts this {@link Promise} to a {@link DependentPromise}
      * @return
      * created DependentPromise
      */
     default DependentPromise<T> dependent() {
-    	return DefaultDependentPromise.from(this);
+    	return DependentPromise.from(this);
     }
     
     /**

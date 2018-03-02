@@ -46,7 +46,7 @@ public class J8Examples {
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
             .as(DecoratingPromise<Integer, Promise<Integer>>::new)
             //.dependent()
-            .as(DefaultDependentPromise::from)
+            .as(DependentPromise::from)
             .thenApply(Function.identity(), true)
             .delay( Duration.ofMillis(100), true, true )
             .thenApply(v -> {

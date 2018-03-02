@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * For example:
  * <pre>
  * <code>
- * DependentPromise&lt;?&gt; p1 = DefaultDependentPromise.from(CallableTask.runAsync(this::someLongRunningMethod, myExecutor));
+ * DependentPromise&lt;?&gt; p1 = DependentPromise.from(CallableTask.runAsync(this::someLongRunningMethod, myExecutor));
  * DependentPromise&lt;?&gt; p2 = p1.thenRunAsync(this::someOtherLongRunningTask, true);
  * ...
  * p2.cancel(true); 
@@ -67,7 +67,7 @@ import java.util.function.Supplier;
  * @param <T>
  *   a type of the successfully resolved promise value    
  */
-public class DefaultDependentPromise<T> implements DependentPromise<T> {
+final class DefaultDependentPromise<T> implements DependentPromise<T> {
     final private Promise<T> delegate;
     final private CompletionStage<?>[] cancellableOrigins;
     
@@ -76,7 +76,7 @@ public class DefaultDependentPromise<T> implements DependentPromise<T> {
         this.cancellableOrigins = cancellableOrigins; 
     }
     
-    public static <U> DependentPromise<U> from(Promise<U> source) {
+    static <U> DependentPromise<U> from(Promise<U> source) {
         if (source instanceof DependentPromise) {
             return (DependentPromise<U>)source;
         } else {
