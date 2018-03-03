@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -532,17 +531,6 @@ public class Promises {
         } else {
             resultPromise.onFailure(ctx.asFailure());
         }
-    }
-    
-    private static final Function<Promise<Object>, DependentPromise<Object>> EXPLICIT_DEPENDENT_PROMISE = ConfigurableDependentPromise::from;
-    
-    @SuppressWarnings("unchecked")
-    public static <T> Function<? super Promise<T>, DependentPromise<T>> dependentPromise() {
-        return (Function<? super Promise<T>, DependentPromise<T>>)(Object)EXPLICIT_DEPENDENT_PROMISE;
-    }
-    
-    public static <T> Function<? super Promise<T>, Promise<T>> dependentPromise(Set<PromiseOrigin> defaultEnlistOptions) {
-        return p -> ConfigurableDependentPromise.from(p, defaultEnlistOptions);
     }
 
     static CompletionException wrapException(Throwable e) {

@@ -47,8 +47,7 @@ public class J8Examples {
         CompletableTask
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
             .as(ExtendedPromiseDecorator<Integer, Promise<Integer>>::new)
-            //.dependent()
-            .as(Promises.dependentPromise())
+            .dependent()
             .thenApply(Function.identity(), true)
             .delay( Duration.ofMillis(100), true, true )
             .thenApply(v -> {
