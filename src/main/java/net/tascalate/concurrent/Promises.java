@@ -534,15 +534,15 @@ public class Promises {
         }
     }
     
-    private static final Function<Promise<Object>, DependentPromise<Object>> EXPLICIT_DEPENDENT_PROMISE = ExplicitDependentPromise::from;
+    private static final Function<Promise<Object>, DependentPromise<Object>> EXPLICIT_DEPENDENT_PROMISE = ConfigurableDependentPromise::from;
     
     @SuppressWarnings("unchecked")
-    public static <T> Function<? super Promise<T>, DependentPromise<T>> explicitDependentPromise() {
+    public static <T> Function<? super Promise<T>, DependentPromise<T>> dependentPromise() {
         return (Function<? super Promise<T>, DependentPromise<T>>)(Object)EXPLICIT_DEPENDENT_PROMISE;
     }
     
-    public static <T> Function<? super Promise<T>, Promise<T>> implicitDependentPromise(Set<PromiseOrigin> defaultEnlistOptions) {
-        return p -> ImplicitDependentPromise.from(p, defaultEnlistOptions);
+    public static <T> Function<? super Promise<T>, Promise<T>> dependentPromise(Set<PromiseOrigin> defaultEnlistOptions) {
+        return p -> ConfigurableDependentPromise.from(p, defaultEnlistOptions);
     }
 
     static CompletionException wrapException(Throwable e) {

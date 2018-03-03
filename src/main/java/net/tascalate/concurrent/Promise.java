@@ -16,6 +16,7 @@
 package net.tascalate.concurrent;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -158,6 +159,15 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
      */
     default DependentPromise<T> dependent() {
     	return DependentPromise.from(this);
+    }
+    
+    /**
+     * Converts this {@link Promise} to a {@link DependentPromise}
+     * @return
+     * created DependentPromise
+     */
+    default DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+        return DependentPromise.from(this, defaultEnlistOptions);
     }
     
     /**
