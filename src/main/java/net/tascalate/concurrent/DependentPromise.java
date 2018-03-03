@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +66,7 @@ import java.util.function.Supplier;
 public interface DependentPromise<T> extends Promise<T> {
     
     public static <U> DependentPromise<U> from(Promise<U> source) {
-        return DefaultDependentPromise.from(source);
+        return ExplicitDependentPromise.from(source);
     }
     
     @Override
@@ -391,4 +392,11 @@ public interface DependentPromise<T> extends Promise<T> {
     }
 
     <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor, boolean enlistOrigin);
+    
+    default CompletableFuture<T> toCompletableFuture() {
+        return toCompletableFuture(false);
+    }
+    
+    CompletableFuture<T> toCompletableFuture(boolean enlistOrigin);
+    
 }

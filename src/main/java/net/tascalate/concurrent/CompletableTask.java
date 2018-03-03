@@ -145,12 +145,13 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
         return result;
     }
     
-    public static <T> Promise<T> await(CompletionStage<? extends T> stage, Executor executor) {
-        return await(stage, executor, false);
+    public static <T> Promise<T> waitFor(CompletionStage<? extends T> stage, Executor executor) {
+        return waitFor(stage, executor, false);
     }
     
-    public static <T> Promise<T> await(CompletionStage<? extends T> stage, Executor executor, boolean enlistOrigin) {
-        return asyncOn(executor).dependent()
+    public static <T> Promise<T> waitFor(CompletionStage<? extends T> stage, Executor executor, boolean enlistOrigin) {
+        return asyncOn(executor)
+               .dependent()
                .thenCombineAsync(
                    stage, (u, v) -> v, enlistOrigin ? PromiseOrigin.PARAM_ONLY : PromiseOrigin.NONE
                );
@@ -161,7 +162,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
     }
     
     public static Promise<Duration> delay(Duration duration, Executor executor) {
-        return await(Timeouts.delay(duration), executor, true);
+        return waitFor(Timeouts.delay(duration), executor, true);
     }
     
     @Override

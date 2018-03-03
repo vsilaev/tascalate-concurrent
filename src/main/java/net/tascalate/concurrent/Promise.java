@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * @param <T>
  *   a type of the successfully resolved promise value   
  */
-public interface Promise<T> extends Future<T>, CompletionStage<T>, PromiseDecorator<T> {
+public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     default T getNow(T valueIfAbsent) {
         return getNow(() -> valueIfAbsent);
@@ -169,7 +169,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T>, PromiseDecora
      * @return
      *   a decorator created
      */
-    default <D extends PromiseDecorator<T>> D as(Function<? super Promise<T>, D> decoratorFactory) {
+    default <D> D as(Function<? super Promise<T>, D> decoratorFactory) {
         return decoratorFactory.apply(this);
     }
     

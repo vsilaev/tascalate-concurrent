@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent;
+package net.tascalate.concurrent.decorators;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -21,6 +21,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import net.tascalate.concurrent.Promise;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass via delegation
@@ -34,11 +36,11 @@ import java.util.concurrent.TimeoutException;
  * @param <D>
  *   a type of the concrete {@link CompletionStage} + {@link Future} subclass
  */
-abstract public class AbstractDelegatingFuture<T, D extends CompletionStage<T> & Future<T>>
-    extends AbstractDelegatingStage<T, D>
+abstract public class AbstractFutureDecorator<T, D extends CompletionStage<T> & Future<T>>
+    extends AbstractCompletionStageDecorator<T, D>
     implements CompletionStage<T>, Future<T> {
 
-    protected AbstractDelegatingFuture(D delegate) {
+    protected AbstractFutureDecorator(D delegate) {
         super(delegate);
     }
 	

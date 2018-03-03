@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent;
+package net.tascalate.concurrent.decorators;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+
+import net.tascalate.concurrent.Promise;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass via delegation
@@ -30,11 +32,11 @@ import java.util.function.Supplier;
  * @param <D>
  *   a type of the concrete {@link Promise} subclass
  */
-abstract public class AbstractDelegatingPromise<T, D extends Promise<T>>
-    extends AbstractDelegatingFuture<T, D> 
+abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
+    extends AbstractFutureDecorator<T, D> 
     implements Promise<T> {
 	
-    protected AbstractDelegatingPromise(D delegate) {
+    protected AbstractPromiseDecorator(D delegate) {
         super(delegate);
     }
     

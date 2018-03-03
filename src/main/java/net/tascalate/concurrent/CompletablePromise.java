@@ -24,6 +24,8 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.decorators.AbstractFutureDecorator;
+
 /**
  * The {@link CompletablePromise} is an adapter of a {@link CompletableFuture} to the {@link Promise} API 
  * 
@@ -32,7 +34,7 @@ import java.util.function.Supplier;
  * @param <T>
  *   a type of the successfully resolved promise value   
  */
-public class CompletablePromise<T> extends AbstractDelegatingFuture<T, CompletableFuture<T>> implements Promise<T> {
+public class CompletablePromise<T> extends AbstractFutureDecorator<T, CompletableFuture<T>> implements Promise<T> {
 
     public CompletablePromise() {
         this(new CompletableFuture<>());

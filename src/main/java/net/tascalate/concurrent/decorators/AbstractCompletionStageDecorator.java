@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent;
+package net.tascalate.concurrent.decorators;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -22,6 +22,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import net.tascalate.concurrent.Promise;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass via delegation
@@ -34,10 +36,10 @@ import java.util.function.Function;
  * @param <D>
  *   a type of the concrete {@link CompletionStage} subclass
  */
-abstract public class AbstractDelegatingStage<T, D extends CompletionStage<T>> implements CompletionStage<T> {
+abstract public class AbstractCompletionStageDecorator<T, D extends CompletionStage<T>> implements CompletionStage<T> {
     final protected D delegate;
 
-    protected AbstractDelegatingStage(D delegate) {
+    protected AbstractCompletionStageDecorator(D delegate) {
         this.delegate = delegate;
     }
     

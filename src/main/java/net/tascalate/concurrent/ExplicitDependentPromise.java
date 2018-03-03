@@ -15,21 +15,16 @@
  */
 package net.tascalate.concurrent;
 
-import java.lang.reflect.Array;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.Supplier; 
 
 /**
  * 
@@ -67,13 +62,10 @@ import java.util.function.Supplier;
  * @param <T>
  *   a type of the successfully resolved promise value    
  */
-final class DefaultDependentPromise<T> implements DependentPromise<T> {
-    final private Promise<T> delegate;
-    final private CompletionStage<?>[] cancellableOrigins;
+final class ExplicitDependentPromise<T> extends AbstractDependentPromise<T> implements DependentPromise<T> {
     
-    protected DefaultDependentPromise(Promise<T> delegate, CompletionStage<?>[] cancellableOrigins) {
-        this.delegate = delegate;
-        this.cancellableOrigins = cancellableOrigins; 
+    protected ExplicitDependentPromise(Promise<T> delegate, CompletionStage<?>[] cancellableOrigins) {
+        super(delegate, cancellableOrigins);
     }
     
     static <U> DependentPromise<U> from(Promise<U> source) {
@@ -84,68 +76,13 @@ final class DefaultDependentPromise<T> implements DependentPromise<T> {
         }
     }
     
-    protected void cancelOrigins(boolean mayInterruptIfRunning) {
-        if (null != cancellableOrigins) {
-            Arrays.stream(cancellableOrigins).filter(p -> p != null).forEach(p -> cancelPromise(p, mayInterruptIfRunning));
-        }
-    }
-    
-    protected boolean cancelPromise(CompletionStage<?> promise, boolean mayInterruptIfRunning) {
-        return CompletablePromise.cancelPromise(promise, mayInterruptIfRunning);
-    }
-
-    @Override
-    public boolean cancel(boolean mayInterruptIfRunning) {
-        if (delegate.cancel(mayInterruptIfRunning)) {
-            cancelOrigins(mayInterruptIfRunning);
-            return true;
-        } else {
-            return false;
-        }
-    }
-    
-    @Override
-    public boolean isCancelled() {
-        return delegate.isCancelled();
-    }
-
-    @Override
-    public boolean isDone() {
-        return delegate.isDone();
-    }
-
-    @Override
-    public T get() throws InterruptedException, ExecutionException {
-        return delegate.get();
-    }
-
-    @Override
-    public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-        return delegate.get(timeout, unit);
-    }
-
-    @Override
-    public T getNow(T valueIfAbsent) {
-        return delegate.getNow(valueIfAbsent);
-    }
-    
-    public T getNow(Supplier<? extends T> valueIfAbsent) {
-        return delegate.getNow(valueIfAbsent);
-    }
-
-    protected <U> DependentPromise<U> wrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
+    private <U> DependentPromise<U> wrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
         return doWrap(original, cancellableOrigins);
     }
     
     private static <U> DependentPromise<U> doWrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
-        final DefaultDependentPromise<U> result = new DefaultDependentPromise<>(original, cancellableOrigins);
-        if (result.isCancelled()) {
-            // Wrapped over already cancelled Promise
-            // So result.cancel() has no effect
-            // and we have to cancel origins explicitly
-            // right after construction
-            result.cancelOrigins(true);
-        }
+        final ExplicitDependentPromise<U> result = new ExplicitDependentPromise<>(original, cancellableOrigins);
+        result.checkCanceledOnCreation();
         return result;
     }
 
@@ -184,42 +121,6 @@ final class DefaultDependentPromise<T> implements DependentPromise<T> {
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
-    }
-
-    
-    @Override
-    public Promise<T> raw() {
-        if (null == cancellableOrigins || cancellableOrigins.length == 0) {
-            // No state collected, may optimize away own reference
-            return delegate.raw();
-        } else {
-            final CompletionStage<?>[] dependent = cancellableOrigins;
-            return new AbstractDelegatingPromise<T, Promise<T>>(delegate.raw()) {
-                @Override
-                public boolean cancel(boolean mayInterruptIfRunning) {
-                    if (super.cancel(mayInterruptIfRunning)) {
-                        if (null != dependent) {
-                            Arrays.stream(dependent).filter(p -> p != null).forEach(p -> cancelPromise(p, mayInterruptIfRunning));
-                        }
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
-                
-                @Override
-                public Promise<T> raw() {
-                    // May not unwrap further
-                    AbstractDelegatingPromise<T, Promise<T>> self = this;
-                    return self;
-                }
-
-                @Override
-                protected <U> Promise<U> wrap(CompletionStage<U> original) {
-                    return (Promise<U>)original;
-                }
-            };
-        }
     }
     
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn, boolean enlistOrigin) {
@@ -409,15 +310,14 @@ final class DefaultDependentPromise<T> implements DependentPromise<T> {
         return wrap(delegate.handleAsync(fn, executor), self(enlistOrigin));
     }
 
-
-    public CompletableFuture<T> toCompletableFuture() {
-        return delegate.toCompletableFuture();
+    @Override
+    public CompletableFuture<T> toCompletableFuture(boolean enlistOrigin) {
+        return super.toCompletableFuture(enlistOrigin);
     }
     
-    private DefaultDependentPromise<T>[] self(boolean enlist) {
+    private CompletionStage<?>[] self(boolean enlist) {
         if (enlist) {
-            @SuppressWarnings("unchecked")
-            DefaultDependentPromise<T>[] result = (DefaultDependentPromise<T>[])Array.newInstance(DefaultDependentPromise.class, 1);
+            CompletionStage<?>[] result = new CompletionStage<?>[1];
             result[0] = this;
             return result;
         } else {

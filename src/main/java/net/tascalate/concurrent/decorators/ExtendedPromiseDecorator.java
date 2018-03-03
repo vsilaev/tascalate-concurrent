@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent;
+package net.tascalate.concurrent.decorators;
 
 import java.time.Duration;
 import java.util.concurrent.CompletionStage;
@@ -25,9 +25,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class DecoratingPromise<T, D extends Promise<T>> extends AbstractDelegatingPromise<T, D> {
+import net.tascalate.concurrent.Promise;
+
+public class ExtendedPromiseDecorator<T, D extends Promise<T>> extends AbstractPromiseDecorator<T, D> {
     
-    public DecoratingPromise(D delegate) {
+    public ExtendedPromiseDecorator(D delegate) {
         super(delegate);
     }
 
@@ -64,7 +66,7 @@ public class DecoratingPromise<T, D extends Promise<T>> extends AbstractDelegati
     }
     
     protected <U> Promise<U> wrapResult(CompletionStage<U> original) {
-        return new DecoratingPromise<>((Promise<U>)original);
+        return new ExtendedPromiseDecorator<>((Promise<U>)original);
     }
     
     @Override

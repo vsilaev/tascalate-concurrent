@@ -21,6 +21,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
+
 public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
@@ -44,9 +46,9 @@ public class J8Examples {
         
         CompletableTask
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
-            .as(DecoratingPromise<Integer, Promise<Integer>>::new)
+            .as(ExtendedPromiseDecorator<Integer, Promise<Integer>>::new)
             //.dependent()
-            .as(DependentPromise::from)
+            .as(Promises.explicitDependentPromise())
             .thenApply(Function.identity(), true)
             .delay( Duration.ofMillis(100), true, true )
             .thenApply(v -> {
