@@ -94,7 +94,6 @@ public interface DependentPromise<T> extends Promise<T> {
         return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
-    
     default DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         return onTimeout(() -> value, duration, cancelOnTimeout, enlistOrigin); 
     }
