@@ -16,15 +16,21 @@
 package net.tascalate.concurrent;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier; 
+import java.util.function.Supplier;
+
+import net.tascalate.concurrent.decorators.AbstractPromiseDecorator; 
 
 /**
  * 
@@ -62,25 +68,29 @@ import java.util.function.Supplier;
  * @param <T>
  *   a type of the successfully resolved promise value    
  */
-final class ExplicitDependentPromise<T> extends AbstractDependentPromise<T> implements DependentPromise<T> {
+class ExplicitDependentPromise<T> implements DependentPromise<T> {
+    final protected Promise<T> delegate;
+    final protected CompletionStage<?>[] cancellableOrigins;
     
     protected ExplicitDependentPromise(Promise<T> delegate, CompletionStage<?>[] cancellableOrigins) {
-        super(delegate, cancellableOrigins);
+        this.delegate = delegate;
+        this.cancellableOrigins = cancellableOrigins;
     }
     
     static <U> DependentPromise<U> from(Promise<U> source) {
-        if (source instanceof DependentPromise) {
-            return (DependentPromise<U>)source;
-        } else {
-            return doWrap(source, null);
-        }
+        return doWrap(source, null);
     }
     
-    private <U> DependentPromise<U> wrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
+    protected <U> DependentPromise<U> wrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
         return doWrap(original, cancellableOrigins);
     }
     
-    private static <U> DependentPromise<U> doWrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
+    static <U> DependentPromise<U> doWrap(Promise<U> original, CompletionStage<?>[] cancellableOrigins) {
+        if (null == cancellableOrigins || cancellableOrigins.length == 0) {
+            if (original instanceof DependentPromise) {
+                return (DependentPromise<U>)original;
+            }
+        }
         final ExplicitDependentPromise<U> result = new ExplicitDependentPromise<>(original, cancellableOrigins);
         result.checkCanceledOnCreation();
         return result;
@@ -309,11 +319,126 @@ final class ExplicitDependentPromise<T> extends AbstractDependentPromise<T> impl
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.handleAsync(fn, executor), self(enlistOrigin));
     }
+    
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        if (delegate.cancel(mayInterruptIfRunning)) {
+            cancelOrigins(mayInterruptIfRunning);
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    @Override
+    public boolean isCancelled() {
+        return delegate.isCancelled();
+    }
 
     @Override
-    public CompletableFuture<T> toCompletableFuture(boolean enlistOrigin) {
-        return super.toCompletableFuture(enlistOrigin);
+    public boolean isDone() {
+        return delegate.isDone();
     }
+
+    @Override
+    public T get() throws InterruptedException, ExecutionException {
+        return delegate.get();
+    }
+
+    @Override
+    public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+        return delegate.get(timeout, unit);
+    }
+
+    @Override
+    public T getNow(T valueIfAbsent) {
+        return delegate.getNow(valueIfAbsent);
+    }
+    
+    public T getNow(Supplier<? extends T> valueIfAbsent) {
+        return delegate.getNow(valueIfAbsent);
+    }
+
+    @Override
+    public Promise<T> raw() {
+        if (null == cancellableOrigins || cancellableOrigins.length == 0) {
+            // No state collected, may optimize away own reference
+            return delegate.raw();
+        } else {
+            final CompletionStage<?>[] dependent = cancellableOrigins;
+            return new AbstractPromiseDecorator<T, Promise<T>>(delegate.raw()) {
+                @Override
+                public boolean cancel(boolean mayInterruptIfRunning) {
+                    if (super.cancel(mayInterruptIfRunning)) {
+                        if (null != dependent) {
+                            Arrays.stream(dependent).filter(p -> p != null).forEach(p -> cancelPromise(p, mayInterruptIfRunning));
+                        }
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+                
+                @Override
+                public Promise<T> raw() {
+                    // May not unwrap further
+                    return this;
+                }
+
+                @Override
+                protected <U> Promise<U> wrap(CompletionStage<U> original) {
+                    return (Promise<U>)original;
+                }
+            };
+        }
+    }
+
+    public CompletableFuture<T> toCompletableFuture(boolean enlistOrigin) {
+        if (!enlistOrigin) {
+            return delegate.toCompletableFuture();
+        } else {
+            CompletableFuture<T> result = new CompletableFuture<T>() {
+                @Override
+                public boolean cancel(boolean mayInterruptIfRunning) {
+                    if (super.cancel(mayInterruptIfRunning)) {
+                        ExplicitDependentPromise.this.cancel(mayInterruptIfRunning);
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            };
+            whenComplete((r, e) -> {
+               if (null != e) {
+                   result.completeExceptionally(e);
+               } else {
+                   result.complete(r);
+               }
+            });
+            return result;
+        }
+    }
+
+    protected void cancelOrigins(boolean mayInterruptIfRunning) {
+        if (null != cancellableOrigins) {
+            Arrays.stream(cancellableOrigins).filter(p -> p != null).forEach(p -> cancelPromise(p, mayInterruptIfRunning));
+        }
+    }
+    
+    protected boolean cancelPromise(CompletionStage<?> promise, boolean mayInterruptIfRunning) {
+        return CompletablePromise.cancelPromise(promise, mayInterruptIfRunning);
+    }
+    
+    protected void checkCanceledOnCreation() {
+        if (isCancelled()) {
+            // Wrapped over already cancelled Promise
+            // So result.cancel() has no effect
+            // and we have to cancel origins explicitly
+            // right after construction
+            cancelOrigins(true);
+        }
+    }
+    
     
     private CompletionStage<?>[] self(boolean enlist) {
         if (enlist) {

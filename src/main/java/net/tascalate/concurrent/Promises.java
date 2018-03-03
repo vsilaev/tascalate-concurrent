@@ -541,8 +541,8 @@ public class Promises {
         return (Function<? super Promise<T>, DependentPromise<T>>)(Object)EXPLICIT_DEPENDENT_PROMISE;
     }
     
-    public static <T> Function<? super Promise<T>, Promise<T>> implicitDependentPromise(Set<PromiseOrigin> enlistOptions) {
-        return p -> ImplicitDependentPromise.from(p, enlistOptions);
+    public static <T> Function<? super Promise<T>, Promise<T>> implicitDependentPromise(Set<PromiseOrigin> defaultEnlistOptions) {
+        return p -> ImplicitDependentPromise.from(p, defaultEnlistOptions);
     }
 
     static CompletionException wrapException(Throwable e) {
