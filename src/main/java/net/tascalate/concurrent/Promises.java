@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -440,7 +441,7 @@ public class Promises {
     
     public static <T> Promise<T> retry(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
         Promise<ObjectRef<T>> wrappedResult = poll(
-            () -> Optional.of(new ObjectRef<T>( codeBlock.call() )), 
+            () -> Optional.of(new ObjectRef<>( codeBlock.call() )), 
             executor, retryPolicy
         );
         return wrappedResult.dependent().thenApply(ObjectRef::dereference, true);
@@ -551,9 +552,9 @@ public class Promises {
     private static <T> Promise<T> unwrap(CompletionStage<List<T>> original, boolean unwrapException) {
         return from(
             original,
-            c -> c.stream().filter(el -> null != el).findFirst().get(),
+            c -> c.stream().filter(Objects::nonNull).findFirst().get(),
             unwrapException ? 
-                ex -> ex instanceof MultitargetException ? MultitargetException.class.cast(ex).getFirstException().get() : ex
+                ex -> ex instanceof MultitargetException ? ((MultitargetException)ex).getFirstException().get() : ex
                 :
                 Function.identity()
         );

@@ -144,7 +144,7 @@ public class RetryPolicy {
     }
 
     public RetryPolicy() {
-        this(Integer.MAX_VALUE, 1000L);
+        this(Integer.MAX_VALUE, DelayPolicy.DEFAULT);
     }
     
     public RetryPolicy(long backoff) {
@@ -169,7 +169,7 @@ public class RetryPolicy {
     public RetryPolicy(int maxRetries, DelayPolicy backoff, DelayPolicy timeout) {
         this(maxRetries, 
              Collections.emptySet(), Collections.emptySet(), 
-             ctx -> true, ctx -> false, 
+             PREDICATE_TRUE, PREDICATE_FALSE, 
              backoff,
              timeout
         );
@@ -212,4 +212,6 @@ public class RetryPolicy {
         return Collections.unmodifiableSet(copy);
     }
     
+    private static final Predicate<RetryContext> PREDICATE_TRUE = ctx -> true;
+    private static final Predicate<RetryContext> PREDICATE_FALSE = ctx -> false;
 }

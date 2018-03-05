@@ -16,8 +16,6 @@
 package net.tascalate.concurrent;
 
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,7 +39,7 @@ class Timeouts {
         final CompletablePromise<Duration> promise = new CompletablePromise<>();
         final Future<?> timeout = scheduler.schedule(
             () -> promise.onSuccess(duration), 
-            duration.toMillis(), TimeUnit.MILLISECONDS
+            duration.toNanos(), TimeUnit.NANOSECONDS
         );
         promise.whenComplete((r, e) -> {
           if (null != e) {
@@ -75,7 +73,7 @@ class Timeouts {
         final CompletablePromise<T> promise = new CompletablePromise<>();
         final Future<?> timeout = scheduler.schedule(
             () -> promise.onFailure(new TimeoutException("Timeout after " + duration)), 
-            duration.toMillis(), TimeUnit.MILLISECONDS
+            duration.toNanos(), TimeUnit.NANOSECONDS
         );
         promise.whenComplete((r, e) -> timeout.cancel(true));
         return promise;
@@ -95,7 +93,7 @@ class Timeouts {
     }
     
     static Duration toDuration(long delay, TimeUnit timeUnit) {
-        return Duration.of(delay, toChronoUnit(timeUnit));
+        return Duration.ofNanos(timeUnit.toNanos(delay));
     }
     
     static <T, U> BiConsumer<T, U> timeoutsCleanup(Promise<T> self, Promise<?> timeout, boolean cancelOnTimeout) {
@@ -129,29 +127,6 @@ class Timeouts {
             }
         };
     }
-    
-    private static ChronoUnit toChronoUnit(TimeUnit unit) { 
-        Objects.requireNonNull(unit, "unit"); 
-        switch (unit) { 
-            case NANOSECONDS: 
-                return ChronoUnit.NANOS; 
-            case MICROSECONDS: 
-                return ChronoUnit.MICROS; 
-            case MILLISECONDS: 
-                return ChronoUnit.MILLIS; 
-            case SECONDS: 
-                return ChronoUnit.SECONDS; 
-            case MINUTES: 
-                return ChronoUnit.MINUTES; 
-            case HOURS: 
-                return ChronoUnit.HOURS; 
-            case DAYS: 
-                return ChronoUnit.DAYS; 
-            default: 
-                throw new IllegalArgumentException("Unknown TimeUnit constant"); 
-        } 
-    }     
-
     
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
         @Override

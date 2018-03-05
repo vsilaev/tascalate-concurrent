@@ -83,7 +83,7 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     default DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
-        return delay(timeout, unit, delayOnError, false);
+        return delay(Timeouts.toDuration(timeout, unit), delayOnError);
     }
     
     @Override
@@ -92,9 +92,7 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     @Override
-    default DependentPromise<T> delay(Duration duration, boolean delayOnError) {
-        return delay(duration, delayOnError, false);
-    }    
+    DependentPromise<T> delay(Duration duration, boolean delayOnError);
     
     default DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError, boolean enlistOrigin) {
         return delay(Timeouts.toDuration(timeout, unit), delayOnError, enlistOrigin);        
@@ -110,7 +108,7 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return orTimeout(timeout, unit, cancelOnTimeout, false);
+        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     @Override
@@ -119,9 +117,7 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     @Override
-    default DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        return orTimeout(duration, cancelOnTimeout, false);
-    }    
+    DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout);
     
     default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
         return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
@@ -137,7 +133,7 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     default DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(value, timeout, unit, cancelOnTimeout, false);
+        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     @Override
@@ -147,7 +143,7 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     default DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        return onTimeout(value, duration, cancelOnTimeout, false);
+        return onTimeout(() -> value, duration, cancelOnTimeout);
     }
     
     @Override
@@ -166,9 +162,7 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     @Override
-    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
-        return onTimeout(supplier, duration, cancelOnTimeout, false);
-    }    
+    DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout);
     
     default DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
         return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);

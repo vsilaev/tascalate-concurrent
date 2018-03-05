@@ -154,6 +154,10 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     /**
      * Converts this {@link Promise} to a {@link DependentPromise}
+     * The returned DependentPromise does not implicitly enlist any {@link CompletionStage}
+     * for cancellation (neither self, nor passed as arguments to combining methods); 
+     * only enlisting via explicit parameter is supported
+     * 
      * @return
      * created DependentPromise
      */
@@ -163,6 +167,12 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     /**
      * Converts this {@link Promise} to a {@link DependentPromise}
+     * The returned DependentPromise does implicitly enlist {@link CompletionStage}
+     * for cancellation (either self, and/or passed as arguments to combining methods)  
+     * according to <code>defaultEnlistOptions</code> parameter
+     * 
+     * @param defaultEnlistOptions
+     *   defines what {@link CompletionStage} should be enlisted implicitly for cancellation
      * @return
      * created DependentPromise
      */
