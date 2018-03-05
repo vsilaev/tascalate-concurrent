@@ -27,6 +27,8 @@ import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
+        System.out.println( Duration.ofNanos(Long.MAX_VALUE).toDays() );
+        
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
 
         Promise<String> retry1 = Promises.poll(

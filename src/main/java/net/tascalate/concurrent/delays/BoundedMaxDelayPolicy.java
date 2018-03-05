@@ -22,6 +22,8 @@
  */
 package net.tascalate.concurrent.delays;
 
+import java.time.Duration;
+
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
@@ -29,19 +31,23 @@ public class BoundedMaxDelayPolicy extends DelayPolicyWrapper {
 
     public static final long DEFAULT_MAX_DELAY_MILLIS = 10_000;
 
-    private final long maxDelayMillis;
+    private final Duration maxDelay;
 
     public BoundedMaxDelayPolicy(DelayPolicy target) {
         this(target, DEFAULT_MAX_DELAY_MILLIS);
     }
 
     public BoundedMaxDelayPolicy(DelayPolicy target, long maxDelayMillis) {
+        this(target, Duration.ofMillis(maxDelayMillis));
+    }
+    
+    public BoundedMaxDelayPolicy(DelayPolicy target, Duration maxDelay) {
         super(target);
-        this.maxDelayMillis = maxDelayMillis;
+        this.maxDelay = maxDelay;
     }
 
     @Override
-    public long delayMillis(RetryContext context) {
-        return Math.min(target.delayMillis(context), maxDelayMillis);
+    public Duration delay(RetryContext context) {
+        return min(target.delay(context), maxDelay);
     }
 }

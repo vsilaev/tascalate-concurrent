@@ -22,24 +22,30 @@
  */
 package net.tascalate.concurrent.delays;
 
+import java.time.Duration;
+
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
 public class FixedIntervalDelayPolicy implements DelayPolicy {
     public static final long DEFAULT_PERIOD_MILLIS = 1000;
 
-    private final long intervalMillis;
+    private final Duration interval;
 
     public FixedIntervalDelayPolicy() {
         this(DEFAULT_PERIOD_MILLIS);
     }
 
     public FixedIntervalDelayPolicy(long intervalMillis) {
-        this.intervalMillis = intervalMillis;
+        this(Duration.ofMillis(intervalMillis));
+    }
+    
+    public FixedIntervalDelayPolicy(Duration interval) {
+        this.interval = interval;
     }
 
     @Override
-    public long delayMillis(RetryContext context) {
-        return intervalMillis;
+    public Duration delay(RetryContext context) {
+        return interval;
     }
 }

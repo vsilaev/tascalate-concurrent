@@ -22,6 +22,8 @@
  */
 package net.tascalate.concurrent.delays;
 
+import java.time.Duration;
+
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
@@ -32,11 +34,11 @@ public class FirstRetryNoDelayPolicy extends DelayPolicyWrapper {
     }
 
     @Override
-    public long delayMillis(RetryContext context) {
+    public Duration delay(RetryContext context) {
         if (context.getRetryCount() == 0) {
-            return 0;
+            return Duration.ZERO;
         } else {
-            return target.delayMillis(context.asPrevRetry());
+            return target.delay(context.asPrevRetry());
         }
     }
 }

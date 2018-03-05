@@ -22,6 +22,7 @@
  */
 package net.tascalate.concurrent.delays;
 
+import java.time.Duration;
 import java.util.Objects;
 
 import net.tascalate.concurrent.DelayPolicy;
@@ -32,5 +33,14 @@ public abstract class DelayPolicyWrapper implements DelayPolicy {
 
     public DelayPolicyWrapper(DelayPolicy target) {
         this.target = Objects.requireNonNull(target);
+    }
+    
+    
+    protected static Duration max(Duration a, Duration b) {
+        return a.compareTo(b) > 0 ? a : b;
+    }
+    
+    protected static Duration min(Duration a, Duration b) {
+        return a.compareTo(b) < 0 ? a : b;
     }
 }

@@ -15,13 +15,15 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
+
 public class RetryContext {
     private final RetryPolicy policy;
     private final int retry;
-    private final long lastCallDuration;
+    private final Duration lastCallDuration;
     private final Throwable lastThrowable;
     
-    public RetryContext(RetryPolicy policy, int retry, long lastCallDuration, Throwable lastThrowable) {
+    public RetryContext(RetryPolicy policy, int retry, Duration lastCallDuration, Throwable lastThrowable) {
         this.policy = policy;
         this.retry = retry;
         this.lastCallDuration = lastCallDuration; 
@@ -30,7 +32,7 @@ public class RetryContext {
     
 
     public static RetryContext initial(RetryPolicy policy) {
-        return new RetryContext(policy, 0, 0, null);
+        return new RetryContext(policy, 0, Duration.ZERO, null);
     }
     
     public RetryPolicy.Outcome shouldContinue() {
@@ -41,7 +43,7 @@ public class RetryContext {
         return retry;
     }
     
-    public long getLastCallDuration() {
+    public Duration getLastCallDuration() {
         return lastCallDuration;
     }
 
@@ -49,11 +51,11 @@ public class RetryContext {
         return lastThrowable;
     }
     
-    public RetryContext nextRetry(long callDuration) {
-        return new RetryContext(policy, retry + 1, callDuration, null);
+    public RetryContext nextRetry(Duration callDuration) {
+        return nextRetry(callDuration, null);
     }
     
-    public RetryContext nextRetry(long callDuration, Throwable throwable) {
+    public RetryContext nextRetry(Duration callDuration, Throwable throwable) {
         return new RetryContext(policy, retry + 1, callDuration, throwable);
     }
     

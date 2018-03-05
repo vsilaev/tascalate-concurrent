@@ -22,6 +22,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,12 +34,8 @@ public class RetryPolicy {
     
     public static interface Outcome {
         boolean shouldExecute();
-        long backoffDelayMillis();
-        long timeoutDelayMillis();
-        
-        default boolean hasTimeout() {
-            return timeoutDelayMillis() > 0;
-        }
+        Duration backoffDelay();
+        Duration timeout();
     }
     
     public static final Outcome DONT_RETRY = new Outcome() {
@@ -46,17 +43,17 @@ public class RetryPolicy {
         public boolean shouldExecute() { return false; }
 
         @Override
-        public long backoffDelayMillis() { return -1; }
+        public Duration backoffDelay() { return Timeouts.NEGATIVE_DURATION; }
         
         @Override
-        public long timeoutDelayMillis() { return -1; }
+        public Duration timeout() { return Timeouts.NEGATIVE_DURATION; }
     }; 
     
     private static class PositiveOutcome implements Outcome {
-        private final long backoffDelay;
-        private final long timeoutDelay;
+        private final Duration backoffDelay;
+        private final Duration timeoutDelay;
         
-        PositiveOutcome(long backoffDelay, long timeoutDelay) {
+        PositiveOutcome(Duration backoffDelay, Duration timeoutDelay) {
             this.backoffDelay = backoffDelay;
             this.timeoutDelay = timeoutDelay;
         }
@@ -65,12 +62,15 @@ public class RetryPolicy {
         public boolean shouldExecute() { return true; }
         
         @Override
-        public long backoffDelayMillis() { return backoffDelay; }
+        public Duration backoffDelay() { return backoffDelay; }
 
         @Override
-        public long timeoutDelayMillis() { return timeoutDelay; }
+        public Duration timeout() { return timeoutDelay; }
         
     }
+    
+    private static final Predicate<RetryContext> PREDICATE_TRUE = ctx -> true;
+    private static final Predicate<RetryContext> PREDICATE_FALSE = ctx -> false;
     
     public static final RetryPolicy DEFAULT = new RetryPolicy().retryOn(Exception.class);
 
@@ -187,7 +187,7 @@ public class RetryPolicy {
         } else {
             result = exceptionClassRetryable(context);
         }
-        return result ? new PositiveOutcome(backoff.delayMillis(context), timeout.delayMillis(context)) : DONT_RETRY;
+        return result ? new PositiveOutcome(backoff.delay(context), timeout.delay(context)) : DONT_RETRY;
     }
 
     private boolean tooManyRetries(RetryContext context) {
@@ -212,6 +212,4 @@ public class RetryPolicy {
         return Collections.unmodifiableSet(copy);
     }
     
-    private static final Predicate<RetryContext> PREDICATE_TRUE = ctx -> true;
-    private static final Predicate<RetryContext> PREDICATE_FALSE = ctx -> false;
 }

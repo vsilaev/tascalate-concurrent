@@ -26,6 +26,8 @@ import java.util.function.BiConsumer;
 
 class Timeouts {
     
+    static final Duration NEGATIVE_DURATION = Duration.ofNanos(-1);
+    
     private Timeouts() {}
     
     /**
@@ -94,6 +96,10 @@ class Timeouts {
     
     static Duration toDuration(long delay, TimeUnit timeUnit) {
         return Duration.ofNanos(timeUnit.toNanos(delay));
+    }
+    
+    static boolean isValid(Duration d) {
+        return !(d.isNegative() || d.isZero());
     }
     
     static <T, U> BiConsumer<T, U> timeoutsCleanup(Promise<T> self, Promise<?> timeout, boolean cancelOnTimeout) {

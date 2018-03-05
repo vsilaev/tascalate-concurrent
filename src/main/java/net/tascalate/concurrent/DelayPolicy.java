@@ -23,6 +23,7 @@
 package net.tascalate.concurrent;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 import net.tascalate.concurrent.delays.BoundedMaxDelayPolicy;
 import net.tascalate.concurrent.delays.BoundedMinDelayPolicy;
@@ -34,28 +35,42 @@ import net.tascalate.concurrent.delays.UniformRandomDelayPolicy;
 
 public interface DelayPolicy {
     public static final DelayPolicy DEFAULT = new FirstRetryNoDelayPolicy(new FixedIntervalDelayPolicy());
-    public static final DelayPolicy INVALID = ctx -> -1;
+    public static final DelayPolicy INVALID = ctx -> Timeouts.NEGATIVE_DURATION;
     
-    long delayMillis(RetryContext context);
+    //long delayMillis(RetryContext context);
+    
+    Duration delay(RetryContext context);
     
     public static DelayPolicy fixedInterval() {
     	return new FixedIntervalDelayPolicy();
     }
     
     public static DelayPolicy fixedInterval(Duration interval) {
-        return fixedInterval(interval.toMillis());
+        return new FixedIntervalDelayPolicy(interval);
+    }
+    
+    public static DelayPolicy fixedInterval(long interval, TimeUnit timeUnit) {
+        return fixedInterval(Timeouts.toDuration(interval, timeUnit));
     }
     
     public static DelayPolicy fixedInterval(long intervalMillis) {
-    	return new FixedIntervalDelayPolicy(intervalMillis);
+    	return fixedInterval(Duration.ofMillis(intervalMillis));
     }
     
     public static DelayPolicy exponential(double multiplier) {
     	return new ExponentialDelayPolicy(multiplier);
     }
     
+    public static DelayPolicy exponential(Duration initialDelay, double multiplier) {
+        return new ExponentialDelayPolicy(initialDelay, multiplier);
+    }
+
+    public static DelayPolicy exponential(long initialDelay, TimeUnit timeUnit, double multiplier) {
+        return exponential(Timeouts.toDuration(initialDelay, timeUnit), multiplier);
+    }
+    
     public static DelayPolicy exponential(long initialDelayMillis, double multiplier) {
-    	return new ExponentialDelayPolicy(initialDelayMillis, multiplier);
+    	return exponential(Duration.ofMillis(initialDelayMillis), multiplier);
     }
     
     default DelayPolicy withUniformJitter() {
@@ -73,32 +88,41 @@ public interface DelayPolicy {
     default DelayPolicy withProportionalJitter(double multiplier) {
         return new ProportionalRandomDelayPolicy(this, multiplier);
     }
-
-    default DelayPolicy withMinDelay(Duration minDelay) {
-        return withMaxDelay(minDelay.toMillis());
-    }
     
-    default DelayPolicy withMinDelay(long minDelayMillis) {
-        return new BoundedMinDelayPolicy(this, minDelayMillis);
-    }
-
     default DelayPolicy withMinDelay() {
         return new BoundedMinDelayPolicy(this);
     }
 
-    default DelayPolicy withMaxDelay(Duration maxDelay) {
-        return withMaxDelay(maxDelay.toMillis());
+    default DelayPolicy withMinDelay(Duration minDelay) {
+        return new BoundedMinDelayPolicy(this, minDelay);
+    }
+
+    default DelayPolicy withMinDelay(long minDelay, TimeUnit timeUnit) {
+        return withMaxDelay(Timeouts.toDuration(minDelay, timeUnit));
     }
     
-    default DelayPolicy withMaxDelay(long maxDelayMillis) {
-        return new BoundedMaxDelayPolicy(this, maxDelayMillis);
+    default DelayPolicy withMinDelay(long minDelayMillis) {
+        return withMinDelay(Duration.ofMillis(minDelayMillis));
     }
 
     default DelayPolicy withMaxDelay() {
         return new BoundedMaxDelayPolicy(this);
     }
 
+    default DelayPolicy withMaxDelay(Duration maxDelay) {
+        return new BoundedMaxDelayPolicy(this, maxDelay);
+    }
+    
+    default DelayPolicy withMaxDelay(long maxDelay, TimeUnit timeUnit) {
+        return withMaxDelay(Timeouts.toDuration(maxDelay, timeUnit));
+    }
+    
+    default DelayPolicy withMaxDelay(long maxDelayMillis) {
+        return withMaxDelay(Duration.ofMillis(maxDelayMillis));
+    }
+
     default DelayPolicy withFirstRetryNoDelay() {
         return new FirstRetryNoDelayPolicy(this);
     }
+
 }

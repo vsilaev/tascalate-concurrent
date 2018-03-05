@@ -491,7 +491,7 @@ public class Promises {
         RetryPolicy.Outcome answer = ctx.shouldContinue();
         if (answer.shouldExecute()) {
             Runnable doCall = () -> {
-                long startTime = System.currentTimeMillis();
+                long startTime = System.nanoTime();
                 try {
                     Optional<? extends T> result;
                     ctx.enter();
@@ -503,13 +503,13 @@ public class Promises {
                     if (result.isPresent()) {
                         resultPromise.onSuccess(result.get());
                     } else {
-                        long finishTime = System.currentTimeMillis();
-                        RetryContext nextCtx = ctx.nextRetry(finishTime - startTime);
+                        long finishTime = System.nanoTime();
+                        RetryContext nextCtx = ctx.nextRetry(Duration.ofNanos(finishTime - startTime));
                         pollOnce(codeBlock, executor, nextCtx, resultPromise, changeCallPromiseRef);
                     }
                 } catch (Exception ex) {
-                    long finishTime = System.currentTimeMillis();
-                    RetryContext nextCtx = ctx.nextRetry(finishTime - startTime, ex);
+                    long finishTime = System.nanoTime();
+                    RetryContext nextCtx = ctx.nextRetry(Duration.ofNanos(finishTime - startTime), ex);
                     pollOnce(codeBlock, executor, nextCtx, resultPromise, changeCallPromiseRef);
                 }
             };
@@ -517,16 +517,17 @@ public class Promises {
             Supplier<Promise<?>> submittedCall = () -> {
                 // Call should be done via CompletableTask to let it be interruptible               
             	Promise<?> p = CompletableTask.runAsync(doCall, executor);
-            	if (answer.hasTimeout()) {
-                    p.orTimeout( Duration.ofMillis(Math.max(0, answer.timeoutDelayMillis()) ) );
+            	Duration timeout = answer.timeout();
+            	if (Timeouts.isValid(timeout)) {
+                    p.orTimeout( timeout );
             	}
             	return p;
             };
 
-            long backoffDelayMillis = answer.backoffDelayMillis();
-            if (backoffDelayMillis > 0) {
+            Duration backoffDelay = answer.backoffDelay();
+            if (Timeouts.isValid(backoffDelay)) {
                 // Timeout itself
-                Promise<?> backoff = Timeouts.delay( Duration.ofMillis(backoffDelayMillis) );
+                Promise<?> backoff = Timeouts.delay( backoffDelay );
                 // Invocation after timeout
                 backoff.thenAccept(d -> changeCallPromiseRef.accept( submittedCall.get() ));
                 // Canceling timeout will cancel the chain above

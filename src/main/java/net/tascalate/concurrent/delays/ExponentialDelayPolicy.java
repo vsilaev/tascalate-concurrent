@@ -22,11 +22,13 @@
  */
 package net.tascalate.concurrent.delays;
 
+import java.time.Duration;
+
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
 public class ExponentialDelayPolicy implements DelayPolicy {
-    private final long initialDelayMillis;
+    private final Duration initialDelay;
     private final double multiplier;
 
     public ExponentialDelayPolicy(double multiplier) {
@@ -34,15 +36,19 @@ public class ExponentialDelayPolicy implements DelayPolicy {
     }
     
     public ExponentialDelayPolicy(long initialDelayMillis, double multiplier) {
-        if (initialDelayMillis <= 0) {
-            throw new IllegalArgumentException("Initial delay must be positive but was: " + initialDelayMillis);
+        this(Duration.ofMillis(initialDelayMillis), multiplier);
+    }
+    
+    public ExponentialDelayPolicy(Duration initialDelay, double multiplier) {
+        if (initialDelay.toNanos() <= 0) {
+            throw new IllegalArgumentException("Initial delay must be positive but was: " + initialDelay);
         }
-        this.initialDelayMillis = initialDelayMillis;
+        this.initialDelay = initialDelay;
         this.multiplier = multiplier;
     }
 
     @Override
-    public long delayMillis(RetryContext context) {
-        return (long) (initialDelayMillis * Math.pow(multiplier, context.getRetryCount()));
+    public Duration delay(RetryContext context) {
+        return Duration.ofNanos( (long) (initialDelay.toNanos() * Math.pow(multiplier, context.getRetryCount())) );
     }
 }

@@ -15,18 +15,20 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
+
 public class RetryException extends Exception {
     private static final long serialVersionUID = 1L;
     
     private final int retry;
-    private final long lastCallDuration;
+    private final Duration lastCallDuration;
     
     public RetryException() {
         retry = 0;
-        lastCallDuration = 0;
+        lastCallDuration = Duration.ZERO;
     }
     
-    public RetryException(int retry, long lastCallDuration, Throwable lastThrowable) {
+    public RetryException(int retry, Duration lastCallDuration, Throwable lastThrowable) {
         super(lastThrowable);
         this.retry = retry;
         this.lastCallDuration = lastCallDuration;
@@ -36,7 +38,7 @@ public class RetryException extends Exception {
         return retry;
     }
     
-    public long getLastCallDuration() {
+    public Duration getLastCallDuration() {
         return lastCallDuration;
     }
 }

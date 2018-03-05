@@ -22,6 +22,7 @@
  */
 package net.tascalate.concurrent.delays;
 
+import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
@@ -46,10 +47,10 @@ abstract public class RandomDelayPolicy extends DelayPolicyWrapper {
     }
 
     @Override
-    public long delayMillis(RetryContext context) {
-        final long initialDelay = target.delayMillis(context);
-        final long randomDelay = addRandomJitter(initialDelay);
-        return Math.max(randomDelay, 0);
+    public Duration delay(RetryContext context) {
+        final Duration initialDelay = target.delay(context);
+        final long randomDelay = addRandomJitter(initialDelay.toNanos());
+        return max(Duration.ofNanos(randomDelay), Duration.ZERO);
     }
 
     abstract long addRandomJitter(long initialDelay);
