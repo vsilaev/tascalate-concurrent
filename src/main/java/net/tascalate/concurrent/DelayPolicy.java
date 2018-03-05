@@ -22,6 +22,8 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
+
 import net.tascalate.concurrent.delays.BoundedMaxDelayPolicy;
 import net.tascalate.concurrent.delays.BoundedMinDelayPolicy;
 import net.tascalate.concurrent.delays.ExponentialDelayPolicy;
@@ -39,7 +41,11 @@ public interface DelayPolicy {
     public static DelayPolicy fixedInterval() {
     	return new FixedIntervalDelayPolicy();
     }
-    		
+    
+    public static DelayPolicy fixedInterval(Duration interval) {
+        return fixedInterval(interval.toMillis());
+    }
+    
     public static DelayPolicy fixedInterval(long intervalMillis) {
     	return new FixedIntervalDelayPolicy(intervalMillis);
     }
@@ -68,6 +74,10 @@ public interface DelayPolicy {
         return new ProportionalRandomDelayPolicy(this, multiplier);
     }
 
+    default DelayPolicy withMinDelay(Duration minDelay) {
+        return withMaxDelay(minDelay.toMillis());
+    }
+    
     default DelayPolicy withMinDelay(long minDelayMillis) {
         return new BoundedMinDelayPolicy(this, minDelayMillis);
     }
@@ -76,6 +86,10 @@ public interface DelayPolicy {
         return new BoundedMinDelayPolicy(this);
     }
 
+    default DelayPolicy withMaxDelay(Duration maxDelay) {
+        return withMaxDelay(maxDelay.toMillis());
+    }
+    
     default DelayPolicy withMaxDelay(long maxDelayMillis) {
         return new BoundedMaxDelayPolicy(this, maxDelayMillis);
     }

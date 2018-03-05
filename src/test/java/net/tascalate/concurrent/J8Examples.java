@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -27,9 +28,20 @@ public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
-        
 
-        Promise<String> poller = Promises.poll(
+        Promise<String> retry1 = Promises.poll(
+            () -> "ABC",
+            executorService, RetryPolicy.DEFAULT
+        );
+        
+        Promise<String> retry2 = Promises.poll(
+            () -> Optional.of("ABC"),
+            executorService, RetryPolicy.DEFAULT
+        );
+
+        System.out.println(retry1 + " vs " + retry2);
+        
+        Promise<String> poller = Promises.retry(
             J8Examples::pollingMethod, executorService, 
             RetryPolicy.DEFAULT
             .withMaxRetries(10)

@@ -147,18 +147,34 @@ public class RetryPolicy {
         this(Integer.MAX_VALUE, 1000L);
     }
     
-    public RetryPolicy(long defaultDelay) {
-        this(Integer.MAX_VALUE, defaultDelay);
+    public RetryPolicy(long backoff) {
+        this(Integer.MAX_VALUE, backoff);
     }
     
-    public RetryPolicy(int maxRetries, long defaultDelay) {
+    public RetryPolicy(int maxRetries, long backoff) {
+        this(maxRetries, DelayPolicy.fixedInterval(backoff).withFirstRetryNoDelay());
+    }
+    
+    public RetryPolicy(int maxRetries, long backoff, long timeout) {
+        this(maxRetries, 
+             DelayPolicy.fixedInterval(backoff).withFirstRetryNoDelay(),
+             DelayPolicy.fixedInterval(timeout)
+        );
+    }
+
+    public RetryPolicy(int maxRetries, DelayPolicy backoff) {
+        this(maxRetries, backoff, DelayPolicy.INVALID);
+    }    
+    
+    public RetryPolicy(int maxRetries, DelayPolicy backoff, DelayPolicy timeout) {
         this(maxRetries, 
              Collections.emptySet(), Collections.emptySet(), 
              ctx -> true, ctx -> false, 
-             DelayPolicy.DEFAULT,
-             DelayPolicy.INVALID
+             backoff,
+             timeout
         );
     }
+
 
     public Outcome shouldContinue(RetryContext context) {
         final boolean result;
