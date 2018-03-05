@@ -37,8 +37,6 @@ public interface DelayPolicy {
     public static final DelayPolicy DEFAULT = new FirstRetryNoDelayPolicy(new FixedIntervalDelayPolicy());
     public static final DelayPolicy INVALID = ctx -> Timeouts.NEGATIVE_DURATION;
     
-    //long delayMillis(RetryContext context);
-    
     Duration delay(RetryContext context);
     
     public static DelayPolicy fixedInterval() {

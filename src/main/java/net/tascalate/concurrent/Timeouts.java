@@ -106,7 +106,7 @@ class Timeouts {
         return (r, e) -> {
             // Result comes from timeout and cancel-on-timeout is set
             // If both are done then cancel has no effect anyway
-            if ((timeout.isDone() && !timeout.isCancelled()) && cancelOnTimeout) {
+            if (cancelOnTimeout && timeout.isDone() && !timeout.isCancelled()) {
                 self.cancel(true);
             }
             timeout.cancel(true);
@@ -115,7 +115,7 @@ class Timeouts {
     
     static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletablePromise<? super T> delayed, Duration duration, boolean delayOnError) {
         return (originalResult, originalError) -> {
-            if (originalError == null || (!self.isCancelled() && delayOnError)) {
+            if (originalError == null || (delayOnError && !self.isCancelled())) {
                 Promise<?> timeout = delay(duration);
                 delayed.whenComplete( (r, e) -> timeout.cancel(true) );
                 timeout.whenComplete( (r, timeoutError) -> {
