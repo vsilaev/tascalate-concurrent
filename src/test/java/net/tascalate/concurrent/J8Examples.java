@@ -28,6 +28,7 @@ public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         System.out.println( Duration.ofNanos(Long.MAX_VALUE).toDays() );
+        System.out.println( Duration.ofNanos(Long.MAX_VALUE) );
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
 
@@ -36,7 +37,7 @@ public class J8Examples {
             executorService, RetryPolicy.DEFAULT
         );
         
-        Promise<String> retry2 = Promises.poll(
+        Promise<String> retry2 = Promises.pollOptional(
             () -> Optional.of("ABC"),
             executorService, RetryPolicy.DEFAULT
         );

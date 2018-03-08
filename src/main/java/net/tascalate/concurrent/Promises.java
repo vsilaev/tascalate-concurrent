@@ -440,21 +440,21 @@ public class Promises {
     }
     
     public static <T> Promise<T> retry(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        Promise<ObjectRef<T>> wrappedResult = poll(
+        Promise<ObjectRef<T>> wrappedResult = pollOptional(
             () -> Optional.of(new ObjectRef<>( codeBlock.call() )), 
             executor, retryPolicy
         );
         return wrappedResult.dependent().thenApply(ObjectRef::dereference, true);
     }
     
-    public static <T> Promise<T> poll(Supplier<T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        return poll(
-            () -> Optional.ofNullable(codeBlock.get()),
+    public static <T> Promise<T> poll(Callable<T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
+        return pollOptional(
+            () -> Optional.ofNullable(codeBlock.call()),
             executor, retryPolicy
         );
     }
     
-    public static <T> Promise<T> poll(Callable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
+    public static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
         final CompletablePromise<T> promise = new CompletablePromise<>();
         final AtomicReference<Promise<?>> callPromiseRef = new AtomicReference<>();
         // Cleanup latest timeout on completion;
