@@ -432,11 +432,11 @@ public class Promises {
     }
     
     public static Promise<Void> retry(Runnable codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        Promise<Object> wrappedResult = poll(
+        Promise<Object> wrappedResult = pollOptional(
             () -> { codeBlock.run(); return Optional.of(IGNORE); }, 
             executor, retryPolicy
         );
-        return wrappedResult.dependent().thenApply(v -> null, true);  
+        return wrappedResult.dependent().thenApply(v -> (Void)null, true).raw();  
     }
     
     public static <T> Promise<T> retry(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
@@ -444,7 +444,7 @@ public class Promises {
             () -> Optional.of(new ObjectRef<>( codeBlock.call() )), 
             executor, retryPolicy
         );
-        return wrappedResult.dependent().thenApply(ObjectRef::dereference, true);
+        return wrappedResult.dependent().thenApply(ObjectRef::dereference, true).raw();
     }
     
     public static <T> Promise<T> poll(Callable<T> codeBlock, Executor executor, RetryPolicy retryPolicy) {

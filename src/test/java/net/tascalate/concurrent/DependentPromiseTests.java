@@ -138,6 +138,24 @@ public class DependentPromiseTests {
     }
     
     @Test
+    public void testComposeRecursiveCancellationRaw() {
+        State s1 = new State();
+        State s2 = new State();
+        
+        Promise<Void> p = runDepedentAsync(() -> longTask(5, s1))
+                .thenComposeAsync(r -> otherLongTask(5, s2), true)
+                .thenRun(this::dummyTask, true)
+                .raw();
+        
+        trySleep(8);
+        p.cancel(true);
+        trySleep(1);
+        
+        assertDone("s1", s1);
+        assertCancelled("s2", s2);
+    }
+    
+    @Test
     public void testThenApplyRecursiveCancellation1() {
         State s1 = new State();
         State s2 = new State();

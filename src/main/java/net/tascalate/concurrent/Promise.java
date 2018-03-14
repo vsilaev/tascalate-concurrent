@@ -77,9 +77,10 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         CompletablePromise<T> delayed = new CompletablePromise<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *async to execute on default "this" executor
-        return dependent().thenCombineAsync(
-            delayed, (r, d) -> r, PromiseOrigin.PARAM_ONLY
-        );
+        return this
+            .dependent()
+            .thenCombineAsync(delayed, (r, d) -> r, PromiseOrigin.PARAM_ONLY)
+            .raw();
     }
 
     
@@ -98,11 +99,13 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
         Promise<T> timeout = Timeouts.failAfter(duration);
         // Use *async to execute on default "this" executor
-        Promise<T> result = dependent()
-            .applyToEitherAsync(timeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
+        Promise<T> result = this
+            .dependent()
+            .applyToEitherAsync(timeout, Function.identity(), PromiseOrigin.PARAM_ONLY)
+            ;
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
-        return result;
+        return result.raw();
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -142,14 +145,16 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             .dependent()
             .thenApply(d -> supplier, true);
         
-        Promise<T> result = dependent()
+        Promise<T> result = this
+            .dependent()
             // resolved value converted to supplier
             .thenApply(valueToSupplier, false)
             // Use *async to execute on default "this" executor
-            .applyToEitherAsync(timeout, Supplier::get, PromiseOrigin.ALL);
+            .applyToEitherAsync(timeout, Supplier::get, PromiseOrigin.ALL)
+            ;
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
-        return result;
+        return result.raw();
     }
     
     /**

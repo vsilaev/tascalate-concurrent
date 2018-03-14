@@ -632,29 +632,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
     
     protected Promise<T> cancellablePromiseOf(Promise<T> original) {
-        final CompletionStage<?>[] dependent = cancellableOrigins;
-        return new AbstractPromiseDecorator<T, Promise<T>>(original) {
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                if (super.cancel(mayInterruptIfRunning)) {
-                    cancelPromises(dependent, mayInterruptIfRunning);
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-            
-            @Override
-            public Promise<T> raw() {
-                // May not unwrap further
-                return this;
-            }
-
-            @Override
-            protected <U> Promise<U> wrap(CompletionStage<U> original) {
-                return (Promise<U>)original;
-            }
-        };
+        return new MultitargetCancellablePromise<>(original, cancellableOrigins);
     }
 
     @Override
@@ -714,7 +692,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         return defaultEnlistOptions.contains(PromiseOrigin.THIS);
     }
 
-    private static void cancelPromises(CompletionStage<?>[] promises, boolean mayInterruptIfRunning) {
+    static void cancelPromises(CompletionStage<?>[] promises, boolean mayInterruptIfRunning) {
         if (null != promises) {
             Arrays.stream(promises)
               .filter(p -> p != null)
@@ -724,5 +702,35 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     private static boolean identicalSets(Set<?> a, Set<?> b) {
         return a.containsAll(b) && b.containsAll(a);
+    }
+    
+    
+    static class MultitargetCancellablePromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
+        private final CompletionStage<?>[] dependent;
+        MultitargetCancellablePromise(Promise<T> original, CompletionStage<?>[] dependent) {
+            super(original);
+            this.dependent = dependent;
+        }
+        
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (super.cancel(mayInterruptIfRunning)) {
+                cancelPromises(dependent, mayInterruptIfRunning);
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
+        @Override
+        public Promise<T> raw() {
+            // May not unwrap further
+            return this;
+        }
+
+        @Override
+        protected <U> Promise<U> wrap(CompletionStage<U> original) {
+            return (Promise<U>)original;
+        }
     }
 }
