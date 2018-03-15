@@ -54,7 +54,7 @@ class DurationCalcs {
             return amount;
         }
         double factor = Math.pow(1000, sourceDimIdx - targetDimIdx);
-        if (Long.MAX_VALUE / amount > factor) {
+        if ((double)Long.MAX_VALUE / amount > factor) {
             return  (long)(amount * factor);
         } else {
             return Long.MAX_VALUE;
