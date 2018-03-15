@@ -68,16 +68,20 @@ public class UniformRandomDelayPolicy extends RandomDelayPolicy {
     }
 
     @Override
-    long addRandomJitter(long initialDelay, double randomizer, int dimIdx) {
+    long addRandomJitter(long amount, double randomizer, int dimIdx) {
         long rangeNormalized = DurationCalcs.safeExtractAmount(range, dimIdx);
         double uniformRandom = (1 - randomizer * 2) * rangeNormalized;
-        return Math.max(0, (long) (initialDelay + uniformRandom));
+        return Math.max(0, (long) (amount + uniformRandom));
     }
 
     @Override
-    boolean checkBounds(long initialDelay, double randomizer, int dimIdx) {
+    boolean checkBounds(long amount, double randomizer, int dimIdx) {
         long rangeNormalized = DurationCalcs.safeExtractAmount(range, dimIdx);
         double uniformRandom = (1 - randomizer * 2) * rangeNormalized;
-        return Long.MAX_VALUE - initialDelay > uniformRandom; 
+        if (uniformRandom < 0) {
+            return -Long.MAX_VALUE + Math.abs(amount) < uniformRandom;
+        } else {
+            return Long.MAX_VALUE - Math.abs(amount) > uniformRandom;
+        }
     }
 }

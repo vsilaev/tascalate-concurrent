@@ -55,7 +55,7 @@ public class ExponentialDelayPolicy implements DelayPolicy {
         double factor = Math.pow(multiplier, context.getRetryCount());
         return DurationCalcs.safeTransform(
             initialDelay, 
-            (amount, dimIdx) -> DurationCalcs.toBoolean((double)Long.MAX_VALUE / amount > factor),
+            (amount, dimIdx) -> DurationCalcs.toBoolean((double)Long.MAX_VALUE / Math.abs(amount) > Math.abs(factor)),
             (amount, dimIdx) -> (long)(amount * factor)
         );
     }

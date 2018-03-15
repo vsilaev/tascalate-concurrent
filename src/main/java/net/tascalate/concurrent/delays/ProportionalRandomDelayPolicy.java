@@ -59,14 +59,14 @@ public class ProportionalRandomDelayPolicy extends RandomDelayPolicy {
     }
 
     @Override
-    long addRandomJitter(long initialDelay, double randomizer, int dimIdx) {
+    long addRandomJitter(long amount, double randomizer, int dimIdx) {
         double randomMultiplier = (1 - 2 * randomizer) * multiplier;
-        return Math.max(0, (long) (initialDelay * (1 + randomMultiplier)));
+        return Math.max(0, (long) (amount * (1 + randomMultiplier)));
     }
     
     @Override
-    boolean checkBounds(long initialDelay, double randomizer, int dimIdx) {
+    boolean checkBounds(long amount, double randomizer, int dimIdx) {
         double randomMultiplier = (1 - 2 * randomizer) * multiplier;
-        return (double)Long.MAX_VALUE / initialDelay > 1 + randomMultiplier;
+        return (double)Long.MAX_VALUE / Math.abs(amount) > Math.abs(1 + randomMultiplier);
     }
 }
