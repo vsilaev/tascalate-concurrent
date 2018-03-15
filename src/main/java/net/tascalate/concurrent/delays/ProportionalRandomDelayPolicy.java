@@ -67,6 +67,6 @@ public class ProportionalRandomDelayPolicy extends RandomDelayPolicy {
     @Override
     boolean checkBounds(long initialDelay, double randomizer, int dimIdx) {
         double randomMultiplier = (1 - 2 * randomizer) * multiplier;
-        return Long.MAX_VALUE / initialDelay > 1 + randomMultiplier;
+        return (double)Long.MAX_VALUE / initialDelay > 1 + randomMultiplier;
     }
 }
