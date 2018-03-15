@@ -518,14 +518,14 @@ public class Promises {
                 // Call should be done via CompletableTask to let it be interruptible               
             	Promise<?> p = CompletableTask.runAsync(doCall, executor);
             	Duration timeout = answer.timeout();
-            	if (Timeouts.isValid(timeout)) {
+            	if (DelayPolicy.isValid(timeout)) {
                     p.orTimeout( timeout );
             	}
             	return p;
             };
 
             Duration backoffDelay = answer.backoffDelay();
-            if (Timeouts.isValid(backoffDelay)) {
+            if (DelayPolicy.isValid(backoffDelay)) {
                 // Timeout itself
                 Promise<?> backoff = Timeouts.delay( backoffDelay );
                 // Invocation after timeout

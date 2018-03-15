@@ -45,16 +45,21 @@ abstract public class RandomDelayPolicy extends DelayPolicyWrapper {
         super(target);
         this.randomSource = randomSource;
     }
-
+    
     @Override
     public Duration delay(RetryContext context) {
-        final Duration initialDelay = target.delay(context);
-        final long randomDelay = addRandomJitter(initialDelay.toNanos());
-        return max(Duration.ofNanos(randomDelay), Duration.ZERO);
+        Duration initialDelay = target.delay(context);
+        double randomizer = random().nextDouble();
+        return DurationCalcs.safeTransform(
+            initialDelay, 
+            (amount, dimIdx) -> DurationCalcs.toBoolean(checkBounds(amount, randomizer, (int)dimIdx)), 
+            (amount, dimIdx) -> addRandomJitter(amount, randomizer, (int)dimIdx)
+        );
     }
-
-    abstract long addRandomJitter(long initialDelay);
-
+    
+    abstract long addRandomJitter(long initialDelay, double randomizer, int dimIdx);
+    abstract boolean checkBounds(long initialDelay, double randomizer, int dimIdx);
+    
     protected Random random() {
         return randomSource.get();
     }

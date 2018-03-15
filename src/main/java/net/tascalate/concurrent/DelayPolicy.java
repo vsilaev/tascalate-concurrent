@@ -76,6 +76,14 @@ public interface DelayPolicy {
     }
 
     default DelayPolicy withUniformJitter(long range) {
+        return withUniformJitter(range, TimeUnit.MILLISECONDS);
+    }
+    
+    default DelayPolicy withUniformJitter(long range, TimeUnit timeUnit) {
+        return withUniformJitter(Timeouts.toDuration(range, timeUnit));
+    }
+    
+    default DelayPolicy withUniformJitter(Duration range) {
         return new UniformRandomDelayPolicy(this, range);
     }
 
@@ -121,6 +129,10 @@ public interface DelayPolicy {
 
     default DelayPolicy withFirstRetryNoDelay() {
         return new FirstRetryNoDelayPolicy(this);
+    }
+    
+    public static boolean isValid(Duration d) {
+        return !(d.isNegative() || d.isZero());
     }
 
 }

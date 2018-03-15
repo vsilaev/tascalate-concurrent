@@ -22,6 +22,7 @@
  */
 package net.tascalate.concurrent.delays;
 
+import java.time.Duration;
 import java.util.Random;
 
 import net.tascalate.concurrent.DelayPolicy;
@@ -32,7 +33,7 @@ public class UniformRandomDelayPolicy extends RandomDelayPolicy {
      */
     public static final long DEFAULT_RANDOM_RANGE_MILLIS = 100;
 
-    private final long range;
+    private final Duration range;
 
     public UniformRandomDelayPolicy(DelayPolicy target) {
         this(target, DEFAULT_RANDOM_RANGE_MILLIS);
@@ -42,20 +43,35 @@ public class UniformRandomDelayPolicy extends RandomDelayPolicy {
         this(target, DEFAULT_RANDOM_RANGE_MILLIS, random);
     }
 
-    public UniformRandomDelayPolicy(DelayPolicy target, final long range) {
+    public UniformRandomDelayPolicy(DelayPolicy target, long range) {
+        this(target, Duration.ofMillis(range));
+    }
+    
+    public UniformRandomDelayPolicy(DelayPolicy target, Duration range) {
         super(target);
         this.range = range;
     }
 
-    public UniformRandomDelayPolicy(DelayPolicy target, final long range, Random random) {
+    public UniformRandomDelayPolicy(DelayPolicy target, long range, Random random) {
+        this(target, Duration.ofMillis(range), random);
+    }
+    
+    public UniformRandomDelayPolicy(DelayPolicy target, Duration range, Random random) {
         super(target, random);
         this.range = range;
     }
 
     @Override
-    long addRandomJitter(long initialDelay) {
-        final double uniformRandom = (1 - random().nextDouble() * 2) * range;
-        return (long) (initialDelay + uniformRandom);
+    long addRandomJitter(long initialDelay, double randomizer, int dimIdx) {
+        long rangeNormalized = DurationCalcs.safeExtractAmount(range, dimIdx);
+        double uniformRandom = (1 - randomizer * 2) * rangeNormalized;
+        return Math.max(0, (long) (initialDelay + uniformRandom));
     }
 
+    @Override
+    boolean checkBounds(long initialDelay, double randomizer, int dimIdx) {
+        long rangeNormalized = DurationCalcs.safeExtractAmount(range, dimIdx);
+        double uniformRandom = (1 - randomizer * 2) * rangeNormalized;
+        return Long.MAX_VALUE - initialDelay > uniformRandom; 
+    }
 }

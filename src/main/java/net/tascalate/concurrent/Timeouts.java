@@ -16,6 +16,8 @@
 package net.tascalate.concurrent;
 
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,10 +40,23 @@ class Timeouts {
      * the new promise
      */
     static Promise<Duration> delay(Duration duration) {
+        TimeUnit unit;
+        long amount;
+        // Try to get value with best precision without throwing ArythmeticException due to overflow
+        if (duration.compareTo(MAX_BY_NANOS) < 0) {
+            amount = duration.toNanos();
+            unit = TimeUnit.NANOSECONDS;
+        } else if (duration.compareTo(MAX_BY_MILLIS) < 0) {
+            amount = duration.toMillis();
+            unit = TimeUnit.MILLISECONDS;
+        } else {
+            amount = duration.getSeconds();
+            unit = TimeUnit.SECONDS; 
+        }
+        
         final CompletablePromise<Duration> promise = new CompletablePromise<>();
         final Future<?> timeout = scheduler.schedule(
-            () -> promise.onSuccess(duration), 
-            duration.toNanos(), TimeUnit.NANOSECONDS
+            () -> promise.onSuccess(duration), amount, unit
         );
         promise.whenComplete((r, e) -> {
           if (null != e) {
@@ -72,10 +87,24 @@ class Timeouts {
      * the new promise
      */
     static <T> Promise<T> failAfter(Duration duration) {
+        TimeUnit unit;
+        long amount;
+        // Try to get value with best precision without throwing ArythmeticException due to overflow
+        if (duration.compareTo(MAX_BY_NANOS) < 0) {
+            amount = duration.toNanos();
+            unit = TimeUnit.NANOSECONDS;
+        } else if (duration.compareTo(MAX_BY_MILLIS) < 0) {
+            amount = duration.toMillis();
+            unit = TimeUnit.MILLISECONDS;
+        } else {
+            amount = duration.getSeconds();
+            unit = TimeUnit.SECONDS; 
+        }
+        
         final CompletablePromise<T> promise = new CompletablePromise<>();
         final Future<?> timeout = scheduler.schedule(
             () -> promise.onFailure(new TimeoutException("Timeout after " + duration)), 
-            duration.toNanos(), TimeUnit.NANOSECONDS
+            amount, unit
         );
         promise.whenComplete((r, e) -> timeout.cancel(true));
         return promise;
@@ -95,11 +124,7 @@ class Timeouts {
     }
     
     static Duration toDuration(long delay, TimeUnit timeUnit) {
-        return Duration.ofNanos(timeUnit.toNanos(delay));
-    }
-    
-    static boolean isValid(Duration d) {
-        return !(d.isNegative() || d.isZero());
+        return Duration.of(delay, toChronoUnit(timeUnit));
     }
     
     static <T, U> BiConsumer<T, U> timeoutsCleanup(Promise<T> self, Promise<?> timeout, boolean cancelOnTimeout) {
@@ -134,6 +159,31 @@ class Timeouts {
         };
     }
     
+    private static ChronoUnit toChronoUnit(TimeUnit unit) { 
+        Objects.requireNonNull(unit, "unit"); 
+        switch (unit) { 
+            case NANOSECONDS: 
+                return ChronoUnit.NANOS; 
+            case MICROSECONDS: 
+                return ChronoUnit.MICROS; 
+            case MILLISECONDS: 
+                return ChronoUnit.MILLIS; 
+            case SECONDS: 
+                return ChronoUnit.SECONDS; 
+            case MINUTES: 
+                return ChronoUnit.MINUTES; 
+            case HOURS: 
+                return ChronoUnit.HOURS; 
+            case DAYS: 
+                return ChronoUnit.DAYS; 
+            default: 
+                throw new IllegalArgumentException("Unknown TimeUnit constant"); 
+        } 
+    }     
+    
+    private static final Duration MAX_BY_NANOS  = Duration.ofNanos(Long.MAX_VALUE);
+    private static final Duration MAX_BY_MILLIS = Duration.ofMillis(Long.MAX_VALUE);
+
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {

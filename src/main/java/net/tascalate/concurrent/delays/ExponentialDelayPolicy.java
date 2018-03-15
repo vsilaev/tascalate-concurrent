@@ -40,7 +40,7 @@ public class ExponentialDelayPolicy implements DelayPolicy {
     }
     
     public ExponentialDelayPolicy(Duration initialDelay, double multiplier) {
-        if (initialDelay.toNanos() <= 0) {
+        if (!DelayPolicy.isValid(initialDelay)) {
             throw new IllegalArgumentException("Initial delay must be positive but was: " + initialDelay);
         }
         this.initialDelay = initialDelay;
@@ -49,6 +49,11 @@ public class ExponentialDelayPolicy implements DelayPolicy {
 
     @Override
     public Duration delay(RetryContext context) {
-        return Duration.ofNanos( (long) (initialDelay.toNanos() * Math.pow(multiplier, context.getRetryCount())) );
+        double factor = Math.pow(multiplier, context.getRetryCount());
+        return DurationCalcs.safeTransform(
+            initialDelay, 
+            (amount, dimIdx) -> DurationCalcs.toBoolean(Long.MAX_VALUE / amount > factor),
+            (amount, dimIdx) -> (long)(amount * factor)
+        );
     }
 }
