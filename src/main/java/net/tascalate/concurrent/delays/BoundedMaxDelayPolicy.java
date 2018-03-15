@@ -43,6 +43,9 @@ public class BoundedMaxDelayPolicy extends DelayPolicyWrapper {
     
     public BoundedMaxDelayPolicy(DelayPolicy target, Duration maxDelay) {
         super(target);
+        if (!DelayPolicy.isValid(maxDelay)) {
+            throw new IllegalArgumentException("MaxDelay must be positive but was: " + maxDelay);
+        }
         this.maxDelay = maxDelay;
     }
 

@@ -42,6 +42,9 @@ public class BoundedMinDelayPolicy extends DelayPolicyWrapper {
     
     public BoundedMinDelayPolicy(DelayPolicy target, Duration minDelay) {
         super(target);
+        if (!DelayPolicy.isValid(minDelay)) {
+            throw new IllegalArgumentException("MinDelay must be positive but was: " + minDelay);
+        }
         this.minDelay = minDelay;
     }
 

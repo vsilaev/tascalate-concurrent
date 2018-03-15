@@ -43,6 +43,9 @@ public class ExponentialDelayPolicy implements DelayPolicy {
         if (!DelayPolicy.isValid(initialDelay)) {
             throw new IllegalArgumentException("Initial delay must be positive but was: " + initialDelay);
         }
+        if (multiplier <= 0) {
+            throw new IllegalArgumentException("Multiplier must be a positive number but was: " + multiplier);
+        }
         this.initialDelay = initialDelay;
         this.multiplier = multiplier;
     }

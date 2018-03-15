@@ -32,7 +32,7 @@ class DurationCalcs {
             }
         }
         // return max possible value if doesn't fit
-        return Duration.of(Long.MAX_VALUE, TIME_DIMENSIONS[count - 1]);
+        return MAX_DURATION;
        
     }
     
@@ -75,4 +75,5 @@ class DurationCalcs {
     
     private static final Duration MAX_BY_NANOS  = Duration.ofNanos(Long.MAX_VALUE);
     private static final Duration MAX_BY_MILLIS = Duration.ofMillis(Long.MAX_VALUE);
+    private static final Duration MAX_DURATION  = Duration.ofSeconds(Long.MAX_VALUE).withNanos(999_999_999);
 }

@@ -44,16 +44,16 @@ public class ProportionalRandomDelayPolicy extends RandomDelayPolicy {
 
     public ProportionalRandomDelayPolicy(DelayPolicy target, double multiplier) {
         super(target);
-        if (multiplier <= 0 || multiplier >= 1) {
-            throw new IllegalArgumentException("Multiplier should be within (0..1) exclusively");
+        if (multiplier <= 0) {
+            throw new IllegalArgumentException("Multiplier must be a positive number but was: " + multiplier);
         }
         this.multiplier = multiplier;
     }
 
     public ProportionalRandomDelayPolicy(DelayPolicy target, double multiplier, Random random) {
         super(target, random);
-        if (multiplier <= 0 || multiplier >= 1) {
-            throw new IllegalArgumentException("Multiplier should be within (0..1) exclusively");
+        if (multiplier <= 0) {
+            throw new IllegalArgumentException("Multiplier must be a positive number but was: " + multiplier);
         }
         this.multiplier = multiplier;
     }
@@ -61,12 +61,12 @@ public class ProportionalRandomDelayPolicy extends RandomDelayPolicy {
     @Override
     long addRandomJitter(long initialDelay, double randomizer, int dimIdx) {
         double randomMultiplier = (1 - 2 * randomizer) * multiplier;
-        return (long) (initialDelay * (1 + randomMultiplier));
+        return Math.max(0, (long) (initialDelay * (1 + randomMultiplier)));
     }
     
     @Override
     boolean checkBounds(long initialDelay, double randomizer, int dimIdx) {
         double randomMultiplier = (1 - 2 * randomizer) * multiplier;
-        return Long.MAX_VALUE / initialDelay > randomMultiplier + 1;
+        return Long.MAX_VALUE / initialDelay > 1 + randomMultiplier;
     }
 }

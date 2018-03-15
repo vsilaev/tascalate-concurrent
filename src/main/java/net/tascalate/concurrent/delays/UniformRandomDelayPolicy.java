@@ -49,6 +49,9 @@ public class UniformRandomDelayPolicy extends RandomDelayPolicy {
     
     public UniformRandomDelayPolicy(DelayPolicy target, Duration range) {
         super(target);
+        if (!DelayPolicy.isValid(range)) {
+            throw new IllegalArgumentException("Range must be positive but was: " + range);
+        }
         this.range = range;
     }
 
@@ -58,6 +61,9 @@ public class UniformRandomDelayPolicy extends RandomDelayPolicy {
     
     public UniformRandomDelayPolicy(DelayPolicy target, Duration range, Random random) {
         super(target, random);
+        if (!DelayPolicy.isValid(range)) {
+            throw new IllegalArgumentException("Range must be positive but was: " + range);
+        }
         this.range = range;
     }
 
