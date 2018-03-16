@@ -296,15 +296,27 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         addCallbacks(
             nextStage, 
             result -> {
-                action.accept(result, null);
-                return result;
+                try {
+                    action.accept(result, null);
+                    return result;
+                } catch (Throwable e) {
+                    // CompletableFuture wraps exception here
+                    // Copying this behavior                    
+                    return forwardException(e);
+                }
             }, 
+            // exceptions are handled in regular way
             failure -> {
                 try {
                     action.accept(null, failure);
                     return forwardException(failure);
                 } catch (Throwable e) {
-                    return forwardException(e);
+                    // CompletableFuture does not override exception here
+                    // unlike as in handle[Async](BiFunction)
+                    // Preserve this behavior, but let us add at least 
+                    // suppressed exception
+                    failure.addSuppressed(e);
+                    return forwardException(failure);
                 }
             }, 
             executor
@@ -317,9 +329,27 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
         addCallbacks(
             nextStage, 
-            result -> fn.apply(result, null),
-            // exceptions are treated as success
-            error -> fn.apply(null, error), executor
+            result -> {
+                try {
+                    return fn.apply(result, null);
+                } catch (Throwable e) {
+                    // CompletableFuture wraps exception here
+                    // Copying this behavior
+                    return forwardException(e);
+                }
+            },
+            // exceptions are handled in regular way
+            failure -> {
+                try {
+                    return fn.apply(null, failure);
+                } catch (Throwable e) {
+                    // CompletableFuture handle[Async](BiFunction)
+                    // allows to overwrite exception for resulting stage.
+                    // Copying this behavior
+                    return forwardException(e);
+                }
+            },
+            executor
         );
         return nextStage;
     }
@@ -371,7 +401,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             if (failure == null) {
                 nextStage.onSuccess(result);
             } else {
-                nextStage.onError(Promises.wrapException(failure));
+                nextStage.onError(forwardException(failure));
             }
         };
         // only the first result is accepted by completion stage,

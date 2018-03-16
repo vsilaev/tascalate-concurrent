@@ -27,9 +27,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -54,9 +52,9 @@ public class Promises {
      *   a successfully resolved {@link Promise} with a value provided
      */
     public static <T> Promise<T> success(T value) {
-        CompletablePromise<T> result = new CompletablePromise<>();
-        result.onSuccess(value);
-        return result;
+        return new CompletablePromise<>(
+            CompletableFuture.completedFuture(value)
+        );
     }
     
     /**
@@ -69,9 +67,9 @@ public class Promises {
      *   a faulty resolved {@link Promise} with an exception provided
      */    
     public static <T> Promise<T> failure(Throwable exception) {
-        CompletablePromise<T> result = new CompletablePromise<>();
-        result.onFailure(exception);
-        return result;
+        CompletableFuture<T> delegate = new CompletableFuture<>();
+        delegate.completeExceptionally(exception);
+        return new CompletablePromise<>(delegate);
     }
 
     /**
@@ -92,35 +90,7 @@ public class Promises {
             return new CompletablePromise<>((CompletableFuture<T>)stage);
         }
         
-        CompletablePromise<T> result = createLinkedPromise(stage);
-        stage.whenComplete(handler(result::onSuccess, result::onFailure));
-        return result;
-    }
-
-    static <T, R> Promise<R> from(CompletionStage<? extends T> stage, 
-                                  Function<? super T, ? extends R> resultConverter,
-                                  Function<? super Throwable, ? extends Throwable> errorConverter) {
-        
-        CompletablePromise<R> result = createLinkedPromise(stage);
-        stage.whenComplete(handler(
-            acceptConverted(result::onSuccess, resultConverter),
-            acceptConverted(result::onFailure, errorConverter)
-        ));
-        return result;
-    }
-
-    private static <T, R> CompletablePromise<R> createLinkedPromise(CompletionStage<? extends T> stage) {
-        return new CompletablePromise<R>() {
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                if (super.cancel(mayInterruptIfRunning)) {
-                    cancelPromise(stage, mayInterruptIfRunning);
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-        };
+        return COMPLETED_DEPENDENT_PROMISE.thenCombine(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY).raw();
     }
     
     /**
@@ -425,7 +395,10 @@ public class Promises {
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
         } else if (size == 1) {
-            return from(promises.get(0), Collections::singletonList, Function.<Throwable> identity());
+            return from(promises.get(0))
+                   .dependent()
+                   .thenApply((T r) -> Collections.singletonList(r), true)
+                   .raw();
         } else {
             return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
         }
@@ -541,6 +514,14 @@ public class Promises {
             resultPromise.onFailure(ctx.asFailure());
         }
     }
+    
+    public static Throwable unwrapException(Throwable ex) {
+        Throwable nested = ex;
+        while (nested instanceof CompletionException) {
+            nested = nested.getCause();
+        }
+        return null == nested ? ex : nested;
+    }
 
     static CompletionException wrapException(Throwable e) {
         if (e instanceof CompletionException) {
@@ -551,34 +532,23 @@ public class Promises {
     }
 
     private static <T> Promise<T> unwrap(CompletionStage<List<T>> original, boolean unwrapException) {
-        return from(
-            original,
-            c -> c.stream().filter(Objects::nonNull).findFirst().get(),
-            unwrapException ? 
-                ex -> ex instanceof MultitargetException ? ((MultitargetException)ex).getFirstException().get() : ex
-                :
-                Function.identity()
-        );
-    }
-
-    private static <T> BiConsumer<T, ? super Throwable> handler(Consumer<? super T> onResult, Consumer<? super Throwable> onError) {
-        return (r, e) -> {
-            if (null != e) {
-                onError.accept(e);
-            } else {
-                try {
-                    onResult.accept(r);
-                } catch (Exception ex) {
-                    onError.accept(ex);
+        return from(original)
+            .dependent()
+            .handle((r, e) -> {
+                if (null != e) {
+                    if (unwrapException) {
+                        Throwable targetException = unwrapException(e);
+                        if (targetException instanceof MultitargetException) {
+                            throw wrapException( ((MultitargetException)targetException).getFirstException().get() );
+                        } 
+                    }
+                    throw wrapException(e);
+                } else {
+                    return r.stream().filter(Objects::nonNull).findFirst().get();
                 }
-            }
-        };
+            }, true)
+            .raw();
     }
-
-    private static <T, U> Consumer<? super T> acceptConverted(Consumer<? super U> target, Function<? super T, ? extends U> converter) {
-        return t -> target.accept(converter.apply(t));
-    }
-
     
     private static class ObjectRef<T> {
         private final T reference;
@@ -593,4 +563,5 @@ public class Promises {
     }
     
     private static final Object IGNORE = new Object();
+    private static final DependentPromise<Object> COMPLETED_DEPENDENT_PROMISE = success(null).dependent();
 }
