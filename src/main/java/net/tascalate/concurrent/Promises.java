@@ -147,6 +147,7 @@ public class Promises {
      * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
+     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s are cancelled.
      * 
      * @param <T>
@@ -169,6 +170,7 @@ public class Promises {
      * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
+     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
      * all remaining incomplete {@link CompletionStage}-s are cancelled.
      * 
@@ -211,7 +213,10 @@ public class Promises {
      * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
+     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled. 
+     * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns from this method reports 
+     * exact exception. All other methods wrap it to {@link MultitargetException}. 
      * @param <T>
      *   a common supertype of the resulting values 
      * @param promises
@@ -234,8 +239,11 @@ public class Promises {
      * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
+     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
      * all remaining incomplete {@link CompletionStage}-s are cancelled. 
+     * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns from this method reports 
+     * exact exception. All other methods wrap it to {@link MultitargetException}. 
      * @param <T>
      *   a common supertype of the resulting values 
      * @param cancelRemaining
@@ -428,7 +436,7 @@ public class Promises {
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
         } else if (size == 1) {
-            return transform(promises.get(0), Collections::singletonList, Function.identity());
+            return transform(promises.get(0), Collections::singletonList, Promises::wrapMultitargetException);
         } else {
             return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
         }
