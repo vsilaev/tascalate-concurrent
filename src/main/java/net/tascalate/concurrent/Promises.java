@@ -17,8 +17,10 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -28,6 +30,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -90,7 +93,7 @@ public class Promises {
             return new CompletablePromise<>((CompletableFuture<T>)stage);
         }
         
-        return COMPLETED_DEPENDENT_PROMISE.thenCombine(stage, (u, v) -> v, PromiseOrigin.PARAM_ONLY).raw();
+        return transform(stage, Function.identity(), Function.identity());
     }
     
     /**
@@ -184,7 +187,22 @@ public class Promises {
     }
     
     public static <T> Promise<T> any(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
-        return unwrap(atLeast(1, (promises == null ? 0 : promises.size()) - 1, cancelRemaining, promises), false);
+        int size = null == promises ? 0 : promises.size();
+        switch (size) {
+            case 0:
+                @SuppressWarnings("unchecked")
+                Promise<T> emptyResult = (Promise<T>)EMPTY_AGGREGATE_FAILURE;
+                return emptyResult;
+            case 1:
+                @SuppressWarnings("unchecked")
+                CompletionStage<T> singleResult = (CompletionStage<T>) promises.get(0);
+                return transform(singleResult, Function.identity(), Promises::wrapMultitargetException);
+            default:
+                return transform(
+                    atLeast(1, size - 1, cancelRemaining, promises), 
+                    Promises::extractFirstNonNull, Function.identity() /* DO NOT unwrap multitarget exception */
+                );
+        }
     }
     
     /**
@@ -233,7 +251,22 @@ public class Promises {
     }
     
     public static <T> Promise<T> anyStrict(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
-        return unwrap(atLeast(1, 0, cancelRemaining, promises), true);
+        int size = null == promises ? 0 : promises.size();
+        switch (size) {
+            case 0:
+                @SuppressWarnings("unchecked")
+                Promise<T> emptyResult = (Promise<T>)EMPTY_AGGREGATE_FAILURE;
+                return emptyResult;
+            case 1:
+                @SuppressWarnings("unchecked")
+                CompletionStage<T> singleResult = (CompletionStage<T>) promises.get(0);
+                return from(singleResult);
+            default:
+                return transform(
+                    atLeast(1, 0, cancelRemaining, promises), 
+                    Promises::extractFirstNonNull, Promises::unwrapMultitargetException
+                );
+        }
     }
     
     /**
@@ -395,10 +428,7 @@ public class Promises {
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
         } else if (size == 1) {
-            return from(promises.get(0))
-                   .dependent()
-                   .thenApply((T r) -> Collections.singletonList(r), true)
-                   .raw();
+            return transform(promises.get(0), Collections::singletonList, Function.identity());
         } else {
             return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
         }
@@ -531,23 +561,49 @@ public class Promises {
         }
     }
 
-    private static <T> Promise<T> unwrap(CompletionStage<List<T>> original, boolean unwrapException) {
-        return from(original)
-            .dependent()
-            .handle((r, e) -> {
-                if (null != e) {
-                    if (unwrapException) {
-                        Throwable targetException = unwrapException(e);
-                        if (targetException instanceof MultitargetException) {
-                            throw wrapException( ((MultitargetException)targetException).getFirstException().get() );
-                        } 
-                    }
-                    throw wrapException(e);
+    private static <T, U> Promise<T> transform(CompletionStage<U> original, 
+                                               Function<? super U, ? extends T> resultMapper, 
+                                               Function<? super Throwable, ? extends Throwable> errorMapper) {
+        CompletablePromise<T> result = new CompletablePromise<T>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                if (super.cancel(mayInterruptIfRunning)) {
+                    CompletablePromise.cancelPromise(original, mayInterruptIfRunning);
+                    return true;
                 } else {
-                    return r.stream().filter(Objects::nonNull).findFirst().get();
+                    return false;
                 }
-            }, true)
-            .raw();
+            }
+        };
+        original.whenComplete((r, e) -> {
+           if (null == e) {
+               result.onSuccess( resultMapper.apply(r) );
+           } else {
+               result.onFailure( errorMapper.apply(e) );
+           }
+        });
+        return result;
+    }
+    
+    private static <T> T extractFirstNonNull(Collection<? extends T> collection) {
+        return collection.stream().filter(Objects::nonNull).findFirst().get();
+    }
+    
+    private static <E extends Throwable> Throwable unwrapMultitargetException(E exception) {
+        Throwable targetException = unwrapException(exception);
+        if (targetException instanceof MultitargetException) {
+            return MultitargetException.class.cast(targetException).getFirstException().get();
+        } else {
+            return targetException;
+        }
+    }
+    
+    private static <E extends Throwable> MultitargetException wrapMultitargetException(E exception) {
+        if (exception instanceof MultitargetException) {
+            return (MultitargetException)exception;
+        } else {
+            return new MultitargetException(Collections.singletonList(exception));
+        }
     }
     
     private static class ObjectRef<T> {
@@ -563,5 +619,5 @@ public class Promises {
     }
     
     private static final Object IGNORE = new Object();
-    private static final DependentPromise<Object> COMPLETED_DEPENDENT_PROMISE = success(null).dependent();
+    private static final Promise<Object> EMPTY_AGGREGATE_FAILURE = failure(new NoSuchElementException());
 }
