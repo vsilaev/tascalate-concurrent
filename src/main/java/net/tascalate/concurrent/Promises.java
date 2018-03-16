@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -147,7 +146,6 @@ public class Promises {
      * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
-     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s are cancelled.
      * 
      * @param <T>
@@ -170,7 +168,6 @@ public class Promises {
      * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
-     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
      * all remaining incomplete {@link CompletionStage}-s are cancelled.
      * 
@@ -192,9 +189,7 @@ public class Promises {
         int size = null == promises ? 0 : promises.size();
         switch (size) {
             case 0:
-                @SuppressWarnings("unchecked")
-                Promise<T> emptyResult = (Promise<T>)EMPTY_AGGREGATE_FAILURE;
-                return emptyResult;
+                return insufficientNumberOfArguments(1, 0);
             case 1:
                 @SuppressWarnings("unchecked")
                 CompletionStage<T> singleResult = (CompletionStage<T>) promises.get(0);
@@ -213,7 +208,6 @@ public class Promises {
      * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
-     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled. 
      * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns from this method reports 
      * exact exception. All other methods wrap it to {@link MultitargetException}. 
@@ -239,7 +233,6 @@ public class Promises {
      * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
      * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
      * argument.
-     * <p>When <code>promises</code> argument is empty returns faulty-resolved {@link Promise} with {@link NoSuchElementException} fault. 
      * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
      * all remaining incomplete {@link CompletionStage}-s are cancelled. 
      * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns from this method reports 
@@ -262,9 +255,7 @@ public class Promises {
         int size = null == promises ? 0 : promises.size();
         switch (size) {
             case 0:
-                @SuppressWarnings("unchecked")
-                Promise<T> emptyResult = (Promise<T>)EMPTY_AGGREGATE_FAILURE;
-                return emptyResult;
+                return insufficientNumberOfArguments(1, 0);
             case 1:
                 @SuppressWarnings("unchecked")
                 CompletionStage<T> singleResult = (CompletionStage<T>) promises.get(0);
@@ -430,9 +421,7 @@ public class Promises {
         
         int size = null == promises ? 0 : promises.size();
         if (minResultsCount > size) {
-            throw new IllegalArgumentException(
-                "The number of futures supplied is less than a number of futures to await"
-            );
+            return insufficientNumberOfArguments(minResultsCount, size);
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
         } else if (size == 1) {
@@ -614,6 +603,14 @@ public class Promises {
         }
     }
     
+    private static <T> Promise<T> insufficientNumberOfArguments(int minResultCount, int size) {
+        String message = String.format(
+            "The number of futures supplied (%d) is less than a number of futures to await (%d)", size, minResultCount
+        );
+        //return failure(new NoSuchElementException(message));
+        throw new IllegalArgumentException(message);        
+    }
+    
     private static class ObjectRef<T> {
         private final T reference;
         
@@ -627,5 +624,4 @@ public class Promises {
     }
     
     private static final Object IGNORE = new Object();
-    private static final Promise<Object> EMPTY_AGGREGATE_FAILURE = failure(new NoSuchElementException());
 }
