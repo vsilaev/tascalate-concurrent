@@ -427,7 +427,11 @@ public class Promises {
         
         int size = null == promises ? 0 : promises.size();
         if (minResultsCount > size) {
-            return insufficientNumberOfArguments(minResultsCount, size);
+            Promise<List<T>> result = insufficientNumberOfArguments(minResultsCount, size);
+            if (cancelRemaining && size > 0) {
+                promises.stream().forEach( p -> PromiseUtils.cancelPromise(p, true) );
+            }
+            return result;
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
         } else if (size == 1) {
