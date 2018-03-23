@@ -20,12 +20,14 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
+import net.tascalate.concurrent.decorators.BlockingCompletionStageDecorator;
 
-public class PromiseByCompletionStage<T> 
+public class CompletionStageWrapper<T> 
     extends AbstractCompletionStageDecorator<T, CompletionStage<T>> 
     implements Promise<T> {
     
@@ -33,7 +35,7 @@ public class PromiseByCompletionStage<T>
     private volatile T result;
     private volatile Throwable fault;
     
-    protected PromiseByCompletionStage(CompletionStage<T> delegate) {
+    protected CompletionStageWrapper(CompletionStage<T> delegate) {
         super(delegate);
         whenDone = new CountDownLatch(1);
         result   = null;
@@ -117,4 +119,13 @@ public class PromiseByCompletionStage<T>
         return Promises.from(original);
     }
 
+    public static <T> Promise<T> from(CompletionStage<T> stage) {
+        if (stage instanceof Future) {
+            // If we can delegate blocking Future API...
+            return BlockingCompletionStageDecorator.from(stage);
+        } else {
+            // Otherwise fallback to own implementation
+            return new CompletionStageWrapper<>(stage);
+        }
+    }
 }

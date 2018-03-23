@@ -27,6 +27,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.decorators.ExecutorBoundDependentPromise;
+
 /**
  * 
  * <p>{@link Promise} wrapper that may keep track origin of this promise and cancel them
@@ -75,6 +77,11 @@ public interface DependentPromise<T> extends Promise<T> {
         return ConfigurableDependentPromise.from(source, defaultEnlistOptions);
     }
 
+    @Override
+    default DependentPromise<T> defaultAsyncOn(Executor executor) {
+        return new ExecutorBoundDependentPromise<>(this, executor);
+    }
+    
     // Delay
     @Override
     default DependentPromise<T> delay(long timeout, TimeUnit unit) {
@@ -291,5 +298,129 @@ public interface DependentPromise<T> extends Promise<T> {
     <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor, boolean enlistOrigin);
     
     CompletableFuture<T> toCompletableFuture(boolean enlistOrigin);
+    
+    // Re-declare CompletionStage original methods with right return type
+    @Override
+    <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn);
+
+    @Override
+    <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn);
+
+    @Override
+    <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor);
+    
+    @Override
+    DependentPromise<Void> thenAccept(Consumer<? super T> action);
+
+    @Override
+    DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action);
+
+    @Override
+    DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor);
+
+    @Override
+    DependentPromise<Void> thenRun(Runnable action);
+
+    @Override
+    DependentPromise<Void> thenRunAsync(Runnable action);
+
+    @Override
+    DependentPromise<Void> thenRunAsync(Runnable action, Executor executor);
+
+    @Override
+    <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+
+    @Override
+    <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+
+    @Override
+    <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
+                                                BiFunction<? super T, ? super U, ? extends V> fn, 
+                                                Executor executor);
+    
+    @Override
+    <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+
+    @Override
+    <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+    
+    @Override
+    <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
+                                                   BiConsumer<? super T, ? super U> action,
+                                                   Executor executor); 
+    
+    @Override
+    DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action);
+
+    @Override
+    DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action);
+
+    @Override
+    DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
+                                             Runnable action, 
+                                             Executor executor);
+    
+    @Override
+    <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn);
+
+    @Override
+    <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn);
+
+    @Override
+    <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
+                                               Function<? super T, U> fn,
+                                               Executor executor); 
+
+    @Override
+    DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action);
+
+    @Override
+    DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action);
+
+    @Override
+    DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
+                                             Consumer<? super T> action,
+                                             Executor executor); 
+
+    @Override
+    DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action);
+
+    @Override
+    DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action);
+
+    @Override
+    DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
+                                               Runnable action, 
+                                               Executor executor);
+    
+    @Override
+    <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn);
+
+    @Override
+    <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn);
+
+    @Override
+    <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor);
+
+    @Override
+    DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn);
+    
+    @Override
+    DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
+
+    @Override
+    DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action);
+
+    @Override
+    DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor);
+
+    @Override
+    <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn);
+
+    @Override
+    <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn);
+
+    @Override
+    <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor);
     
 }

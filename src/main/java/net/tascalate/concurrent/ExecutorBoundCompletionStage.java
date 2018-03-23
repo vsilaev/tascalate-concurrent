@@ -23,17 +23,17 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-class DefaultExecutorCompletionStage<T> implements CompletionStage<T> {
+class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     private final CompletionStage<T> delegate;
     private final Executor defaultExecutor;
     
-    DefaultExecutorCompletionStage(CompletionStage<T> delegate, Executor defaultExecutor) {
+    ExecutorBoundCompletionStage(CompletionStage<T> delegate, Executor defaultExecutor) {
         this.delegate = delegate;
         this.defaultExecutor = defaultExecutor;
     }
 
     protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
-        return new DefaultExecutorCompletionStage<>(original, defaultExecutor);
+        return new ExecutorBoundCompletionStage<>(original, defaultExecutor);
     }
     
     public <U> CompletionStage<U> thenApply(Function<? super T, ? extends U> fn) {

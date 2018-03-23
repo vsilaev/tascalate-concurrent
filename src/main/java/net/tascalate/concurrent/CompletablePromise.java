@@ -15,7 +15,9 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -52,6 +54,11 @@ public class CompletablePromise<T> extends AbstractFutureDecorator<T, Completabl
     @Override
     public T getNow(T valueIfAbsent) {
         return delegate.getNow(valueIfAbsent);
+    }
+    
+    @Override
+    public T join() throws CancellationException, CompletionException {
+        return delegate.join();
     }
     
     public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier) {

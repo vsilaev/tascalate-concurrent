@@ -94,11 +94,11 @@ public class Promises {
         /*
         return transform(stage, Function.identity(), Function.identity());
          */
-        return new PromiseByCompletionStage<>(stage);
+        return CompletionStageWrapper.from(stage);
     }
     
     public static <T> CompletionStage<T> withDefaultExecutor(CompletionStage<T> stage, Executor executor) {
-        return new DefaultExecutorCompletionStage<>(stage, executor);
+        return new ExecutorBoundCompletionStage<>(stage, executor);
     }
     
     /**

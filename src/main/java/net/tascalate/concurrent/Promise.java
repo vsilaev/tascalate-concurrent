@@ -30,6 +30,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
 
 /**
  * <p>{@link Promise} is a combination of the {@link CompletionStage} and {@link Future} contracts.
@@ -194,6 +195,10 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
      */
     default DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
         return DependentPromise.from(this, defaultEnlistOptions);
+    }
+    
+    default Promise<T> defaultAsyncOn(Executor executor) {
+        return new ExecutorBoundPromise<>(this, executor);
     }
     
     /**
