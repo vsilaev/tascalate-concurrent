@@ -145,16 +145,16 @@ class Timeouts {
                 delayed.whenComplete( (r, e) -> timeout.cancel(true) );
                 timeout.whenComplete( (r, timeoutError) -> {
                     if (null != timeoutError) {
-                        delayed.onFailure(Promises.wrapException(timeoutError));
+                        delayed.onFailure(PromiseUtils.wrapCompletionException(timeoutError));
                     } else if (null == originalError) {
                         delayed.onSuccess(originalResult);
                     } else {
-                        delayed.onFailure(Promises.wrapException(originalError));
+                        delayed.onFailure(PromiseUtils.wrapCompletionException(originalError));
                     }
                 });
             } else {
                 // when error and should not delay on error
-                delayed.onFailure(Promises.wrapException(originalError));
+                delayed.onFailure(PromiseUtils.wrapCompletionException(originalError));
             }
         };
     }

@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -74,7 +73,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             if (null == cancellableOrigins) {
                 return;
             }
-            Arrays.stream(cancellableOrigins).forEach(p -> CompletablePromise.cancelPromise(p, mayInterruptIfRunning)); 
+            Arrays.stream(cancellableOrigins).forEach(p -> PromiseUtils.cancelPromise(p, mayInterruptIfRunning)); 
         }
     }
 
@@ -433,17 +432,13 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     }
 
     private static <U> U forwardException(Throwable e) {
-        throw Promises.wrapException(e);
+        throw PromiseUtils.wrapCompletionException(e);
     }
     
     private static ExecutionException rewrapExecutionException(ExecutionException ex) {
-        if (ex.getCause() instanceof CompletionException) {
-            Throwable completionExceptionReason = ex.getCause().getCause();
-            if (null != completionExceptionReason) {
-                return new ExecutionException(completionExceptionReason);
-            }
-        }
-        return ex;
+        return PromiseUtils.wrapExecutionException(
+            PromiseUtils.unwrapCompletionException(PromiseUtils.unwrapExecutionException(ex))
+        );
     }    
 
     private <U> void addCallbacks(AbstractCompletableTask<U> targetStage,

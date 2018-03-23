@@ -15,13 +15,10 @@
  */
 package net.tascalate.concurrent;
 
-import java.lang.reflect.Method;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.AbstractFutureDecorator;
@@ -64,33 +61,6 @@ public class CompletablePromise<T> extends AbstractFutureDecorator<T, Completabl
     public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
         CompletableTask.supplyAsync(supplier, executor).thenAccept(this::onSuccess);
         return this;
-    }
-    
-    static boolean cancelPromise(CompletionStage<?> promise, boolean mayInterruptIfRunning) {
-        if (promise instanceof Future) {
-            Future<?> future = (Future<?>) promise;
-            return future.cancel(mayInterruptIfRunning);
-        } else {
-            Method m = completeExceptionallyMethodOf(promise);
-            if (null != m) {
-                try {
-                    return (Boolean) m.invoke(promise, new CancellationException());
-                } catch (final ReflectiveOperationException ex) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-    }
-
-    private static Method completeExceptionallyMethodOf(CompletionStage<?> promise) {
-        try {
-            Class<?> clazz = promise.getClass();
-            return clazz.getMethod("completeExceptionally", Throwable.class);
-        } catch (ReflectiveOperationException | SecurityException ex) {
-            return null;
-        }
     }
 
     @Override

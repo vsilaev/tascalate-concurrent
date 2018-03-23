@@ -16,6 +16,8 @@
 package net.tascalate.concurrent.decorators;
 
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -38,6 +40,21 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
 	
     protected AbstractPromiseDecorator(D delegate) {
         super(delegate);
+    }
+    
+    @Override
+    public T getNow(T valueIfAbsent) throws CancellationException, CompletionException {
+        return delegate.getNow(valueIfAbsent);
+    }
+    
+    @Override
+    public T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException {
+        return delegate.getNow(valueIfAbsent);
+    }
+    
+    @Override
+    public T join() throws CancellationException, CompletionException {
+        return delegate.join();
     }
     
     @Override

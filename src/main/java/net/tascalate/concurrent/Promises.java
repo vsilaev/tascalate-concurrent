@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -92,7 +91,14 @@ public class Promises {
             return new CompletablePromise<>((CompletableFuture<T>)stage);
         }
         
+        /*
         return transform(stage, Function.identity(), Function.identity());
+         */
+        return new PromiseByCompletionStage<>(stage);
+    }
+    
+    public static <T> CompletionStage<T> withDefaultExecutor(CompletionStage<T> stage, Executor executor) {
+        return new DefaultExecutorCompletionStage<>(stage, executor);
     }
     
     /**
@@ -542,22 +548,6 @@ public class Promises {
         }
     }
     
-    public static Throwable unwrapException(Throwable ex) {
-        Throwable nested = ex;
-        while (nested instanceof CompletionException) {
-            nested = nested.getCause();
-        }
-        return null == nested ? ex : nested;
-    }
-
-    static CompletionException wrapException(Throwable e) {
-        if (e instanceof CompletionException) {
-            return (CompletionException) e;
-        } else {
-            return new CompletionException(e);
-        }
-    }
-
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
                                                Function<? super U, ? extends T> resultMapper, 
                                                Function<? super Throwable, ? extends Throwable> errorMapper) {
@@ -565,7 +555,7 @@ public class Promises {
             @Override
             public boolean cancel(boolean mayInterruptIfRunning) {
                 if (super.cancel(mayInterruptIfRunning)) {
-                    CompletablePromise.cancelPromise(original, mayInterruptIfRunning);
+                    PromiseUtils.cancelPromise(original, mayInterruptIfRunning);
                     return true;
                 } else {
                     return false;
@@ -587,7 +577,7 @@ public class Promises {
     }
     
     private static <E extends Throwable> Throwable unwrapMultitargetException(E exception) {
-        Throwable targetException = unwrapException(exception);
+        Throwable targetException = PromiseUtils.unwrapCompletionException(exception);
         if (targetException instanceof MultitargetException) {
             return MultitargetException.class.cast(targetException).getFirstException().get();
         } else {

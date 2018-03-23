@@ -135,7 +135,7 @@ class AggregatingPromise<T> extends CompletablePromise<List<T>> {
         for (CompletionStage<? extends T> promise : promises) {
             final int idx = i++;
             if (completions.get(idx) == COMPLETED_CANCEL) {
-                CompletablePromise.cancelPromise(promise, true);
+                PromiseUtils.cancelPromise(promise, true);
             }
         }
     }

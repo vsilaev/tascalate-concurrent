@@ -18,7 +18,9 @@ package net.tascalate.concurrent;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -613,12 +615,18 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
 
     @Override
-    public T getNow(T valueIfAbsent) {
+    public T getNow(T valueIfAbsent) throws CancellationException, CompletionException {
         return delegate.getNow(valueIfAbsent);
     }
     
-    public T getNow(Supplier<? extends T> valueIfAbsent) {
+    @Override
+    public T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException {
         return delegate.getNow(valueIfAbsent);
+    }
+    
+    @Override
+    public T join() throws CancellationException, CompletionException {
+        return delegate.join();
     }
 
     @Override
@@ -696,7 +704,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         if (null != promises) {
             Arrays.stream(promises)
               .filter(p -> p != null)
-              .forEach(p -> CompletablePromise.cancelPromise(p, mayInterruptIfRunning));
+              .forEach(p -> PromiseUtils.cancelPromise(p, mayInterruptIfRunning));
         }
     }
     

@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -42,11 +43,11 @@ import java.util.function.Supplier;
  */
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
-    default T getNow(T valueIfAbsent) {
+    default T getNow(T valueIfAbsent) throws CancellationException, CompletionException {
         return getNow(() -> valueIfAbsent);
     }
     
-    default T getNow(Supplier<? extends T> valueIfAbsent) {
+    default T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException {
         if (isDone()) {
             try {
                 return get();
@@ -54,10 +55,20 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
                 // Should not happen when isDone() returns true
                 throw new RuntimeException(ex);
             } catch (ExecutionException ex) {
-                throw new CompletionException(null != ex.getCause() ? ex.getCause() : ex);
+                throw PromiseUtils.wrapCompletionException(PromiseUtils.unwrapExecutionException(ex));
             }
         } else {
             return valueIfAbsent.get();
+        }
+    }
+    
+    default T join() throws CancellationException, CompletionException {
+        try {
+            return get();
+        } catch (InterruptedException ex) {
+            throw new CompletionException(ex);
+        } catch (ExecutionException ex) {
+            throw PromiseUtils.wrapCompletionException(PromiseUtils.unwrapExecutionException(ex));
         }
     }
 
