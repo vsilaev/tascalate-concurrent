@@ -560,7 +560,7 @@ public class Promises {
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
                                                Function<? super U, ? extends T> resultMapper, 
                                                Function<? super Throwable, ? extends Throwable> errorMapper) {
-        StageCompletion<T> result = new StageCompletion<>();
+        StageCompletion<T> result = new StageCompletion<T>().dependsOn(original);
         original.whenComplete((r, e) -> {
            if (null == e) {
                result.complete( resultMapper.apply(r) );
@@ -568,7 +568,7 @@ public class Promises {
                result.completeExceptionally( errorMapper.apply(e) );
            }
         });
-        return result.dependsOn(original).toPromise();
+        return result.toPromise();
     }
     
     private static <T> T extractFirstNonNull(Collection<? extends T> collection) {

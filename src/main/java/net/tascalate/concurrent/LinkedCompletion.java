@@ -51,6 +51,11 @@ abstract class LinkedCompletion<T, F> extends CompletableFuture<T> {
         boolean cancelDependency(boolean mayInterruptIfRunning) {
             return dependency.cancel(mayInterruptIfRunning);
         }
+        
+        @Override
+        FutureCompletion<T> dependsOn(Future<?> dependency) {
+            return (FutureCompletion<T>)super.dependsOn(dependency);
+        }
     };
     
     
@@ -58,6 +63,11 @@ abstract class LinkedCompletion<T, F> extends CompletableFuture<T> {
         @Override
         boolean cancelDependency(boolean mayInterruptIfRunning) {
             return cancelPromise(dependency, mayInterruptIfRunning);
+        }
+        
+        @Override
+        StageCompletion<T> dependsOn(CompletionStage<?> dependency) {
+            return (StageCompletion<T>)super.dependsOn(dependency);
         }
     };
 }

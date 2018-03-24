@@ -16,6 +16,7 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -642,7 +643,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
     
     protected Promise<T> cancellablePromiseOf(Promise<T> original) {
-        return new MultitargetCancellablePromise<>(original, cancellableOrigins);
+        return new UndecoratedCancellationPromise<>(original, cancellableOrigins);
     }
 
     @Override
@@ -654,17 +655,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         if (!enlistOrigin) {
             return delegate.toCompletableFuture();
         } else {
-            CompletableFuture<T> result = new CompletableFuture<T>() {
-                @Override
-                public boolean cancel(boolean mayInterruptIfRunning) {
-                    if (super.cancel(mayInterruptIfRunning)) {
-                        ConfigurableDependentPromise.this.cancel(mayInterruptIfRunning);
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
-            };
+            FutureCompletion<T> result = new FutureCompletion<T>().dependsOn(this);
             whenComplete((r, e) -> {
                if (null != e) {
                    result.completeExceptionally(e);
@@ -715,9 +706,9 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
     
     
-    static class MultitargetCancellablePromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
+    static class UndecoratedCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
         private final CompletionStage<?>[] dependent;
-        MultitargetCancellablePromise(Promise<T> original, CompletionStage<?>[] dependent) {
+        UndecoratedCancellationPromise(Promise<T> original, CompletionStage<?>[] dependent) {
             super(original);
             this.dependent = dependent;
         }
@@ -740,6 +731,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
         @Override
         protected <U> Promise<U> wrap(CompletionStage<U> original) {
+            // No wrapping by definition
             return (Promise<U>)original;
         }
     }
