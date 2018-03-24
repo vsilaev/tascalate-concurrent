@@ -34,7 +34,7 @@ public class BlockingCompletionStageDecorator<T, D extends CompletionStage<T> & 
     }
     
     private static <T, D extends CompletionStage<T> & Future<T>> D cast(CompletionStage<T> stage) {
-        if (stage instanceof Future) {
+        if (!(stage instanceof Future)) {
             throw new IllegalArgumentException(
                 "Parameter must implement both " + 
                 CompletionStage.class.getName() + " and " +
