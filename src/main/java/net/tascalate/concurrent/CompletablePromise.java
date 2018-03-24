@@ -15,15 +15,11 @@
  */
 package net.tascalate.concurrent;
 
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
-
-import net.tascalate.concurrent.decorators.AbstractFutureDecorator;
 
 /**
  * The {@link CompletablePromise} is an adapter of a {@link CompletableFuture} to the {@link Promise} API 
@@ -33,7 +29,7 @@ import net.tascalate.concurrent.decorators.AbstractFutureDecorator;
  * @param <T>
  *   a type of the successfully resolved promise value   
  */
-public class CompletablePromise<T> extends AbstractFutureDecorator<T, CompletableFuture<T>> implements Promise<T> {
+public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
 
     public CompletablePromise() {
         this(new CompletableFuture<>());
@@ -51,21 +47,11 @@ public class CompletablePromise<T> extends AbstractFutureDecorator<T, Completabl
         return delegate.completeExceptionally(ex);
     }
 
-    @Override
-    public T getNow(T valueIfAbsent) {
-        return delegate.getNow(valueIfAbsent);
-    }
-    
-    @Override
-    public T join() throws CancellationException, CompletionException {
-        return delegate.join();
-    }
-    
-    public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier) {
+    public Promise<T> completeAsync(Supplier<? extends T> supplier) {
         return completeAsync(supplier, ForkJoinPool.commonPool());
     }
     
-    public CompletablePromise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
+    public Promise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
         CompletableTask.supplyAsync(supplier, executor).thenAccept(this::onSuccess);
         return this;
     }

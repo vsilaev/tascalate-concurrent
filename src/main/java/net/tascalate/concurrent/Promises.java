@@ -15,6 +15,10 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
+import static net.tascalate.concurrent.LinkedCompletion.StageCompletion;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
 
 /**
  * Utility class to create a resolved (either successfully or faulty) {@link Promise}-s; 
@@ -53,7 +58,7 @@ public class Promises {
      *   a successfully resolved {@link Promise} with a value provided
      */
     public static <T> Promise<T> success(T value) {
-        return new CompletablePromise<>(
+        return new CompletableFutureWrapper<>(
             CompletableFuture.completedFuture(value)
         );
     }
@@ -70,7 +75,7 @@ public class Promises {
     public static <T> Promise<T> failure(Throwable exception) {
         CompletableFuture<T> delegate = new CompletableFuture<>();
         delegate.completeExceptionally(exception);
-        return new CompletablePromise<>(delegate);
+        return new CompletableFutureWrapper<>(delegate);
     }
 
     /**
@@ -88,7 +93,7 @@ public class Promises {
         }
 
         if (stage instanceof CompletableFuture) {
-            return new CompletablePromise<>((CompletableFuture<T>)stage);
+            return new CompletableFutureWrapper<>((CompletableFuture<T>)stage);
         }
         
         /*
@@ -429,7 +434,7 @@ public class Promises {
         if (minResultsCount > size) {
             Promise<List<T>> result = insufficientNumberOfArguments(minResultsCount, size);
             if (cancelRemaining && size > 0) {
-                promises.stream().forEach( p -> PromiseUtils.cancelPromise(p, true) );
+                promises.stream().forEach( p -> cancelPromise(p, true) );
             }
             return result;
         } else if (minResultsCount == 0) {
@@ -465,10 +470,10 @@ public class Promises {
     }
     
     public static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        final CompletablePromise<T> promise = new CompletablePromise<>();
+        final CompletableFuture<T> result = new CompletableFuture<>();
         final AtomicReference<Promise<?>> callPromiseRef = new AtomicReference<>();
         // Cleanup latest timeout on completion;
-        promise.whenComplete(
+        result.whenComplete(
             (r, e) -> 
                 Optional
                 .of(callPromiseRef)
@@ -478,19 +483,19 @@ public class Promises {
         Consumer<Promise<?>> changeCallPromiseRef = p -> {
         	// If result promise is cancelled after callPromise was set need to stop;            	
             callPromiseRef.set( p );	
-            if (promise.isDone()) {
+            if (result.isDone()) {
                 p.cancel(true);
             }
         };
         
         RetryContext ctx = RetryContext.initial(retryPolicy);
-        pollOnce(codeBlock, executor, ctx, promise, changeCallPromiseRef);
-        return promise;
+        pollOnce(codeBlock, executor, ctx, result, changeCallPromiseRef);
+        return new CompletableFutureWrapper<>(result).defaultAsyncOn(executor);
     }
     
     private static <T> void pollOnce(Callable<Optional<? extends T>> codeBlock, 
                                      Executor executor, RetryContext ctx, 
-                                     CompletablePromise<T> resultPromise, 
+                                     CompletableFuture<T> resultPromise, 
                                      Consumer<Promise<?>> changeCallPromiseRef) {
         
         // Promise may be cancelled outside of polling
@@ -511,7 +516,7 @@ public class Promises {
                         ctx.exit();
                     }
                     if (result.isPresent()) {
-                        resultPromise.onSuccess(result.get());
+                        resultPromise.complete(result.get());
                     } else {
                         long finishTime = System.nanoTime();
                         RetryContext nextCtx = ctx.nextRetry(Duration.ofNanos(finishTime - startTime));
@@ -548,32 +553,22 @@ public class Promises {
             }
 
         } else {
-            resultPromise.onFailure(ctx.asFailure());
+            resultPromise.completeExceptionally(ctx.asFailure());
         }
     }
     
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
                                                Function<? super U, ? extends T> resultMapper, 
                                                Function<? super Throwable, ? extends Throwable> errorMapper) {
-        CompletablePromise<T> result = new CompletablePromise<T>() {
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                if (super.cancel(mayInterruptIfRunning)) {
-                    PromiseUtils.cancelPromise(original, mayInterruptIfRunning);
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-        };
+        StageCompletion<T> result = new StageCompletion<>();
         original.whenComplete((r, e) -> {
            if (null == e) {
-               result.onSuccess( resultMapper.apply(r) );
+               result.complete( resultMapper.apply(r) );
            } else {
-               result.onFailure( errorMapper.apply(e) );
+               result.completeExceptionally( errorMapper.apply(e) );
            }
         });
-        return result;
+        return result.dependsOn(original).toPromise();
     }
     
     private static <T> T extractFirstNonNull(Collection<? extends T> collection) {
@@ -581,9 +576,9 @@ public class Promises {
     }
     
     private static <E extends Throwable> Throwable unwrapMultitargetException(E exception) {
-        Throwable targetException = PromiseUtils.unwrapCompletionException(exception);
+        Throwable targetException = unwrapCompletionException(exception);
         if (targetException instanceof MultitargetException) {
-            return MultitargetException.class.cast(targetException).getFirstException().get();
+            return ((MultitargetException)targetException).getFirstException().get();
         } else {
             return targetException;
         }
@@ -593,7 +588,7 @@ public class Promises {
         if (exception instanceof MultitargetException) {
             return (MultitargetException)exception;
         } else {
-            return new MultitargetException(Collections.singletonList(exception));
+            return MultitargetException.of(exception);
         }
     }
     
@@ -616,6 +611,6 @@ public class Promises {
             return reference;
         }
     }
-    
+
     private static final Object IGNORE = new Object();
 }

@@ -15,6 +15,11 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
+
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -54,7 +59,7 @@ public class CompletionStageWrapper<T>
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        return PromiseUtils.cancelPromise(delegate, mayInterruptIfRunning);
+        return cancelPromise(delegate, mayInterruptIfRunning);
     }
 
     @Override
@@ -66,7 +71,7 @@ public class CompletionStageWrapper<T>
             // If explicitly cancelled then fault is not wrapped
             throw (CancellationException)fault;
         } else {
-            throw PromiseUtils.wrapExecutionException(PromiseUtils.unwrapCompletionException(fault));
+            throw wrapExecutionException(unwrapCompletionException(fault));
         }
     }
 
@@ -79,7 +84,7 @@ public class CompletionStageWrapper<T>
          // If explicitly cancelled then fault is not wrapped
             throw (CancellationException)fault;
         } else {
-            throw PromiseUtils.wrapExecutionException(PromiseUtils.unwrapCompletionException(fault));
+            throw wrapExecutionException(unwrapCompletionException(fault));
         }
     }
     
@@ -109,7 +114,7 @@ public class CompletionStageWrapper<T>
         } else if (fault instanceof CancellationException) {
             throw (CancellationException)fault;
         } else {
-            throw PromiseUtils.wrapCompletionException(fault);
+            throw wrapCompletionException(fault);
         }        
     }
     

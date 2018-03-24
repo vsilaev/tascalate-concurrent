@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Set;
@@ -125,7 +127,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin) {
-        CompletablePromise<T> delayed = new CompletablePromise<>();
+        CompletableFuture<T> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *async to execute on default "this" executor
         return thenCombineAsync(
@@ -704,7 +706,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         if (null != promises) {
             Arrays.stream(promises)
               .filter(p -> p != null)
-              .forEach(p -> PromiseUtils.cancelPromise(p, mayInterruptIfRunning));
+              .forEach(p -> cancelPromise(p, mayInterruptIfRunning));
         }
     }
     

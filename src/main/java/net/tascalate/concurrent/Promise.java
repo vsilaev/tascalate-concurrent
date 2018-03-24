@@ -15,9 +15,13 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
+import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -56,7 +60,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
                 // Should not happen when isDone() returns true
                 throw new RuntimeException(ex);
             } catch (ExecutionException ex) {
-                throw PromiseUtils.wrapCompletionException(PromiseUtils.unwrapExecutionException(ex));
+                throw wrapCompletionException(unwrapExecutionException(ex));
             }
         } else {
             return valueIfAbsent.get();
@@ -69,7 +73,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         } catch (InterruptedException ex) {
             throw new CompletionException(ex);
         } catch (ExecutionException ex) {
-            throw PromiseUtils.wrapCompletionException(PromiseUtils.unwrapExecutionException(ex));
+            throw wrapCompletionException(unwrapExecutionException(ex));
         }
     }
 
@@ -86,7 +90,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> delay(Duration duration, boolean delayOnError) {
-        CompletablePromise<T> delayed = new CompletablePromise<>();
+        CompletableFuture<T> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *async to execute on default "this" executor
         return this

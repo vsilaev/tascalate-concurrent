@@ -49,7 +49,7 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     };
     private final Executor defaultExecutor;
 
-    PromiseAdapter(Executor defaultExecutor) {
+    protected PromiseAdapter(Executor defaultExecutor) {
         this.defaultExecutor = defaultExecutor;
     }
 

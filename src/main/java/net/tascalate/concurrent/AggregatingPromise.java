@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -23,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
-class AggregatingPromise<T> extends CompletablePromise<List<T>> {
+class AggregatingPromise<T> extends CompletableFutureWrapper<List<T>> {
 
     final private List<T> results;
     final private List<Throwable> errors;
@@ -86,7 +88,7 @@ class AggregatingPromise<T> extends CompletablePromise<List<T>> {
                     // Synchronized around done
                     markRemainingCancelled();
                     // Now no other thread can modify results array.
-                    onSuccess(Collections.unmodifiableList(results));
+                    delegate.complete(Collections.unmodifiableList(results));
                     if (cancelRemaining) {
                         cancelPromises();
                     }
@@ -106,7 +108,7 @@ class AggregatingPromise<T> extends CompletablePromise<List<T>> {
                     // Synchronized around done
                     markRemainingCancelled();
                     // Now no other thread can modify errors array.
-                    onFailure(new MultitargetException(Collections.unmodifiableList(errors)));
+                    delegate.completeExceptionally(new MultitargetException(Collections.unmodifiableList(errors)));
 
                     if (cancelRemaining) {
                         cancelPromises();
@@ -135,7 +137,7 @@ class AggregatingPromise<T> extends CompletablePromise<List<T>> {
         for (CompletionStage<? extends T> promise : promises) {
             final int idx = i++;
             if (completions.get(idx) == COMPLETED_CANCEL) {
-                PromiseUtils.cancelPromise(promise, true);
+                cancelPromise(promise, true);
             }
         }
     }

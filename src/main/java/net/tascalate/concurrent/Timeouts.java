@@ -15,9 +15,13 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
+
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,16 +58,11 @@ class Timeouts {
             unit = TimeUnit.SECONDS; 
         }
         
-        final CompletablePromise<Duration> promise = new CompletablePromise<>();
-        final Future<?> timeout = scheduler.schedule(
-            () -> promise.onSuccess(duration), amount, unit
+        FutureCompletion<Duration> result = new FutureCompletion<>();
+        Future<?> timeout = scheduler.schedule( 
+            () -> result.complete(duration), amount, unit 
         );
-        promise.whenComplete((r, e) -> {
-          if (null != e) {
-              timeout.cancel(true);
-          }
-        });
-        return promise;
+        return result.dependsOn(timeout).toPromise();
     }
     
     /**
@@ -101,13 +100,12 @@ class Timeouts {
             unit = TimeUnit.SECONDS; 
         }
         
-        final CompletablePromise<T> promise = new CompletablePromise<>();
-        final Future<?> timeout = scheduler.schedule(
-            () -> promise.onFailure(new TimeoutException("Timeout after " + duration)), 
+        FutureCompletion<T> result = new FutureCompletion<>();
+        Future<?> timeout = scheduler.schedule(
+            () -> result.completeExceptionally(new TimeoutException("Timeout after " + duration)), 
             amount, unit
         );
-        promise.whenComplete((r, e) -> timeout.cancel(true));
-        return promise;
+        return result.dependsOn(timeout).toPromise();
     }
 
     /**
@@ -138,23 +136,23 @@ class Timeouts {
         };
     }
     
-    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletablePromise<? super T> delayed, Duration duration, boolean delayOnError) {
+    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletableFuture<? super T> delayed, Duration duration, boolean delayOnError) {
         return (originalResult, originalError) -> {
             if (originalError == null || (delayOnError && !self.isCancelled())) {
                 Promise<?> timeout = delay(duration);
                 delayed.whenComplete( (r, e) -> timeout.cancel(true) );
                 timeout.whenComplete( (r, timeoutError) -> {
                     if (null != timeoutError) {
-                        delayed.onFailure(PromiseUtils.wrapCompletionException(timeoutError));
+                        delayed.completeExceptionally(wrapCompletionException(timeoutError));
                     } else if (null == originalError) {
-                        delayed.onSuccess(originalResult);
+                        delayed.complete(originalResult);
                     } else {
-                        delayed.onFailure(PromiseUtils.wrapCompletionException(originalError));
+                        delayed.completeExceptionally(wrapCompletionException(originalError));
                     }
                 });
             } else {
                 // when error and should not delay on error
-                delayed.onFailure(PromiseUtils.wrapCompletionException(originalError));
+                delayed.completeExceptionally(wrapCompletionException(originalError));
             }
         };
     }

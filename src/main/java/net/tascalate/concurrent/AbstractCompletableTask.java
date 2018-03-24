@@ -22,6 +22,12 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
+import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
+
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -73,7 +79,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             if (null == cancellableOrigins) {
                 return;
             }
-            Arrays.stream(cancellableOrigins).forEach(p -> PromiseUtils.cancelPromise(p, mayInterruptIfRunning)); 
+            Arrays.stream(cancellableOrigins).forEach(p -> cancelPromise(p, mayInterruptIfRunning)); 
         }
     }
 
@@ -432,13 +438,11 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     }
 
     private static <U> U forwardException(Throwable e) {
-        throw PromiseUtils.wrapCompletionException(e);
+        throw wrapCompletionException(e);
     }
     
     private static ExecutionException rewrapExecutionException(ExecutionException ex) {
-        return PromiseUtils.wrapExecutionException(
-            PromiseUtils.unwrapCompletionException(PromiseUtils.unwrapExecutionException(ex))
-        );
+        return wrapExecutionException( unwrapCompletionException(unwrapExecutionException(ex)) );
     }    
 
     private <U> void addCallbacks(AbstractCompletableTask<U> targetStage,

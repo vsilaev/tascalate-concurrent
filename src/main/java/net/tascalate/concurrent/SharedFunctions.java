@@ -22,9 +22,9 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-class PromiseUtils {
+class SharedFunctions {
     
-    private PromiseUtils() {}
+    private SharedFunctions() {}
     
     static Throwable unwrapCompletionException(Throwable ex) {
         Throwable nested = ex;
