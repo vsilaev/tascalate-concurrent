@@ -31,9 +31,8 @@ abstract class LinkedCompletion<T, F> extends CompletableFuture<T> {
     
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        if (super.cancel(mayInterruptIfRunning)) {
-            cancelDependency(mayInterruptIfRunning);
-            return true;
+        if (cancelDependency(mayInterruptIfRunning)) {
+            return super.cancel(mayInterruptIfRunning);
         } else {
             return false;
         }

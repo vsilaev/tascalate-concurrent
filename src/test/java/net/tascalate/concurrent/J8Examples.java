@@ -27,11 +27,17 @@ import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
-        System.out.println( Duration.ofNanos(Long.MAX_VALUE).toDays() );
-        System.out.println( Duration.ofNanos(Long.MAX_VALUE) );
-        
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
-
+       
+        final Promise<Number> p = Promises.any(
+            CompletableTask.supplyAsync(() -> awaitAndProduce1(20, 100), executorService),
+            CompletableTask.supplyAsync(() -> awaitAndProduce1(-10, 50), executorService)
+        );
+        p.whenComplete((r,e) -> {
+           System.out.println("Result = " + r + ", Error = " + e); 
+        });
+        //p.cancel(true);
+        
         Promise<String> retry1 = Promises.poll(
             () -> "ABC",
             executorService, RetryPolicy.DEFAULT
@@ -101,7 +107,9 @@ public class J8Examples {
                 executorService.submit(() -> awaitAndProduceN(7)),                
                 executorService.submit(() -> awaitAndProduceN(8)),
                 executorService.submit(() -> awaitAndProduceN(11))
-        ).thenApplyAsync(
+        )
+        .defaultAsyncOn(executorService)
+        .thenApplyAsync(
                 l -> l.stream().filter(v -> v != null).collect(Collectors.summingInt((Integer i) -> i.intValue()))
         )
         .thenAcceptAsync(J8Examples::onComplete)
