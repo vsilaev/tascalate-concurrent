@@ -41,7 +41,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public <U> CompletionStage<U> thenApplyAsync(Function<? super T, ? extends U> fn) {
-        return wrap(delegate.thenApplyAsync(fn, defaultExecutor));
+        return thenApplyAsync(fn, defaultExecutor);
     }
 
     public <U> CompletionStage<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
@@ -53,7 +53,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action) {
-        return wrap(delegate.thenAcceptAsync(action, defaultExecutor));
+        return thenAcceptAsync(action, defaultExecutor);
     }
 
     public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor) {
@@ -65,7 +65,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public CompletionStage<Void> thenRunAsync(Runnable action) {
-        return wrap(delegate.thenRunAsync(action, defaultExecutor));
+        return thenRunAsync(action, defaultExecutor);
     }
 
     public CompletionStage<Void> thenRunAsync(Runnable action, Executor executor) {
@@ -77,7 +77,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
-        return wrap(delegate.thenCombineAsync(other, fn, defaultExecutor));
+        return thenCombineAsync(other, fn, defaultExecutor);
     }
 
     public <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other,
@@ -92,7 +92,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
-        return wrap(delegate.thenAcceptBothAsync(other, action, defaultExecutor));
+        return thenAcceptBothAsync(other, action, defaultExecutor);
     }
 
     public <U> CompletionStage<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
@@ -107,7 +107,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action) {
-        return wrap(delegate.runAfterBothAsync(other, action, defaultExecutor));
+        return runAfterBothAsync(other, action, defaultExecutor);
     }
 
     public CompletionStage<Void> runAfterBothAsync(CompletionStage<?> other, 
@@ -121,7 +121,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public <U> CompletionStage<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
-        return wrap(delegate.applyToEitherAsync(other, fn, defaultExecutor));
+        return applyToEitherAsync(other, fn, defaultExecutor);
     }
 
     public <U> CompletionStage<U> applyToEitherAsync(CompletionStage<? extends T> other, 
@@ -136,7 +136,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public CompletionStage<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action) {
-        return wrap(delegate.acceptEitherAsync(other, action, defaultExecutor));
+        return acceptEitherAsync(other, action, defaultExecutor);
     }
 
     public CompletionStage<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
@@ -151,7 +151,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public CompletionStage<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
-        return wrap(delegate.runAfterEitherAsync(other, action, defaultExecutor));
+        return runAfterEitherAsync(other, action, defaultExecutor);
     }
 
     public CompletionStage<Void> runAfterEitherAsync(CompletionStage<?> other, 
@@ -165,7 +165,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public <U> CompletionStage<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
-        return wrap(delegate.thenComposeAsync(fn, defaultExecutor));
+        return thenComposeAsync(fn, defaultExecutor);
     }
 
     public <U> CompletionStage<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
@@ -181,7 +181,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public CompletionStage<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action) {
-        return wrap(delegate.whenCompleteAsync(action, defaultExecutor));
+        return whenCompleteAsync(action, defaultExecutor);
     }
 
     public CompletionStage<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
@@ -193,7 +193,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn) {
-        return wrap(delegate.handleAsync(fn, defaultExecutor));
+        return handleAsync(fn, defaultExecutor);
     }
 
     public <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
