@@ -19,6 +19,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.After;
@@ -351,6 +352,19 @@ public class DependentPromiseTests {
         
         assertDone("s1", s1);
         assertCancelled("s2", s2);
+    }
+    
+    @Test
+    public void test_orTimeout_does_not_break_cancellation_ability() {
+        State s1 = new State();
+        Promise<Void> p = CompletableTask
+            .runAsync(() -> longTask(5, s1), executor)
+            .dependent()
+            .orTimeout(2, TimeUnit.SECONDS, true, true);
+        trySleep(2);
+        p.cancel(true);
+        trySleep(1);
+        assertCancelled("s1", s1);
     }
     
     private DependentPromise<Void> runDepedentAsync(Runnable r) {
