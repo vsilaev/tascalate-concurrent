@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent;
 
+import static org.junit.Assert.fail;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Assert;
@@ -75,6 +77,23 @@ public class ThenComposeAsyncTest {
         // and setting it as a cancellableOrigin
         Assert.assertTrue("Expected cancelled true, but is " + cancelled.get(), cancelled.get());
     }
+    
+    
+    @Test
+    public void testThenComposeException() {
+        Promise<Void> p = CompletableTask.runAsync(() -> trySleep(10), executor)
+                .thenCompose(it -> {
+                    throw new IllegalStateException("oh no!");
+                });
+        try {
+            p.get();
+        } catch (Exception ex) {
+            // expected
+            return;
+        }
+        fail("Exception must be thrown");
+    }
+    
     
     private void trySleep(long millis) {
         try {
