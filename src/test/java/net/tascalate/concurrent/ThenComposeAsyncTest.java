@@ -17,6 +17,9 @@ package net.tascalate.concurrent;
 
 import static org.junit.Assert.fail;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Assert;
@@ -86,8 +89,11 @@ public class ThenComposeAsyncTest {
                     throw new IllegalStateException("oh no!");
                 });
         try {
-            p.get();
-        } catch (Exception ex) {
+            p.get(1L, TimeUnit.SECONDS);
+        } catch (TimeoutException ex) {
+            fail("thenCompose*  hanged");
+        } catch (InterruptedException | ExecutionException ex) {
+            // System.out.println(ex);
             // expected
             return;
         }

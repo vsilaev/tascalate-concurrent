@@ -287,10 +287,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                     moveToNextStage.accept(null, ex);  
                 }
             }), 
-            e -> { 
-                moveToNextStage.accept(null, e); 
-                return null; 
-            },
+            consumerAsFunction(e -> moveToNextStage.accept(null, e)),
             executor
         );
 
