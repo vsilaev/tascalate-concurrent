@@ -282,7 +282,7 @@ class CallbackRegistry<T> {
         }
     }
 
-    static <S, U> void callCallback(Function<? super Callable<U>, ? extends Runnable> targetSetup,
+    private static <S, U> void callCallback(Function<? super Callable<U>, ? extends Runnable> targetSetup,
                                     Function<? super S, ? extends U> callback, 
                                     S value, 
                                     Executor executor) {
