@@ -236,13 +236,9 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         // of nextStage.task when this nextStage is
         // exposed to the client, even in a "trivial" case:
         // Success path, just return value
+        Consumer<? super U> onResult = nextStage.runTransition(Function.identity());
         // Failure path, just re-throw exception
-        BiConsumer<? super U, ? super Throwable> moveToNextStage = (r, e) -> {
-            if (null == e) 
-                runDirectly(nextStage, Function.identity(), r, executor);
-            else
-                runDirectly(nextStage, AbstractCompletableTask::forwardException, e, executor);
-        };
+        Consumer<? super Throwable> onError = nextStage.runTransition(AbstractCompletableTask::forwardException);
 
         // Important -- tempStage is the target here
         addCallbacks(
@@ -276,22 +272,28 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                     if (nextStage.isCancelled()) {
                         nextStage.cancelOrigins(true);
                     } else {
-                        returned.whenComplete(moveToNextStage);
+                        // Synchronous, while transition to tempStage is asynchronous already
+                        returned.whenComplete(biConsumer(onResult, onError));
                     }
                 } catch (Throwable ex) {
                     // must-have if fn.apply above failed 
                     nextStage.resetCancellableOrigins((CompletionStage<U>)null);
                     // no need to check nextStage.isCancelled()
                     // while there are no origins to cancel
-                    // propagate error immediately 
-                    moveToNextStage.accept(null, ex);  
+                    // propagate error immediately
+                    // synchronous, while transition to tempStage is asynchronous already
+                    onError.accept(ex);  
                 }
             }), 
-            consumerAsFunction(e -> moveToNextStage.accept(null, e)),
+            consumerAsFunction(onError),
             executor
         );
 
         return nextStage;
+    }
+    
+    private <U> Consumer<? super U> runTransition(Function<? super U, ? extends T> converter) {
+        return u -> setupTransition(() -> converter.apply(u)).run(); 
     }
 
     @Override
@@ -442,6 +444,16 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             return null;
         };
     }
+    
+    private static <U, V> BiConsumer<U, V> biConsumer(Consumer<? super U> onResult, Consumer<? super V> onError) {
+        return (u, v) -> {
+            if (null == v) {
+                onResult.accept(u);
+            } else {
+                onError.accept(v);
+            }
+        };
+    }
 
     private static <U> U forwardException(Throwable e) {
         throw wrapCompletionException(e);
@@ -474,11 +486,4 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         callbackRegistry.addCallbacks(targetSetup, successCallback, failureCallback, executor);
     }
 
-    private static <S, U> void runDirectly(AbstractCompletableTask<U> targetStage,
-                                           Function<? super S, ? extends U> callback, 
-                                           S value, 
-                                           Executor executor) {
-
-        CallbackRegistry.callCallback(targetStage::setupTransition, callback, value, executor);
-    }
 }
