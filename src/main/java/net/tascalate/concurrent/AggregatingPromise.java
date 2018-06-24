@@ -39,10 +39,10 @@ class AggregatingPromise<T> extends CompletableFutureWrapper<List<T>> {
     final private int minResultsCount;
     final private int maxErrorsCount;
     final private boolean cancelRemaining;
-    final private List<CompletionStage<? extends T>> promises;
+    final private List<? extends CompletionStage<? extends T>> promises;
 
     AggregatingPromise(final int minResultsCount, final int maxErrorsCount, final boolean cancelRemaining,
-                       final List<CompletionStage<? extends T>> promises) {
+                       final List<? extends CompletionStage<? extends T>> promises) {
 
         if (null == promises || promises.isEmpty()) {
             throw new IllegalArgumentException("There are should be at least one promise specified");

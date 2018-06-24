@@ -125,7 +125,7 @@ public class Promises {
     }
     
     
-    public static <T> Promise<List<T>> all(List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> all(List<? extends CompletionStage<? extends T>> promises) {
         return all(true, promises);        
     }
     /**
@@ -149,7 +149,7 @@ public class Promises {
         return all(cancelRemaining, Arrays.asList(promises));
     }
 
-    public static <T> Promise<List<T>> all(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> all(boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(null != promises ? promises.size() : 0, 0, cancelRemaining, promises);
     }
     /**
@@ -171,7 +171,7 @@ public class Promises {
         return any(Arrays.asList(promises));
     }
 
-    public static <T> Promise<T> any(List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<T> any(List<? extends CompletionStage<? extends T>> promises) {
         return any(true, promises);
     }
     /**
@@ -196,7 +196,7 @@ public class Promises {
         return any(cancelRemaining, Arrays.asList(promises));
     }
     
-    public static <T> Promise<T> any(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<T> any(boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
         int size = null == promises ? 0 : promises.size();
         switch (size) {
             case 0:
@@ -234,7 +234,7 @@ public class Promises {
         return anyStrict(Arrays.asList(promises)); 
     }
     
-    public static <T> Promise<T> anyStrict(List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<T> anyStrict(List<? extends CompletionStage<? extends T>> promises) {
         return anyStrict(true, promises);        
     }
 
@@ -262,7 +262,7 @@ public class Promises {
         return anyStrict(cancelRemaining, Arrays.asList(promises));
     }
     
-    public static <T> Promise<T> anyStrict(boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<T> anyStrict(boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
         int size = null == promises ? 0 : promises.size();
         switch (size) {
             case 0:
@@ -302,7 +302,7 @@ public class Promises {
         return atLeast(minResultsCount, Arrays.asList(promises));
     }
     
-    public static <T> Promise<List<T>> atLeast(int minResultsCount, List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, true, promises);
     }
 
@@ -332,7 +332,7 @@ public class Promises {
         return atLeast(minResultsCount, cancelRemaining, Arrays.asList(promises));
     }
     
-    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, (promises == null ? 0 : promises.size()) - minResultsCount, cancelRemaining, promises);
     }
     
@@ -360,7 +360,7 @@ public class Promises {
         return atLeastStrict(minResultsCount, Arrays.asList(promises));
     }
     
-    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, List<? extends CompletionStage<? extends T>> promises) {
         return atLeastStrict(minResultsCount, true, promises);
     }
 
@@ -391,7 +391,7 @@ public class Promises {
         return atLeast(minResultsCount, cancelRemaining, Arrays.asList(promises));
     }    
     
-    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, List<CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, 0, cancelRemaining, promises);
     }
     
@@ -428,7 +428,7 @@ public class Promises {
     }
     
     public static <T> Promise<List<T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
-                                               List<CompletionStage<? extends T>> promises) {
+                                               List<? extends CompletionStage<? extends T>> promises) {
         
         int size = null == promises ? 0 : promises.size();
         if (minResultsCount > size) {
@@ -440,7 +440,8 @@ public class Promises {
         } else if (minResultsCount == 0) {
             return success(Collections.emptyList());
         } else if (size == 1) {
-            return transform(promises.get(0), Collections::singletonList, Promises::wrapMultitargetException);
+            CompletionStage<? extends T> stage = promises.get(0);
+            return transform(stage, Collections::singletonList, Promises::wrapMultitargetException);
         } else {
             return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
         }
