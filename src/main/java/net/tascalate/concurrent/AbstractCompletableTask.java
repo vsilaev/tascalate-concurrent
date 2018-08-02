@@ -322,15 +322,14 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             failure -> {
                 try {
                     action.accept(null, failure);
-                    return forwardException(failure);
                 } catch (Throwable e) {
                     // CompletableFuture does not override exception here
                     // unlike as in handle[Async](BiFunction)
                     // Preserve this behavior, but let us add at least 
                     // suppressed exception
                     failure.addSuppressed(e);
-                    return forwardException(failure);
                 }
+                return forwardException(failure);
             }, 
             executor
         );
