@@ -311,12 +311,12 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             result -> {
                 try {
                     action.accept(result, null);
-                    return result;
                 } catch (Throwable e) {
                     // CompletableFuture wraps exception here
                     // Copying this behavior                    
                     return forwardException(e);
                 }
+                return result;
             }, 
             // exceptions are handled in regular way
             failure -> {
