@@ -23,6 +23,8 @@ import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
+
 /**
  * 
  * Concrete implementation of {@link Promise} interface for long-running blocking tasks
@@ -107,6 +109,59 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
     public static Promise<Void> asyncOn(Executor executor) {
         return complete(null, executor);
     }
+    
+    /**
+     * Returns a resolved no-value {@link Promise} that is "bound" to the specified executor. 
+     * I.e. any function passed to composition methods of Promise (like <code>thenApplyAsync</code> 
+     * / <code>thenAcceptAsync</code> / <code>whenCompleteAsync</code> etc.) will be executed using this executor 
+     * unless executor is overridden via explicit composition method parameter. Moreover, any nested 
+     * composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
+     * {@code}<pre>CompletableTask
+     *   .asyncOn(myExecutor)
+     *   .thenApplyAsync(myValueGenerator)
+     *   .thenAcceptAsync(myConsumer)
+     *   .thenRunAsync(myAction)
+     *  </pre>
+     * <p>All of <code>myValueGenerator</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed using <code>myExecutor</code>.
+     * <p>Moreover, if <code>enforceDefaultAsync</code> is true, then default executor will be propagated to dependent promises 
+     * even if corresponding transition was executed on another executor (via composition methods with explicit executor argument).
+     * 
+     * @param executor
+     *   a default {@link Executor} to run functions passed to async composition methods 
+     *   (like <code>thenApplyAsync</code> / <code>thenAcceptAsync</code> / <code>whenCompleteAsync</code> etc.)
+     * @param enforceDefaultAsync
+     *   if true then default executor will be propagated to dependent promises 
+     *   even if corresponding transition was executed on another executor 
+     * @return
+     *   resolved non-value {@link Promise} bound to the specified executor
+     */    
+    public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync) {
+        Promise<Void> result = complete(null, executor);
+        if (enforceDefaultAsync) {
+            class DefaultAsyncDecorator<T> extends ExecutorBoundPromise<T> {
+                public DefaultAsyncDecorator(Promise<T> delegate) {
+                    super(delegate, executor);
+                }
+                
+                @Override
+                protected <U> Promise<U> wrap(CompletionStage<U> original) {
+                    return new DefaultAsyncDecorator<>((Promise<U>)original);
+                }
+                
+                @Override
+                public Promise<T> raw() {
+                    // Return self to avoid unrolling further 
+                    return this;
+                }
+            }
+            
+            return new DefaultAsyncDecorator<>(result);
+        } else {
+            return result;
+        }
+    }
+    
+
     
     /**
      * Returns a new {@link Promise} that is asynchronously resolved by a task running in the given executor 
