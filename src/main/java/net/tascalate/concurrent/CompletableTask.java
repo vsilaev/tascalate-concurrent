@@ -167,7 +167,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
     }
     
     @Override
-    Runnable setupTransition(Callable<T> code) {
+    void fireTransition(Callable<T> code) {
         throw new UnsupportedOperationException();
     }
     

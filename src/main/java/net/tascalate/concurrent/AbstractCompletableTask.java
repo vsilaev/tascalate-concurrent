@@ -83,7 +83,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         }
     }
 
-    abstract Runnable setupTransition(Callable<T> code);
+    abstract void fireTransition(Callable<T> code);
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
@@ -293,7 +293,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     }
     
     private <U> Consumer<? super U> runTransition(Function<? super U, ? extends T> converter) {
-        return u -> setupTransition(() -> converter.apply(u)).run(); 
+        return u -> fireTransition(() -> converter.apply(u)); 
     }
 
     @Override
@@ -372,7 +372,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         // nextStage is CompletableFuture rather than AbstractCompletableTask
         // so trigger completion on ad-hoc runnable rather than on
         // nextStage.task
-        Function<Callable<T>, Runnable> setup = c -> () -> {
+        Consumer<Callable<T>> setup = c -> {
             try {
                 c.call();
             } catch (Throwable ex) {
@@ -474,15 +474,15 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                                   Function<Throwable, ? extends U> failureCallback,
                                   Executor executor) {
         
-        addCallbacks(targetStage::setupTransition, successCallback, failureCallback, executor);
+        addCallbacks(targetStage::fireTransition, successCallback, failureCallback, executor);
     }
 
-    private <U> void addCallbacks(Function<? super Callable<U>, ? extends Runnable> targetSetup,
+    private <U> void addCallbacks(Consumer<? super Callable<U>> stageTransition,
                                   Function<? super T, ? extends U> successCallback, 
                                   Function<Throwable, ? extends U> failureCallback,
                                   Executor executor) {
         
-        callbackRegistry.addCallbacks(targetSetup, successCallback, failureCallback, executor);
+        callbackRegistry.addCallbacks(stageTransition, successCallback, failureCallback, executor);
     }
 
 }

@@ -56,10 +56,10 @@ class CompletableSubTask<T> extends AbstractCompletableTask<T> {
     }
 
     @Override
-    Runnable setupTransition(Callable<T> code) {
+    void fireTransition(Callable<T> code) {
         DelegatingCallable<T> transitionCall = (DelegatingCallable<T>) action;
         transitionCall.setup(code);
-        return task;
+        task.run();
     }
 
     @Override
