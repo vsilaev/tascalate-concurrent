@@ -17,7 +17,7 @@ package net.tascalate.concurrent;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * The {@link Promise} implementation for intermediate long-running blocking task
@@ -29,20 +29,19 @@ class CompletableSubTask<T> extends AbstractCompletableTask<T> {
 
     static class DelegatingCallable<T> implements Callable<T> {
 
-        final private AtomicBoolean setupGuard = new AtomicBoolean(false);
-        private Callable<T> delegate;
+        final private AtomicReference<Callable<T>> delegateRef = new AtomicReference<>(null);
 
         void setup(Callable<T> delegate) {
-            if (setupGuard.compareAndSet(false, true)) {
-                this.delegate = delegate;
-            } else {
+            boolean updated = delegateRef.compareAndSet(null, delegate);
+            if (!updated) {
                 throw new IllegalStateException("Delegate may be set only once");
             }
         }
 
         @Override
         public T call() throws Exception {
-            if (!setupGuard.get()) {
+            Callable<T> delegate = delegateRef.get();
+            if (null == delegate) {
                 throw new IllegalStateException("Call is not configured");
             } else {
                 return delegate.call();
