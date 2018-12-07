@@ -17,7 +17,6 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -43,8 +42,8 @@ public class J8Examples {
             executorService, RetryPolicy.DEFAULT
         );
         
-        Promise<String> retry2 = Promises.pollOptional(
-            () -> Optional.of("ABC"),
+        Promise<String> retry2 = Promises.retry(
+            ctx -> "ABC",
             executorService, RetryPolicy.DEFAULT
         );
 
@@ -61,8 +60,8 @@ public class J8Examples {
         System.out.println("Poller: " + poller.get());
 
         CompletableTask
-        .delay( Duration.ofMillis(100), executorService )
-        .thenRun(() -> System.out.println("After initial delay"));
+            .delay( Duration.ofMillis(100), executorService )
+            .thenRun(() -> System.out.println("After initial delay"));
 
         
         CompletableTask
@@ -184,8 +183,7 @@ public class J8Examples {
         }
     }
     
-    private static String pollingMethod() throws InterruptedException {
-        RetryContext ctx = RetryContext.current();
+    private static String pollingMethod(RetryContext ctx) throws InterruptedException {
         System.out.println("Polling method, #" + ctx.getRetryCount());
         try {
             if (ctx.getRetryCount() < 5) {
