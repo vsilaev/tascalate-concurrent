@@ -4,7 +4,7 @@
 	 
 	<groupId>net.tascalate.concurrent</groupId>
 	<artifactId>net.tascalate.concurrent.lib</artifactId>
-	<version>0.6.8-SNAPSHOT</version>
+	<version>0.7.0</version>
 	<packaging>jar</packaging>  
 
 	<name>Tascalate Concurrenct</name>
@@ -190,7 +190,32 @@
 					<testFailureIgnore>true</testFailureIgnore>
 				</configuration>
 			</plugin>
-
+			<plugin>
+				<groupId>org.moditect</groupId>
+				<artifactId>moditect-maven-plugin</artifactId>
+				<version>1.0.0-SNAPSHOT</version>
+				<executions>
+					<execution>
+						<id>add-module-infos</id>
+						<phase>package</phase>
+						<goals>
+							<goal>add-module-info</goal>
+						</goals>
+						<configuration>
+							<jvmVersion>9</jvmVersion>
+							<module>
+								<moduleInfoSource>
+								module net.tascalate.concurrent {
+								    exports net.tascalate.concurrent;
+								    exports net.tascalate.concurrent.decorators;
+								    exports net.tascalate.concurrent.delays;
+								}
+								</moduleInfoSource>
+							</module>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 
