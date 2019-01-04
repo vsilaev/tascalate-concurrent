@@ -17,7 +17,9 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,7 +29,13 @@ public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
-       
+
+        Promise<Object> k = Promises.failure(new RuntimeException());
+        //Promise<Object> k = CompletableTask.complete("ABC", executorService);
+        k.delay(Duration.ofMillis(1)).dependent().whenComplete((r, e) -> System.out.println(Thread.currentThread()), true);
+        
+        Thread.sleep(100);
+        
         final Promise<Number> p = Promises.any(
             CompletableTask.supplyAsync(() -> awaitAndProduce1(20, 100), executorService),
             CompletableTask.supplyAsync(() -> awaitAndProduce1(-10, 50), executorService)
@@ -36,6 +44,7 @@ public class J8Examples {
            System.out.println("Result = " + r + ", Error = " + e); 
         });
         //p.cancel(true);
+        p.get();
         
         Promise<String> retry1 = Promises.poll(
             () -> "ABC",
@@ -49,7 +58,21 @@ public class J8Examples {
 
         System.out.println(retry1 + " vs " + retry2);
         
-        Promise<String> poller = Promises.retry(
+        Promise<String> pollerFuture = Promises.pollFuture( 
+            ctx -> pollingFutureMethod(ctx, executorService),
+            RetryPolicy.DEFAULT
+            .withMaxRetries(10)
+            .withBackoff(DelayPolicy.fixedInterval(200))
+        );
+        System.out.println("Poller (future): " + pollerFuture.get());
+        /*
+        if (null != System.out) {
+            executorService.shutdownNow();
+            return;
+        }
+        */
+        
+        Promise<String> pollerPlain = Promises.retry(
             J8Examples::pollingMethod, executorService, 
             RetryPolicy.DEFAULT
             .withMaxRetries(10)
@@ -57,7 +80,7 @@ public class J8Examples {
             .withBackoff(DelayPolicy.fixedInterval(200).withMinDelay(100).withFirstRetryNoDelay())
         );
         
-        System.out.println("Poller: " + poller.get());
+        System.out.println("Poller (plain): " + pollerPlain.get());
 
         CompletableTask
             .delay( Duration.ofMillis(100), executorService )
@@ -198,6 +221,19 @@ public class J8Examples {
             Thread.currentThread().interrupt();
             throw ex;
         }
+    }
+    
+    private static CompletionStage<String> pollingFutureMethod(RetryContext ctx, Executor executor) throws InterruptedException {
+        System.out.println("Polling future, #" + ctx.getRetryCount());
+        if (ctx.getRetryCount() < 3) {
+            throw new RuntimeException("Fail to start future");
+        }
+        if (ctx.getRetryCount() < 5) {
+            return CompletableTask.supplyAsync(() -> {
+                throw new RuntimeException("Fail to complete future");
+            }, executor);
+        }
+        return CompletableTask.supplyAsync(() -> "42", executor);
     }
     
     private static void onComplete(int i) {

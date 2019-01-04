@@ -17,30 +17,30 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 
-public class RetryContext {
+public final class RetryContext {
     private final RetryPolicy policy;
-    private final int retry;
+    private final int retryCount;
     private final Duration lastCallDuration;
     private final Throwable lastThrowable;
     
-    public RetryContext(RetryPolicy policy, int retry, Duration lastCallDuration, Throwable lastThrowable) {
+    private RetryContext(RetryPolicy policy, int retryCount, Duration lastCallDuration, Throwable lastThrowable) {
         this.policy = policy;
-        this.retry = retry;
+        this.retryCount = retryCount;
         this.lastCallDuration = lastCallDuration; 
         this.lastThrowable = lastThrowable;
     }
     
 
-    public static RetryContext initial(RetryPolicy policy) {
+    static RetryContext initial(RetryPolicy policy) {
         return new RetryContext(policy, 0, Duration.ZERO, null);
     }
     
-    public RetryPolicy.Outcome shouldContinue() {
+    RetryPolicy.Outcome shouldContinue() {
         return policy.shouldContinue(this);
     }
     
     public int getRetryCount() {
-        return retry;
+        return retryCount;
     }
     
     public Duration getLastCallDuration() {
@@ -51,25 +51,29 @@ public class RetryContext {
         return lastThrowable;
     }
     
-    public RetryContext nextRetry(Duration callDuration) {
+    RetryContext nextRetry(Duration callDuration) {
         return nextRetry(callDuration, null);
     }
     
-    public RetryContext nextRetry(Duration callDuration, Throwable throwable) {
-        return new RetryContext(policy, retry + 1, callDuration, throwable);
+    RetryContext nextRetry(Duration callDuration, Throwable throwable) {
+        return new RetryContext(policy, retryCount + 1, callDuration, throwable);
     }
     
-    public RetryException asFailure() {
-        RetryException result = new RetryException(retry, lastCallDuration, lastThrowable);
+    RetryException asFailure() {
+        RetryException result = new RetryException(retryCount, lastCallDuration, lastThrowable);
         result.fillInStackTrace();
         return result;
     }
     
-    public RetryContext asPrevRetry() {
-        if (retry == 0) {
-            throw new IllegalStateException("Initial retry has no previous retry");
-        }
-        return new RetryContext(policy, retry - 1, lastCallDuration, lastThrowable);
+    public RetryContext overrideRetryCount(int newRetryCount) {
+        return new RetryContext(policy, newRetryCount, lastCallDuration, lastThrowable);
+    }
+    
+    public RetryContext overrideLastCallDuration(Duration newDuration) {
+        return new RetryContext(policy, retryCount, newDuration, lastThrowable);
     }
 
+    public RetryContext overrideLastThrowable(Throwable newThrowable) {
+        return new RetryContext(policy, retryCount, lastCallDuration, newThrowable);
+    }
 }

@@ -38,7 +38,7 @@ public class FirstRetryNoDelayPolicy extends DelayPolicyWrapper {
         if (context.getRetryCount() == 0) {
             return Duration.ZERO;
         } else {
-            return target.delay(context.asPrevRetry());
+            return target.delay(context.overrideRetryCount(context.getRetryCount() - 1));
         }
     }
 }

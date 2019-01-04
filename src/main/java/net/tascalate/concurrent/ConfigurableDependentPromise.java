@@ -15,8 +15,9 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
+import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.TrampolineExecutorDependentPromise.trampolineExecutor;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -130,9 +131,11 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     public DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin) {
         CompletableFuture<T> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
-        // Use *async to execute on default "this" executor
-        return thenCombineAsync(
-            delayed, (r, d) -> r, enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(
+            thenCombine(
+                delayed, (r, d) -> r, enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
+            )
         );
     }
 
@@ -145,11 +148,11 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Promise<T> onTimeout = Timeouts.failAfter(duration);
-        // Use *async to execute on default "this" executor
         DependentPromise<T> result = this
-            .applyToEitherAsync(onTimeout, Function.identity(), enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY);
+            .applyToEither(onTimeout, Function.identity(), enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY);
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result;
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(result);
     }
     
     // All onTimeout overloads delegate to this method
@@ -171,11 +174,11 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         DependentPromise<T> result = this
             // resolved value converted to supplier
             .thenApply(valueToSupplier, enlistOrigin)
-            // Use *async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Supplier::get,  PromiseOrigin.ALL);
+            .applyToEither(onTimeout, Supplier::get,  PromiseOrigin.ALL);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result;
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(result);
     }
     
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn, boolean enlistOrigin) {

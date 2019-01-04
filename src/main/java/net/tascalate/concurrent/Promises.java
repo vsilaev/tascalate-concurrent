@@ -30,6 +30,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -501,7 +502,7 @@ public class Promises {
     public static <T> Promise<T> pollFuture(RetryCallable<? extends CompletionStage<? extends T>> invoker, RetryPolicy retryPolicy) {
         return invokePoller(
             retryPolicy, 
-            (ctx, result, changeCallPromiseRef) -> pollFutureOnce(invoker, ctx, result, changeCallPromiseRef)
+            (ctx, result, changeCallPromiseRef) -> pollFutureOnce(invoker, ctx, result, changeCallPromiseRef, null)
         );
     }
     
@@ -564,7 +565,18 @@ public class Promises {
             	Promise<?> p = CompletableTask.runAsync(doCall, executor);
             	return applyExecutionTimeout(p, answer);
             };
-            callOrApplyRetryBackoff(submittedCall, answer, changeCallPromiseRef);
+            Duration backoffDelay = answer.backoffDelay();
+            if (DelayPolicy.isValid(backoffDelay)) {
+                // Timeout itself
+                Promise<?> backoff = Timeouts.delay( backoffDelay );
+                // Canceling timeout will cancel the chain below (thenRun)
+                changeCallPromiseRef.accept( backoff );
+                // Invocation after timeout, change cancellation target
+                backoff.thenRun(() -> changeCallPromiseRef.accept( submittedCall.get() ));
+            } else {
+                // Immediately send to executor
+                changeCallPromiseRef.accept( submittedCall.get() ); 
+            } 
         } else {
             resultPromise.completeExceptionally(ctx.asFailure());
         }
@@ -573,7 +585,8 @@ public class Promises {
     private static <T> void pollFutureOnce(RetryCallable<? extends CompletionStage<? extends T>> invoker, 
                                            RetryContext ctx, 
                                            CompletableFuture<T> resultPromise,
-                                           Consumer<Promise<?>> changeCallPromiseRef) {
+                                           Consumer<Promise<?>> changeCallPromiseRef,
+                                           Promise<?> prev) {
         // Promise may be cancelled outside of polling
         if (resultPromise.isDone()) {
             return;
@@ -581,39 +594,60 @@ public class Promises {
         
         RetryPolicy.Outcome answer = ctx.shouldContinue();
         if (answer.shouldExecute()) {
-            Supplier<Promise<? extends T>> safeCall = () -> {
-                try {
-                    return Promises.from(invoker.call(ctx));
-                } catch (Exception ex) {
-                    return Promises.failure(ex);
-                }
-            };
-            
             Supplier<Promise<?>> submittedCall = () -> {
                 long startTime = System.nanoTime();
+                
+                Promise<? extends T> target;
+                try {
+                    target = Promises.from(invoker.call(ctx));
+                } catch (Exception ex) {
+                    target = Promises.failure(ex);
+                }
 
-                Promise<? extends T> p = safeCall.get();
+                AtomicBoolean isRecursive = new AtomicBoolean(true);
+                Thread invokerThread = Thread.currentThread();
+
+                Promise<? extends T> p = target;
                 p.whenComplete((result, ex) -> {
-                    if (null != ex) {
+                    if (null == ex && null != result) {
+                        resultPromise.complete(result);
+                    } else {
                         long finishTime = System.nanoTime();
                         RetryContext nextCtx = ctx.nextRetry(Duration.ofNanos(finishTime - startTime), ex);
-                        pollFutureOnce(invoker, nextCtx, resultPromise, changeCallPromiseRef);
-                    } else {
-                        if (result != null) {
-                            resultPromise.complete(result);
+                        boolean callLater = isRecursive.get() && Thread.currentThread() == invokerThread;
+                        if (callLater) {
+                            // Call after minimal possible delay
+                            callLater(
+                                p, Duration.ofNanos(1), changeCallPromiseRef, 
+                                () -> pollFutureOnce(invoker, nextCtx, resultPromise, changeCallPromiseRef, p)
+                            );
                         } else {
-                            long finishTime = System.nanoTime();
-                            RetryContext nextCtx = ctx.nextRetry(Duration.ofNanos(finishTime - startTime));
-                            pollFutureOnce(invoker, nextCtx, resultPromise, changeCallPromiseRef);
-                        }                        
+                            pollFutureOnce(invoker, nextCtx, resultPromise, changeCallPromiseRef, p);
+                        }
                     }
                 });
+                isRecursive.set(false);
                 return applyExecutionTimeout(p, answer);
             };
-            callOrApplyRetryBackoff(submittedCall, answer, changeCallPromiseRef);
+            Duration backoffDelay = answer.backoffDelay();
+            if (null != prev && DelayPolicy.isValid(backoffDelay)) {
+                callLater(prev, backoffDelay, changeCallPromiseRef, () -> changeCallPromiseRef.accept( submittedCall.get() ));
+            } else {
+                // Immediately send to executor
+                changeCallPromiseRef.accept( submittedCall.get() ); 
+            }  
         } else {
             resultPromise.completeExceptionally(ctx.asFailure());
         }        
+    }
+    
+    private static <T> void callLater(Promise<T> completedPromise, Duration delay, Consumer<Promise<?>> changeCallPromiseRef, Runnable code) {
+        Promise<?> timeout = Timeouts.delay(delay);
+        changeCallPromiseRef.accept(timeout);
+        Promise<?> later = completedPromise.thenCombine(timeout, (r, d) -> r);
+        changeCallPromiseRef.accept(later);
+        // Trampoline executor to the default executor of original promise
+        later.whenCompleteAsync((r, e) -> code.run());
     }
     
     private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Outcome answer) {
@@ -622,21 +656,6 @@ public class Promises {
             singleInvocationPromise.orTimeout( timeout );
         }
         return singleInvocationPromise;        
-    }
-    
-    private static void callOrApplyRetryBackoff(Supplier<Promise<?>> submittedCall, RetryPolicy.Outcome answer, Consumer<Promise<?>> changeCallPromiseRef) {
-        Duration backoffDelay = answer.backoffDelay();
-        if (DelayPolicy.isValid(backoffDelay)) {
-            // Timeout itself
-            Promise<?> backoff = Timeouts.delay( backoffDelay );
-            // Canceling timeout will cancel the chain below (thenAccept)
-            changeCallPromiseRef.accept( backoff );
-            // Invocation after timeout, change cancellation target
-            backoff.thenAccept(d -> changeCallPromiseRef.accept( submittedCall.get() ));
-        } else {
-            // Immediately send to executor
-            changeCallPromiseRef.accept( submittedCall.get() ); 
-        }        
     }
     
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 

@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static net.tascalate.concurrent.TrampolineExecutorPromise.trampolineExecutor;
 
 import java.time.Duration;
 import java.util.Set;
@@ -92,11 +93,10 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     default Promise<T> delay(Duration duration, boolean delayOnError) {
         CompletableFuture<T> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
-        // Use *async to execute on default "this" executor
-        return this
-            .dependent()
-            .thenCombineAsync(delayed, (r, d) -> r, PromiseOrigin.PARAM_ONLY)
-            .raw();
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(
+            dependent().thenCombine(delayed, (r, d) -> r, PromiseOrigin.PARAM_ONLY).raw()
+        );
     }
 
     
@@ -114,14 +114,14 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
         Promise<T> timeout = Timeouts.failAfter(duration);
-        // Use *async to execute on default "this" executor
         Promise<T> result = this
             .dependent()
-            .applyToEitherAsync(timeout, Function.identity(), PromiseOrigin.PARAM_ONLY)
+            .applyToEither(timeout, Function.identity(), PromiseOrigin.PARAM_ONLY)
             ;
-        
+
         result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
-        return result.raw();
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(result.raw());
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -165,12 +165,12 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             .dependent()
             // resolved value converted to supplier
             .thenApply(valueToSupplier, false)
-            // Use *async to execute on default "this" executor
-            .applyToEitherAsync(timeout, Supplier::get, PromiseOrigin.ALL)
+            .applyToEither(timeout, Supplier::get, PromiseOrigin.ALL)
             ;
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
-        return result.raw();
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(result.raw());
     }
     
     /**

@@ -121,10 +121,17 @@ public class RetryPolicy {
         return new RetryPolicy(maxRetries, retryOn, abortOn, retryPredicate, abortPredicate, backoff, timeout);
     }
     
+    public RetryPolicy withoutBackoff() {
+        return new RetryPolicy(maxRetries, retryOn, abortOn, retryPredicate, abortPredicate, DelayPolicy.INVALID, timeout);
+    }
+    
     public RetryPolicy withTimeout(DelayPolicy timeout) {
         return new RetryPolicy(maxRetries, retryOn, abortOn, retryPredicate, abortPredicate, backoff, timeout);
     }
 
+    public RetryPolicy withoutTimeout() {
+        return new RetryPolicy(maxRetries, retryOn, abortOn, retryPredicate, abortPredicate, backoff, DelayPolicy.DEFAULT);
+    }
 
     public RetryPolicy(int maxRetries, 
                        Set<Class<? extends Throwable>> retryOn, 
@@ -176,7 +183,7 @@ public class RetryPolicy {
     }
 
 
-    public Outcome shouldContinue(RetryContext context) {
+    protected Outcome shouldContinue(RetryContext context) {
         final boolean result;
         if (tooManyRetries(context)) {
             result = false;
