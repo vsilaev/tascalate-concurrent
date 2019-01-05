@@ -64,7 +64,7 @@ CompletableTask
   .thenAcceptAsync(myConsumer)
   .thenRunAsync(myAction);
 ```  
-All of `myValueGenerator`, `myConsumer`, `myActtion` will be executed using `myExecutor`.
+All of `myValueGenerator`, `myConsumer`, `myAction` will be executed using `myExecutor`.
 
 b.	`CompletableTask.complete(T value, Executor executor)`
 Same as above, but the starting point is a `Promise` completed with the specified value:
@@ -76,7 +76,7 @@ CompletableTask
    .thenAcceptAsync(myConsumer)
    .thenRunAsync(myAction);
 ```  
-All of `myMapper`, `myTransformer`, `myConsumer`, `myActtion` will be executed using `myExecutor`.
+All of `myMapper`, `myTransformer`, `myConsumer`, `myAction` will be executed using `myExecutor`.
 
 Most importantly, all composed promises support true cancellation (incl. interrupting thread) for the functions supplied as arguments:
 ```java
@@ -94,6 +94,47 @@ You may notice, that above the term "asynchronous composition methods" is used, 
 Worth to mention, that `CompletableTask`-s and `Promise`-s composed out of it may be ever interruptible _only_ if the `Executor` used is interruptible by nature. For example, [ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) supports interruptible tasks, but [ForkJoinPool](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html) does not!
 
 ## 3. Overriding default asynchronous executor
+One of the pitfals of the `CompletableFuture` implementation is how it works with default asynchronous executor. Consider the following example:
+```java
+CompletionStage<String> p1 = CompletableFuture.supplyAsync(this::produceValue, executorInitial);
+CompletionStage<String> p2 = p1.thenApplyAsync(this::transformValueA);
+CompletionStage<String> p3 = p2.thenApplyAsync(this::transformValueB, executorNext);
+CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
+```
+The call to `produceValue` will be executed on the `executorInitial` - it is passed explicitly. However, the call to `transformValueA` will be excuted on... `ForkJoinPool.commonPool()`! Hmmmm... Probably this makes sense, but how to force using alternative executor by default? No way! Probably this is possible with deeper calls? The answer is "NO" again! The invocation to `transformValueB` ran on explicitly supplied `executorNext`. But next call, `transformValueC` will be executed on... you guess it... `ForkJoinPool.commonPool()`!
+
+So, once you use `CompletableFuture` with JEE environment you must pass explicit instance of [ManagedExecutorService](https://docs.oracle.com/javaee/7/api/javax/enterprise/concurrent/ManagedExecutorService.html) to each and every method call. Not very convinient!
+
+With `CompletableTask` the situation is just the opposite. Let us rewrite the example above:
+```java
+CompletionStage<String> p1 = CompletableTask.supplyAsync(this::produceValue, executorInitial);
+CompletionStage<String> p2 = p1.thenApplyAsync(this::transformValueA);
+CompletionStage<String> p3 = p2.thenApplyAsync(this::transformValueB, executorNext);
+CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
+```
+The call to `produceValue` will be executed on the `executorInitial`, obviously. But now, the call to `transformValueA` will be excuted also on `executorInitial`! What's about deeper calls? The invocation to `transformValueB` ran on explicitly supplied `executorNext`. And next call, `transformValueC` will be executed on... check your intuition... `executorNext`. The logic behinds this is the following: the latest explicitly specified `Executor` is what will be used for all nested asynchronous composition methods without explicit `Executor` parameter.
+
+Obviously, it's rarely the case when one size fits all. Since release [0.6.6](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.6.6) there are two new options to specify default asynchronous executor:
+1. `CompletableTask` has an overloaded method:
+```java
+public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync)
+```
+When `enforceDefaultAsync` is `true` then all nested asynchronous composition methods without explicit `Executor` parameter will use the provided executor, even if previous composition methods use alternative `Executor`. This is somewhat similar to `CompletableFuture` but with the ability to explicitly set the default asynchronous executor.
+2. `Promise` interface has the following operation:
+```java
+Promise<T> defaultAsyncOn(Executor executor)
+```
+The returned decorator will use the specified executor for all nested asynchronous composition methods without explicit `Executor` parameter. So, at any point, you are able to switch to the desired default asynchronous executor and keep using it for all nested composition call.
+
+Having the best of three(!) worlds, the only responsibility of the library user is to use these options consistently!
+The last thing that should be mentioned is a typical task when you would like to start interruptible blocking method after completion of the standard `CompletableFuture`. The following utility method is defined in the `CompletableTask`:
+```java
+public static <T> Promise<T> waitFor(CompletionStage<T> stage, Executor executor)
+```
+Roughly, this is a shortcut for the following:
+```java
+CompletableTask.asyncOn(executor).thenCombine(stage, (u, v) -> v);
+```
 
 ## 4. Timeouts
 Any robust application requires certain level of functionality, that handle situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release 0.5.4 the library fills the gap in this functionality with timeout-related stuff.
