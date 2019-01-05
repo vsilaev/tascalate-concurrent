@@ -24,28 +24,39 @@ To use a library you have to add a single Maven dependency
 ```
 # What is inside?
 ## 1.	Promise interface
-The interface may be best described by the formula: 
+This is the core intarface of the Tascalate Concurrent library. It may be best described by the formula: 
 ```java
 Promise == CompletionStage + Future
 ```
 I.e., it combines both blocking [Future](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html)’s API, including `cancel(boolean mayInterruptIfRunning)` [method](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html#cancel-boolean-), _AND_ composition capabilities of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)’s API. Importantly, all composition methods of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) API (`thenAccept`, `thenCombine`, `whenComplete` etc.) are re-declared to return `Promise` as well.
 
 The decision to introduce an interface that merges `CompletionStage` and `Future` is aligned with the design of `CompletableFuture` API.  In addition, several useful methods of `CompletableFuture` API are added as well:
-
-So it should be pretty straightforward to use the `Promise` as a drop-in replacement for the `CompletableFuture` in many cases.
 ```java
 T getNow(T valueIfAbsent) throws CancellationException, CompletionException;
 T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException;
 T join() throws CancellationException, CompletionException;
 ```
+So it should be pretty straightforward to use the `Promise` as a drop-in replacement for the `CompletableFuture` in many cases.
+
 Besides this, there are numerous opertors in `Promise` API to work with timeouts and delays, to override default asynchronous executor and similar. All of them will be discussed later.
 
 ## 2. CompletableTask 
-This is why this project was ever started. `CompletableTask` is the implementation of the `Promise` API for long-running blocking tasks. There are 2 unit operations to create a `CompletableTask`:
+This is why this project was ever started. `CompletableTask` is the implementation of the `Promise` API for long-running blocking tasks.
+Typically, to create a `CompletableTask`, you should submit [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html) / [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) to the [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) right away, in a similar way as with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html):
+
+```java
+Promise<SomeValue> p1 = CompletableTask.supplyAsync(() -> {
+  return blockingCalculationOfSomeValue();
+}, myExecutor);
+
+Promise<Void> p2 = CompletableTask.runAsync(this::someIoBoundMethod, myExecutor);
+```
+`blockingCalculationOfSomeValue` and `someIoBoundMethod` in the example above can have I/O code, work with blocking queues, do blocking get on regular Java-s `Future`-s and alike. If at later time you decide to cancel either of the returned promises then corresponding `blockingCalculationOfSomeValue` and `someIoBoundMethod` will be interrupted (if not completed yet).
+
+Additionally, there are 2 unit operations to create a `CompletableTask`:
 
 a.	`CompletableTask.asyncOn(Executor executor)`
-
-Returns a resolved no-value `Promise` that is “bound” to the specified executor. I.e. any function passed to composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
+Returns an already-completed null-valued `Promise` that is "bound" to the specified executor. I.e. any function passed to composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
 ```java
 CompletableTask
   .asyncOn(myExecutor)
@@ -56,8 +67,7 @@ CompletableTask
 All of `myValueGenerator`, `myConsumer`, `myActtion` will be executed using `myExecutor`.
 
 b.	`CompletableTask.complete(T value, Executor executor)`
-
-Same as above, but the starting point is a resolved `Promise` with the specified value:
+Same as above, but the starting point is a `Promise` completed with the specified value:
 ```java
 CompletableTask
    .complete("Hello!", myExecutor)
@@ -68,29 +78,16 @@ CompletableTask
 ```  
 All of `myMapper`, `myTransformer`, `myConsumer`, `myActtion` will be executed using `myExecutor`.
 
-Additionally, you may submit [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html) / [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) to the [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) right away, in a similar way as with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html):
-
-```java
-Promise<SomeValue> p1 = CompletableTask.supplyAsync(() -> {
-  return blockingCalculationOfSomeValue();
-}, myExecutor);
-
-Promise<Void> p2 = CompletableTask.runAsync(this::someIoBoundMethod, myExecutor);
-```
-
 Most importantly, all composed promises support true cancellation (incl. interrupting thread) for the functions supplied as arguments:
 ```java
-Promise<?> p1 =
-CompletableTask
-  .asyncOn(myExecutor)
-  .thenApplyAsync(myValueGenerator)
-  .thenAcceptAsync(myConsumer);
+Promise<?> p1 = CompletableTask.asyncOn(myExecutor)
+Promise<?> p2 = p1.thenApplyAsync(myValueGenerator)
+Promise<?> p3 = p2.thenRunAsync(myAction);
   
-Promise<?> p2 = p1.thenRunAsync(myAction);
 ...
-p1.cancel(true);
+p2.cancel(true);
 ```  
-In the example above `myConsumer` will be interrupted if already in progress. Both `p1` and `p2` will be resolved faulty: `p1` with a [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html) and `p2` with a [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html).
+In the example above `myConsumer` will be interrupted if already in progress. Both `p2` and `p3` will be resolved faulty: `p2` with a [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html) and `p3` with a [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html).
 
 ## 3. DependentPromise
 As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
