@@ -183,11 +183,14 @@ class Timeouts {
     private static final Duration MAX_BY_MILLIS = Duration.ofMillis(Long.MAX_VALUE);
 
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
+        
+        private final ThreadFactory threadFactory = Executors.defaultThreadFactory();
+        
         @Override
         public Thread newThread(Runnable r) {
-            final Thread result = Executors.defaultThreadFactory().newThread(r);
+            final Thread result = threadFactory.newThread(r);
             result.setDaemon(true);
-            result.setName("net.tascalate.concurrent.Timeouts");
+            result.setName(Timeouts.class.getName());
             return result;
         }
     });

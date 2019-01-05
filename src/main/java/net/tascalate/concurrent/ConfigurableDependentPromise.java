@@ -17,6 +17,9 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.enlistParamOrAll;
+import static net.tascalate.concurrent.SharedFunctions.selectFirst;
+import static net.tascalate.concurrent.SharedFunctions.supply;
 import static net.tascalate.concurrent.TrampolineExecutorDependentPromise.trampolineExecutor;
 
 import java.time.Duration;
@@ -133,9 +136,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use trampoline to execute on default "this" executor
         return trampolineExecutor(
-            thenCombine(
-                delayed, (r, d) -> r, enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY
-            )
+            thenCombine(delayed, selectFirst(), enlistParamOrAll(enlistOrigin))
         );
     }
 
@@ -148,8 +149,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Promise<T> onTimeout = Timeouts.failAfter(duration);
-        DependentPromise<T> result = this
-            .applyToEither(onTimeout, Function.identity(), enlistOrigin ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY);
+        DependentPromise<T> result = applyToEither(onTimeout, Function.identity(), enlistParamOrAll(enlistOrigin));
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         // Use trampoline to execute on default "this" executor
         return trampolineExecutor(result);
@@ -163,7 +163,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Function<T, Supplier<? extends T>> valueToSupplier = v -> () -> v;
+        Function<T, Supplier<? extends T>> valueToSupplier = v -> supply(v);
         
         // timeout converted to supplier
         Promise<Supplier<? extends T>> onTimeout = Timeouts

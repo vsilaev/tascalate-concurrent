@@ -16,11 +16,14 @@
 package net.tascalate.concurrent;
 
 import java.lang.reflect.Method;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 class SharedFunctions {
     
@@ -85,4 +88,31 @@ class SharedFunctions {
             return null;
         }
     }
+    
+    
+    static Set<PromiseOrigin> enlistParamOrAll(boolean enlistThis) {
+        return enlistThis ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY;
+    }
+    
+    static Set<PromiseOrigin> enlistParamOrNone(boolean enlistParam) {
+        return enlistParam ? PromiseOrigin.PARAM_ONLY : PromiseOrigin.NONE;
+    }
+
+    
+    @SuppressWarnings("unchecked")
+    static <U, V> BiFunction<U, V, U> selectFirst() {
+        return (BiFunction<U, V, U>)SELECT_FIRST;
+    }
+    
+    @SuppressWarnings("unchecked")
+    static <U, V> BiFunction<U, V, V> selectSecond() {
+        return (BiFunction<U, V, V>)SELECT_SECOND;
+    }
+    
+    static <T> Supplier<T> supply(T value) {
+        return () -> value;
+    }
+    
+    private static final BiFunction<Object, Object, Object> SELECT_FIRST  = (u, v) -> u;
+    private static final BiFunction<Object, Object, Object> SELECT_SECOND = (u, v) -> v;
 }

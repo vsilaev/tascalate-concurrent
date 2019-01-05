@@ -15,6 +15,10 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.enlistParamOrNone;
+import static net.tascalate.concurrent.SharedFunctions.selectSecond;
+import static net.tascalate.concurrent.TrampolineExecutorPromise.trampolineExecutor;
+
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
@@ -161,8 +165,6 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
         }
     }
     
-
-    
     /**
      * Returns a new {@link Promise} that is asynchronously resolved by a task running in the given executor 
      * after it runs the given action.
@@ -195,7 +197,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   the new {@link Promise}
      */
     public static <U> Promise<U> supplyAsync(Supplier<U> supplier, Executor executor) {
-        CompletableTask<U> result = new CompletableTask<>(executor, () -> supplier.get());
+        CompletableTask<U> result = new CompletableTask<>(executor, supplier::get);
         executor.execute(result);
         return result;
     }
@@ -204,12 +206,10 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
         return waitFor(stage, executor, false);
     }
     
-    public static <T> Promise<T> waitFor(CompletionStage<T> stage, Executor executor, boolean enlistOrigin) {
+    public static <T> Promise<T> waitFor(CompletionStage<T> stage, Executor executor, boolean dependentStage) {
         return asyncOn(executor)
                .dependent()
-               .thenCombineAsync(
-                   stage, (u, v) -> v, enlistOrigin ? PromiseOrigin.PARAM_ONLY : PromiseOrigin.NONE
-               )
+               .thenCombine(stage, selectSecond(), enlistParamOrNone(dependentStage))
                .raw();
     }
     
@@ -218,7 +218,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
     }
     
     public static Promise<Duration> delay(Duration duration, Executor executor) {
-        return waitFor(Timeouts.delay(duration), executor, true);
+        return trampolineExecutor(waitFor(Timeouts.delay(duration), executor, true));
     }
     
     @Override

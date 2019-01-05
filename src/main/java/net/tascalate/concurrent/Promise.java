@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.selectFirst;
+import static net.tascalate.concurrent.SharedFunctions.supply;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import static net.tascalate.concurrent.TrampolineExecutorPromise.trampolineExecutor;
@@ -50,7 +52,7 @@ import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     default T getNow(T valueIfAbsent) throws CancellationException, CompletionException {
-        return getNow(() -> valueIfAbsent);
+        return getNow(supply(valueIfAbsent));
     }
     
     default T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException {
@@ -95,7 +97,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use trampoline to execute on default "this" executor
         return trampolineExecutor(
-            dependent().thenCombine(delayed, (r, d) -> r, PromiseOrigin.PARAM_ONLY).raw()
+            dependent().thenCombine(delayed, selectFirst(), PromiseOrigin.PARAM_ONLY).raw()
         );
     }
 
@@ -137,7 +139,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        return onTimeout(() -> value, duration, cancelOnTimeout);
+        return onTimeout(supply(value), duration, cancelOnTimeout);
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
@@ -153,7 +155,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
-        Function<T, Supplier<? extends T>> valueToSupplier = v -> () -> v;
+        Function<T, Supplier<? extends T>> valueToSupplier = v -> supply(v);
         
         // timeout converted to supplier
         Promise<Supplier<? extends T>> timeout = Timeouts

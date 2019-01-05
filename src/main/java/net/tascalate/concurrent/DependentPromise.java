@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.supply;
+
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -150,7 +152,7 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     default DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        return onTimeout(() -> value, duration, cancelOnTimeout);
+        return onTimeout(supply(value), duration, cancelOnTimeout);
     }
     
     @Override
@@ -176,7 +178,7 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     default DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(() -> value, duration, cancelOnTimeout, enlistOrigin); 
+        return onTimeout(supply(value), duration, cancelOnTimeout, enlistOrigin); 
     }
     
     default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
