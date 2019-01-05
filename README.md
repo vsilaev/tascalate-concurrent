@@ -120,6 +120,7 @@ Obviously, it's rarely the case when one size fits all. Since release [0.6.6](ht
 public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync)
 ```
 When `enforceDefaultAsync` is `true` then all nested asynchronous composition methods without explicit `Executor` parameter will use the provided executor, even if previous composition methods use alternative `Executor`. This is somewhat similar to `CompletableFuture` but with the ability to explicitly set the default asynchronous executor.
+
 2. `Promise` interface has the following operation:
 ```java
 Promise<T> defaultAsyncOn(Executor executor)
@@ -135,27 +136,40 @@ Roughly, this is a shortcut for the following:
 ```java
 CompletableTask.asyncOn(executor).thenCombine(stage, (u, v) -> v);
 ```
+A typical usage of this method is:
+```java
+TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
+CompletableFuture<String> replyUrlPromise = sendRequestAsync();
+Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorService)
+    .thenApplyAsync(url -> loadDataInterruptibly(url));
+```
+The `dataPromise` returned may be cancelled later and `loadDataInterruptibly` will be interrupted if not completed by that time.
 
 ## 4. Timeouts
-Any robust application requires certain level of functionality, that handle situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release 0.5.4 the library fills the gap in this functionality with timeout-related stuff.
+Any robust application requires certain level of functionality, that handle situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) the library fills the gap in this functionality with timeout-related stuff.
 
 An application developer now have the following options to control execution time of the `Promise` (declared in Promise interface itself):
 ```java
 <T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> orTimeout(Duration duration[, boolean cancelOnTimeout = true])
 ```
-These methods creates a new `Promise` that is either resolved sucessfully/exceptionally when original promise is resolved within a timeout given; or it is resolved exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
+These methods creates a new `Promise` that is either settled sucessfully/exceptionally when original promise is completed within a timeout given; or it is settled exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), myExecutor )
     .orTimeout( Duration.ofSeconds(3000) );
+    
+Promise<?> nextPromiseSync = callPromise.whenComplete((v, e) -> processResultSync(v, e));
+Promise<?> nextPromiseAsync = callPromise.whenCompleteAsync((v,e) -> processResultAsync(v, e));
 ```
-In the example above `callPromise` will be resolved within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or exceptionally with a `TimeoutException`.
+In the example above `callPromise` will be settled within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or exceptionally with a `TimeoutException`.
 
-The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when skipped. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete.
+It's worth to mention, that _both_ `processResultSync` and `processResultAsync` will be executed with `myExecutor`, even if no timeout is triggered.
 
-This is a desired behavior in most cases but not always. The library provides an option to set several non-cancelling timeouts like in example below:
+The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when ommitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete.
+
+Cancelling original promise on timeout is a desired behavior in most cases but not always. The library provides an option to set several non-cancelling timeouts like in example below:
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> resultPromise = CompletableTask
@@ -184,7 +198,7 @@ Promise<?> t2 = resultPromise
 // Cancel in 10 seconds
 resultPromise.orTimeout( Duration.ofSeconds(10), true );
 ```
-Please note that the timeout is started from the call to the `orTimeout` method. Hence, if you have a chain of unresolved promises ending with the `orTimeout` call then the whole chain should be completed within time given:
+Please note that the timeout is started from the call to the `orTimeout` method. Hence, if you have a chain of unresolved promises ending with the `orTimeout` call then the whole chain should be completed within the time given:
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> parallelPromise = CompletableTask
@@ -195,7 +209,7 @@ Promise<List<String>> resultPromise = CompletableTask
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
     .orTimeout( Duration.ofSeconds(5) );
 ```
-In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. Moreover, in the example above only the call to `thenCombineAsync` will be cancelled on timeout, to cancel the whole tree please use the functionality of the `DependentPromise` class:
+In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. Moreover, in the example above only the call to `thenCombineAsync` will be cancelled on timeout, to cancel the whole tree please use the functionality of the `DependentPromise` interface (will be discussed later):
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> parallelPromise = CompletableTask
@@ -216,14 +230,14 @@ Another useful timeout-related methods declared in Promise interface are:
 <T> Promise<T> onTimeout(Supplier<? extends T>, long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> onTimeout(Supplier<? extends T>, Duration duration[, boolean cancelOnTimeout = true])
 ```
-The `onTimeout` family of methods are similar in all regards to the `orTimeout` methods with the single obvious difference - instead of resolving resulting `Promise` exceptionally with the `TimeoutException` when time is expired, they are resolving it successfully with the `value` supplied (either directly or via [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html)):
+The `onTimeout` family of methods are similar in all regards to the `orTimeout` methods with the single obvious difference - instead of completing resulting `Promise` exceptionally with the `TimeoutException` when time is expired, they are settled successfully with the alternative `value` supplied (either directly or via [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html)):
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise = CompletableTask
     .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .onTimeout( "Timed-out!", Duration.ofSeconds(3000) );
+    .onTimeout( "Timed-out!", Duration.ofSeconds(3) );
 ```
-The example shows, that `callPromise` will be resolved within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or with a default value `"Timed-out!"` when time exceeded.
+The example shows, that `callPromise` will be settled within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or with a default value `"Timed-out!"` when time exceeded.
 
 Finally, the `Promise` interface provides an option to insert delays into the call chain:
 ```java
@@ -235,15 +249,15 @@ The delay is started only after the original `Promise` is completed either succe
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise1 = CompletableTask
     .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .delay( Duration.ofSeconds(1000) ) // Give a second for CPU to calm down :)
+    .delay( Duration.ofSeconds(1) ) // Give a second for CPU to calm down :)
     .thenApply(v -> convertValue(v));
     
 Promise<String> callPromise2 = CompletableTask
     .supplyAsync( () -> aletrnativeLongRunningIoBoundMehtod(), executor )
-    .delay( Duration.ofSeconds(1000), false ) // Give a second for CPU to calm down ONLY on success :)
+    .delay( Duration.ofSeconds(1), false ) // Give a second for CPU to calm down ONLY on success :)
     .thenApply(v -> convertValue(v));
 ```
-Like with other timeout-related methods, `delay` is completed on the default asynchronous `Executor` of the original `Promise`.  
+Like with other timeout-related methods, `convertValue` is invoked on the default asynchronous `Executor` of the original `Promise`.  
 
 You may notice, that delay may be introduced only in the middle of the chain, but what to do if you'd like to back-off the whole chain execution? Just start with a resolved promise!
 ```java
