@@ -13,9 +13,10 @@ Add Maven dependency
 <dependency>
     <groupId>net.tascalate.concurrent</groupId>
     <artifactId>net.tascalate.concurrent.lib</artifactId>
-    <version>0.6.7</version>
+    <version>0.7.0</version>
 </dependency>
 ```
+Please notice that since version `0.7.0` the library is shipped as a multi-release JAR and may be used both as Java 8 classpath library or as Java 9+ module.
 
 # What is inside?
 ## 1.	Promise interface
@@ -84,11 +85,12 @@ As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends o
 However, when you cancel derived `Promise`, the original `Promise` is not cancelled: 
 ```java
 Promise<?> original = CompletableTask.supplyAsync(() -> someIoBoundMethod(), myExecutor);
-Promise<?> derived = original.thenRunAsync(() -> someMethod() );
+Promise<?> derivedA = original.thenRunAsync(() -> someMethodA() );
+Promise<?> derivedB = original.thenRunAsync(() -> someMethodB() );
 ...
-derived.cancel(true);
+derivedB.cancel(true);
 ```
-So if you cancel `derived` above it's [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) method, wrapping `someMethod`, is interrupted. However the `original` promise is not cancelled and `someIoBoundMethod` keeps running. This is not always a desired behavior, consider the following method:
+So if you cancel `derivedB` above it's [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) method, wrapping `someMethod`, is interrupted. However the `original` promise is not cancelled and `someIoBoundMethod` keeps running. Also, `derivedA` is not cancelled, and such behavior is expected. However, sometimes we have a linear chain of the promises and have a requirement to cancel the whole chain from a tail to the head. Consider the following method:
 
 ```java
 public Promise<DataStructure> loadData(String url) {
@@ -104,7 +106,7 @@ if (someCondition()) {
 }
 ```
 
-Clients of this method see only derrived promise, and once they decide to cancel it, it is expected that any of `loadXml` and `parseXml` will be interrupted if not completed yet. To address this issue the library provides [DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) class:
+Clients of this method see only derived promise, and once they decide to cancel it, it is expected that any of `loadXml` and `parseXml` will be interrupted if not completed yet. To address this issue the library provides [DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) class:
 ```java
 public Promise<DataStructure> loadData(String url) {
    return DependentPromise
@@ -175,7 +177,7 @@ Promise<String> resultPromise = CompletableTask
 
 // Show UI message to user to let him/her know that everything is under control
 Promise<?> t1 = resultPromise
-    .orTimeout( Duration.ofSeconds(2000) )
+    .orTimeout( Duration.ofSeconds(2), false )
     .exceptionally( e -> {
       if (e instanceof TimeoutException) {
         UI.showMessage("Operation takes longer than expected, please wait...");
@@ -185,7 +187,7 @@ Promise<?> t1 = resultPromise
 
 // Show UI confirmation to user to let him/her cancel operation explicitly
 Promise<?> t2 = resultPromise
-    .orTimeout( Duration.ofSeconds(5000) )
+    .orTimeout( Duration.ofSeconds(5), false )
     .exceptionally( e -> {
       if (e instanceof TimeoutException) {
         UI.showConfirmation("Service does not responding. Do you whant to cancel (Y/N)?");
@@ -242,7 +244,7 @@ Finally, the `Promise` interface provides an option to insert delays into the ca
 <T> Promise<T> delay(long timeout, TimeUnit unit[, boolean delayOnError = true])
 <T> Promise<T> delay(Duration duration[, boolean delayOnError = true])
 ```
-The delay is started only after the original `Promise` is completed either successfully or exceptionally (unlike `orTimeout` / `onTimeout` methods where timeout is strated immediately). The resulting delay `Promise` is resolved after the timeout specified with the same result as the original `Promise`. Like with other timeout-related methods, delay is completed on the default asynchronous `Executor` of the original `Promise`. The latest methods' argument - `delayOnError` - specifies whether or not we should delay if original Promise is resolved exceptionally, by default this argument is true. If false, then delay `Promise` is completed immediately after the failed original `Promise`. 
+The delay is started only after the original `Promise` is completed either successfully or exceptionally (unlike `orTimeout` / `onTimeout` methods where timeout is strated immediately). The resulting delay `Promise` is resolved after the timeout specified with the same result as the original `Promise`. The latest methods' argument - `delayOnError` - specifies whether or not we should delay if original Promise is resolved exceptionally, by default this argument is true. If false, then delay `Promise` is completed immediately after the failed original `Promise`. 
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise1 = CompletableTask
@@ -255,6 +257,8 @@ Promise<String> callPromise2 = CompletableTask
     .delay( Duration.ofSeconds(1000), false ) // Give a second for CPU to calm down ONLY on success :)
     .thenApply(v -> convertValue(v));
 ```
+Like with other timeout-related methods, `delay` is completed on the default asynchronous `Executor` of the original `Promise`.  
+
 You may notice, that delay may be introduced only in the middle of the chain, but what to do if you'd like to back-off the whole chain execution? Just start with a resolved promise!
 ```java
 // Option 1
