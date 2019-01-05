@@ -56,7 +56,7 @@ Promise<Void> p2 = CompletableTask.runAsync(this::someIoBoundMethod, myExecutor)
 Additionally, there are 2 unit operations to create a `CompletableTask`:
 
 a.	`CompletableTask.asyncOn(Executor executor)`
-Returns an already-completed null-valued `Promise` that is "bound" to the specified executor. I.e. any function passed to composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
+Returns an already-completed null-valued `Promise` that is "bound" to the specified executor. I.e. any function passed to asycnhronous composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
 ```java
 CompletableTask
   .asyncOn(myExecutor)
