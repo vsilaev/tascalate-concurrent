@@ -15,8 +15,6 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.supply;
-
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -100,12 +98,12 @@ public interface DependentPromise<T> extends Promise<T> {
         return delay(duration, true);
     }
     
-    @Override
-    DependentPromise<T> delay(Duration duration, boolean delayOnError);
-    
     default DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError, boolean enlistOrigin) {
         return delay(Timeouts.toDuration(timeout, unit), delayOnError, enlistOrigin);        
     }
+    
+    @Override
+    DependentPromise<T> delay(Duration duration, boolean delayOnError);
 
     DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin);
 
@@ -120,6 +118,10 @@ public interface DependentPromise<T> extends Promise<T> {
         return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
+    default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+    }
+    
     @Override
     default DependentPromise<T> orTimeout(Duration duration) {
         return orTimeout(duration, true);
@@ -127,10 +129,6 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout);
-    
-    default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
-    }
 
     DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin);
 
@@ -145,15 +143,19 @@ public interface DependentPromise<T> extends Promise<T> {
         return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
+    default DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+    }
+    
     @Override
     default DependentPromise<T> onTimeout(T value, Duration duration) {
         return onTimeout(value, duration, true);
     }
     
     @Override
-    default DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        return onTimeout(supply(value), duration, cancelOnTimeout);
-    }
+    DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout);
+    
+    DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin);
     
     @Override
     default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
@@ -165,6 +167,10 @@ public interface DependentPromise<T> extends Promise<T> {
         return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
+    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+    }
+    
     @Override
     default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
         return onTimeout(supplier, duration, true);
@@ -172,18 +178,6 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout);
-    
-    default DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
-    }
-    
-    default DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(supply(value), duration, cancelOnTimeout, enlistOrigin); 
-    }
-    
-    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
-    }
 
     DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin);
     

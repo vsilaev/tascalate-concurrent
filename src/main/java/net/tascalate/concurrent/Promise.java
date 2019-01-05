@@ -139,7 +139,13 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        return onTimeout(supply(value), duration, cancelOnTimeout);
+        // timeout converted to supplier
+        Promise<T> onTimeout = Timeouts.delayed(value, duration);
+        Promise<T> result = dependent().applyToEither(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
+
+        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(result.raw());
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
@@ -158,19 +164,18 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Function<T, Supplier<? extends T>> valueToSupplier = v -> supply(v);
         
         // timeout converted to supplier
-        Promise<Supplier<? extends T>> timeout = Timeouts
-            .delay(duration)
-            .dependent()
-            .thenApply(d -> supplier, true);
+        Promise<Supplier<? extends T>> onTimeout = Timeouts.delayed(supplier, duration);
         
         Promise<T> result = this
             .dependent()
             // resolved value converted to supplier
             .thenApply(valueToSupplier, false)
-            .applyToEither(timeout, Supplier::get, PromiseOrigin.ALL)
+            // ensure that potentially expensive call will run on this promise executor 
+            // rather than on timer thread 
+            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
             ;
         
-        result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
+        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         // Use trampoline to execute on default "this" executor
         return trampolineExecutor(result.raw());
     }

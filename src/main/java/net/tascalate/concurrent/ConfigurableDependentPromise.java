@@ -155,6 +155,21 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         return trampolineExecutor(result);
     }
     
+    @Override
+    public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
+        return onTimeout(value, duration, cancelOnTimeout, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
+        Promise<T> onTimeout = Timeouts.delayed(value, duration);
+        DependentPromise<T> result = applyToEither(onTimeout, Function.identity(), enlistParamOrAll(enlistOrigin));
+
+        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        // Use trampoline to execute on default "this" executor
+        return trampolineExecutor(result);
+    }
+    
     // All onTimeout overloads delegate to this method
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
@@ -166,15 +181,14 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         Function<T, Supplier<? extends T>> valueToSupplier = v -> supply(v);
         
         // timeout converted to supplier
-        Promise<Supplier<? extends T>> onTimeout = Timeouts
-            .delay(duration)
-            .dependent()
-            .thenApply(d -> supplier, true);
+        Promise<Supplier<? extends T>> onTimeout = Timeouts.delayed(supplier, duration);
         
         DependentPromise<T> result = this
             // resolved value converted to supplier
             .thenApply(valueToSupplier, enlistOrigin)
-            .applyToEither(onTimeout, Supplier::get,  PromiseOrigin.ALL);
+            // ensure that potentially expensive call will run on this promise executor 
+            // rather than on timer thread 
+            .applyToEitherAsync(onTimeout, Supplier::get,  PromiseOrigin.ALL);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         // Use trampoline to execute on default "this" executor

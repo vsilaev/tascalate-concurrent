@@ -44,23 +44,10 @@ class Timeouts {
      * the new promise
      */
     static Promise<Duration> delay(Duration duration) {
-        TimeUnit unit;
-        long amount;
-        // Try to get value with best precision without throwing ArythmeticException due to overflow
-        if (duration.compareTo(MAX_BY_NANOS) < 0) {
-            amount = duration.toNanos();
-            unit = TimeUnit.NANOSECONDS;
-        } else if (duration.compareTo(MAX_BY_MILLIS) < 0) {
-            amount = duration.toMillis();
-            unit = TimeUnit.MILLISECONDS;
-        } else {
-            amount = duration.getSeconds();
-            unit = TimeUnit.SECONDS; 
-        }
-        
+        TimeMeasurment tm = new TimeMeasurment(duration);
         FutureCompletion<Duration> result = new FutureCompletion<>();
         Future<?> timeout = scheduler.schedule( 
-            () -> result.complete(duration), amount, unit 
+            () -> result.complete(duration), tm.amount, tm.unit 
         );
         return result.dependsOn(timeout).toPromise();
     }
@@ -77,6 +64,14 @@ class Timeouts {
     static Promise<Duration> delay(long delay, TimeUnit timeUnit) {
         return delay( toDuration(delay, timeUnit) );
     }
+    
+    static <T> Promise<T> delayed(T value, long delay, TimeUnit timeUnit) {
+        return delayed(value, toDuration(delay, timeUnit));
+    }
+    
+    static <T> Promise<T> delayed(T value, Duration duration) {
+        return delay(duration).dependent().thenApply(d -> value, true);        
+    }
 
     /**
      * Creates a promise that is resolved erronously with {@link TimeoutException} after delay specified
@@ -86,24 +81,11 @@ class Timeouts {
      * the new promise
      */
     static <T> Promise<T> failAfter(Duration duration) {
-        TimeUnit unit;
-        long amount;
-        // Try to get value with best precision without throwing ArythmeticException due to overflow
-        if (duration.compareTo(MAX_BY_NANOS) < 0) {
-            amount = duration.toNanos();
-            unit = TimeUnit.NANOSECONDS;
-        } else if (duration.compareTo(MAX_BY_MILLIS) < 0) {
-            amount = duration.toMillis();
-            unit = TimeUnit.MILLISECONDS;
-        } else {
-            amount = duration.getSeconds();
-            unit = TimeUnit.SECONDS; 
-        }
-        
+        TimeMeasurment tm = new TimeMeasurment(duration);
         FutureCompletion<T> result = new FutureCompletion<>();
         Future<?> timeout = scheduler.schedule(
             () -> result.completeExceptionally(new TimeoutException("Timeout after " + duration)), 
-            amount, unit
+            tm.amount, tm.unit
         );
         return result.dependsOn(timeout).toPromise();
     }
@@ -178,6 +160,25 @@ class Timeouts {
                 throw new IllegalArgumentException("Unknown TimeUnit constant"); 
         } 
     }     
+    
+    static class TimeMeasurment {
+        final TimeUnit unit;
+        final long amount;
+        
+        TimeMeasurment(Duration duration) {
+            // Try to get value with best precision without throwing ArythmeticException due to overflow
+            if (duration.compareTo(MAX_BY_NANOS) < 0) {
+                amount = duration.toNanos();
+                unit = TimeUnit.NANOSECONDS;
+            } else if (duration.compareTo(MAX_BY_MILLIS) < 0) {
+                amount = duration.toMillis();
+                unit = TimeUnit.MILLISECONDS;
+            } else {
+                amount = duration.getSeconds();
+                unit = TimeUnit.SECONDS; 
+            }
+        }
+    }
     
     private static final Duration MAX_BY_NANOS  = Duration.ofNanos(Long.MAX_VALUE);
     private static final Duration MAX_BY_MILLIS = Duration.ofMillis(Long.MAX_VALUE);
