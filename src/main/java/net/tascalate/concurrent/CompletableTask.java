@@ -16,7 +16,6 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.selectSecond;
-import static net.tascalate.concurrent.TrampolineExecutorPromise.trampolineExecutor;
 
 import java.time.Duration;
 import java.util.Set;
@@ -218,7 +217,10 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
     }
     
     public static Promise<Duration> delay(Duration duration, Executor executor) {
-        return trampolineExecutor(waitFor(Timeouts.delay(duration), executor, true));
+        return asyncOn(executor)
+               .dependent()
+               .thenCombineAsync(Timeouts.delay(duration), selectSecond(), enlistParamOrNone(true))
+               .raw();
     }
     
     @Override

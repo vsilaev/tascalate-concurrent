@@ -28,27 +28,38 @@ import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
-        final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
+        final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
 
+        Promise<Object> k = CompletableTask.supplyAsync(() -> produceStringSlow("-ABC"), executorService);
+        //Promise<Object> k = CompletableTask.complete("ABC", executorService);
+        //Promise<Object> k = CompletableTask.supplyAsync(() -> {throw new RuntimeException();}, executorService);
+        //Promise<Object> k = Promises.success("ABC");
         //Promise<Object> k = Promises.failure(new RuntimeException());
-        //Promise<Object> k1 = CompletableTask.complete("ABC", executorService);
-        //k1.delay(Duration.ofMillis(1)).dependent().whenComplete((r, e) -> System.out.println(Thread.currentThread() + " ==> " + r), true);
-
-        Promise<Object> k1 = CompletableTask.supplyAsync(() -> produceStringSlow(), executorService);
+        k.dependent().delay(Duration.ofMillis(1), true).whenComplete((r, e) -> System.out.println(Thread.currentThread() + " ==> " + r + ", " + e));
+        
+        /*
+        if (System.out != null) {
+            Thread.sleep(1000);
+            executorService.shutdown();
+            return;
+        }
+        */
+        
+        Promise<Object> k1 = CompletableTask.supplyAsync(() -> produceStringSlow("-onTimeout1"), executorService);
         k1.onTimeout("ALTERNATE1", Duration.ofMillis(50))
             .whenComplete((r, e) -> System.out.println(Thread.currentThread() + " - onTimeout(value) -> " + r));
         
-        Promise<Object> k2 = CompletableTask.supplyAsync(() -> produceStringSlow(), executorService);
+        Promise<Object> k2 = CompletableTask.supplyAsync(() -> produceStringSlow("-onTimeout2"), executorService);
         k2.onTimeout(() -> "ALTERNATE2", Duration.ofMillis(50))
             .whenComplete((r, e) -> System.out.println(Thread.currentThread() + " - onTimeout(supplier) -> " + r));
         
-        Promise<Object> k3 = CompletableTask.supplyAsync(() -> produceStringSlow(), executorService);
+        Promise<Object> k3 = CompletableTask.supplyAsync(() -> produceStringSlow("-orTimeout"), executorService);
         k3.orTimeout(Duration.ofMillis(30))
             .whenComplete((r, e) -> System.out.println(Thread.currentThread() + " - orTimeout -> " + e));
 
         
         Thread.sleep(150);
-        
+
         final Promise<Number> p = Promises.any(
             CompletableTask.supplyAsync(() -> awaitAndProduce1(20, 100), executorService),
             CompletableTask.supplyAsync(() -> awaitAndProduce1(-10, 50), executorService)
@@ -70,7 +81,7 @@ public class J8Examples {
         );
 
         System.out.println(retry1 + " vs " + retry2);
-        
+
         Promise<String> pollerFuture = Promises.pollFuture( 
             ctx -> pollingFutureMethod(ctx, executorService),
             RetryPolicy.DEFAULT
@@ -78,12 +89,6 @@ public class J8Examples {
             .withBackoff(DelayPolicy.fixedInterval(200))
         );
         System.out.println("Poller (future): " + pollerFuture.get());
-        /*
-        if (null != System.out) {
-            executorService.shutdownNow();
-            return;
-        }
-        */
         
         Promise<String> pollerPlain = Promises.retry(
             J8Examples::pollingMethod, executorService, 
@@ -220,14 +225,14 @@ public class J8Examples {
     }
     
     
-    static String produceStringSlow() {
+    static String produceStringSlow(String suffix) {
         try {
-            Thread.sleep(100);
+            Thread.sleep(200);
         } catch (InterruptedException e) {
-            System.out.println("Interrupted!!!");
-            return "INTERRUPTED";
+            System.out.println("Interrupted" + suffix + "!!!");
+            return "INTERRUPTED" + suffix;
         }
-        return "PRODUCED";
+        return "PRODUCED" + suffix;
     }
     
     private static String pollingMethod(RetryContext ctx) throws InterruptedException {

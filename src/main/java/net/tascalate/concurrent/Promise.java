@@ -15,14 +15,11 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.dereferenceOr;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.supply;
 import static net.tascalate.concurrent.SharedFunctions.timeout;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
-import static net.tascalate.concurrent.SharedFunctions.ObjectRef;
-import static net.tascalate.concurrent.TrampolineExecutorPromise.trampolineExecutor;
 
 import java.time.Duration;
 import java.util.Set;
@@ -96,14 +93,24 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> delay(Duration duration, boolean delayOnError) {
-        CompletableFuture<T> delayed = new CompletableFuture<>();
+        if (!delayOnError) {
+            // Fast route
+            return thenCompose(v -> 
+                this.dependent()
+                    .thenCombineAsync(Timeouts.delay(duration), selectFirst(), PromiseOrigin.PARAM_ONLY)
+                    .raw()
+            );
+        }
+        CompletableFuture<Either<? super T>> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
-        // Use trampoline to execute on default "this" executor
-        return trampolineExecutor(
-            dependent().thenCombine(delayed, selectFirst(), PromiseOrigin.PARAM_ONLY).raw()
-        );
+        // Use *Async to execute on default "this" executor
+        return 
+        this.dependent()
+            .thenApply(Either::success, false)
+            .exceptionally(Either::failure, true)
+            .thenCombineAsync(delayed, (u, v) -> u.done(), PromiseOrigin.ALL)
+            .raw();
     }
-
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit) {
         return orTimeout(timeout, unit, true);
@@ -118,16 +125,14 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        Promise<? extends ObjectRef<T>> onTimeout = Timeouts.delayed(null, duration);
-        Promise<T> result = this
-            .dependent()
-            .thenApply(ObjectRef::new, false)
-            // Use async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, v -> dereferenceOr(v, timeout(duration)), PromiseOrigin.ALL)
-            ;
+        Promise<? extends Reference<T>> onTimeout = Timeouts.delayed(null, duration);
+        Promise<T> result = 
+        this.dependent()
+            .thenApply(Reference::new, false)
+            // Use *Async to execute on default "this" executor
+            .applyToEitherAsync(onTimeout, v -> Reference.getOrElse(v, timeout(duration)), PromiseOrigin.ALL);
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        // Use trampoline to execute on default "this" executor
         return result.raw();
     }
     
@@ -146,8 +151,10 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
         // timeout converted to supplier
         Promise<T> onTimeout = Timeouts.delayed(value, duration);
-        // Use async to execute on default "this" executor
-        Promise<T> result = dependent().applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
+        // Use *Async to execute on default "this" executor
+        Promise<T> result = 
+        this.dependent()
+            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.raw();
@@ -171,14 +178,12 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         // timeout converted to supplier
         Promise<Supplier<? extends T>> onTimeout = Timeouts.delayed(supplier, duration);
         
-        Promise<T> result = this
-            .dependent()
+        Promise<T> result = 
+        this.dependent()
             // resolved value converted to supplier
             .thenApply(valueToSupplier, false)
-            // ensure that potentially expensive call will run on this promise executor 
-            // rather than on timer thread 
-            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
-            ;
+            // Use *Async to execute on default "this" executor
+            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.raw();
@@ -323,5 +328,4 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn);
 
     <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor);
-
  }

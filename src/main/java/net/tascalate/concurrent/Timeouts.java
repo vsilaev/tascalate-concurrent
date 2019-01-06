@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 
 import java.time.Duration;
@@ -118,23 +117,15 @@ class Timeouts {
         };
     }
     
-    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletableFuture<? super T> delayed, Duration duration, boolean delayOnError) {
-        return (originalResult, originalError) -> {
-            if (originalError == null || (delayOnError && !self.isCancelled())) {
+    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletableFuture<Either<? super T>> delayed, Duration duration, boolean delayOnError) {
+        return (result, error) -> {
+            if (error == null || (delayOnError && !self.isCancelled())) {
                 Promise<?> timeout = delay(duration);
                 delayed.whenComplete( (r, e) -> timeout.cancel(true) );
-                timeout.whenComplete( (r, timeoutError) -> {
-                    if (null != timeoutError) {
-                        delayed.completeExceptionally(wrapCompletionException(timeoutError));
-                    } else if (null == originalError) {
-                        delayed.complete(originalResult);
-                    } else {
-                        delayed.completeExceptionally(wrapCompletionException(originalError));
-                    }
-                });
+                timeout.whenComplete( (r, e) -> delayed.complete(Either.nothing()) );
             } else {
                 // when error and should not delay on error
-                delayed.completeExceptionally(wrapCompletionException(originalError));
+                delayed.complete(Either.nothing());
             }
         };
     }

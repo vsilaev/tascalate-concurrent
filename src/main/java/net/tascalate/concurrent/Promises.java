@@ -15,11 +15,10 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.LinkedCompletion.StageCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
-import static net.tascalate.concurrent.SharedFunctions.ObjectRef;
-import static net.tascalate.concurrent.LinkedCompletion.StageCompletion;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -459,7 +458,9 @@ public class Promises {
             ctx -> { codeBlock.run(ctx); return IGNORE; }, 
             executor, retryPolicy
         );
-        return wrappedResult.dependent().thenApply(v -> (Void)null, true).raw();  
+        return wrappedResult.dependent()
+                            .thenApply(v -> (Void)null, true)
+                            .raw();  
     }
     
     public static <T> Promise<T> retry(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
@@ -467,11 +468,13 @@ public class Promises {
     }
     
     public static <T> Promise<T> retry(RetryCallable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        Promise<ObjectRef<T>> wrappedResult = poll(
-            ctx -> new ObjectRef<>( codeBlock.call(ctx) ), 
+        Promise<Reference<T>> wrappedResult = poll(
+            ctx -> new Reference<>( codeBlock.call(ctx) ), 
             executor, retryPolicy
         );
-        return wrappedResult.dependent().thenApply(ObjectRef::dereference, true).raw();
+        return wrappedResult.dependent()
+                            .thenApply(Reference::get, true)
+                            .raw();
     }
     
     public static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<? extends T>> invoker, RetryPolicy retryPolicy) {
@@ -479,11 +482,17 @@ public class Promises {
     }
     
     public static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<? extends T>> invoker, RetryPolicy retryPolicy) {
-        Promise<ObjectRef<T>> wrappedResult = pollFuture(
-            ctx -> Promises.from(invoker.call(ctx)).dependent().thenApply(r -> new ObjectRef<T>(r), true).raw(), 
+        Promise<Reference<T>> wrappedResult = pollFuture(
+            ctx -> Promises.from(invoker.call(ctx))
+                           .dependent()
+                           .thenApply(r -> new Reference<T>(r), true)
+                           .raw()
+            , 
             retryPolicy
         );
-        return wrappedResult.dependent().thenApply(ObjectRef::dereference, true).raw();
+        return wrappedResult.dependent()
+                            .thenApply(Reference::get, true)
+                            .raw();
     }
     
     public static <T> Promise<T> poll(Callable<T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
