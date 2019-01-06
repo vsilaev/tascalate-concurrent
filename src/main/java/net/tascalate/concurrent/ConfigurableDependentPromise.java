@@ -17,9 +17,11 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.dereferenceOr;
 import static net.tascalate.concurrent.SharedFunctions.enlistParamOrAll;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.supply;
+import static net.tascalate.concurrent.SharedFunctions.timeout;
 import static net.tascalate.concurrent.TrampolineExecutorDependentPromise.trampolineExecutor;
 
 import java.time.Duration;
@@ -39,6 +41,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.SharedFunctions.ObjectRef;
 import net.tascalate.concurrent.decorators.AbstractPromiseDecorator; 
 
 /**
@@ -148,11 +151,15 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Promise<T> onTimeout = Timeouts.failAfter(duration);
-        DependentPromise<T> result = applyToEither(onTimeout, Function.identity(), enlistParamOrAll(enlistOrigin));
+        Promise<? extends ObjectRef<T>> onTimeout = Timeouts.delayed(null, duration);
+        DependentPromise<T> result = this 
+            .thenApply(ObjectRef::new, enlistOrigin)
+            // Use async to execute on default "this" executor
+            .applyToEitherAsync(onTimeout, v -> dereferenceOr(v, timeout(duration)), PromiseOrigin.ALL)
+            ;
+        
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        // Use trampoline to execute on default "this" executor
-        return trampolineExecutor(result);
+        return result;
     }
     
     @Override
@@ -163,11 +170,11 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     @Override
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Promise<T> onTimeout = Timeouts.delayed(value, duration);
-        DependentPromise<T> result = applyToEither(onTimeout, Function.identity(), enlistParamOrAll(enlistOrigin));
+        // Use async to execute on default "this" executor
+        DependentPromise<T> result = applyToEitherAsync(onTimeout, Function.identity(), enlistParamOrAll(enlistOrigin));
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        // Use trampoline to execute on default "this" executor
-        return trampolineExecutor(result);
+        return result;
     }
     
     // All onTimeout overloads delegate to this method
@@ -191,8 +198,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
             .applyToEitherAsync(onTimeout, Supplier::get,  PromiseOrigin.ALL);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        // Use trampoline to execute on default "this" executor
-        return trampolineExecutor(result);
+        return result;
     }
     
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn, boolean enlistOrigin) {

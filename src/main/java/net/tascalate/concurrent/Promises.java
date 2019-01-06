@@ -18,6 +18,7 @@ package net.tascalate.concurrent;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.ObjectRef;
 import static net.tascalate.concurrent.LinkedCompletion.StageCompletion;
 
 import java.time.Duration;
@@ -719,18 +720,6 @@ public class Promises {
         return Duration.ofNanos(finishTime - startTime);
     }
     
-    static class ObjectRef<T> {
-        private final T reference;
-        
-        ObjectRef(T reference) {
-            this.reference = reference;
-        }
-        
-        T dereference() {
-            return reference;
-        }
-    }
-
     static final Object IGNORE = new Object();
     
     @FunctionalInterface

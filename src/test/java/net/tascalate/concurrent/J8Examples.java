@@ -30,11 +30,24 @@ public class J8Examples {
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
 
-        Promise<Object> k = Promises.failure(new RuntimeException());
-        //Promise<Object> k = CompletableTask.complete("ABC", executorService);
-        k.delay(Duration.ofMillis(1)).dependent().whenComplete((r, e) -> System.out.println(Thread.currentThread()), true);
+        //Promise<Object> k = Promises.failure(new RuntimeException());
+        //Promise<Object> k1 = CompletableTask.complete("ABC", executorService);
+        //k1.delay(Duration.ofMillis(1)).dependent().whenComplete((r, e) -> System.out.println(Thread.currentThread() + " ==> " + r), true);
+
+        Promise<Object> k1 = CompletableTask.supplyAsync(() -> produceStringSlow(), executorService);
+        k1.onTimeout("ALTERNATE1", Duration.ofMillis(50))
+            .whenComplete((r, e) -> System.out.println(Thread.currentThread() + " - onTimeout(value) -> " + r));
         
-        Thread.sleep(100);
+        Promise<Object> k2 = CompletableTask.supplyAsync(() -> produceStringSlow(), executorService);
+        k2.onTimeout(() -> "ALTERNATE2", Duration.ofMillis(50))
+            .whenComplete((r, e) -> System.out.println(Thread.currentThread() + " - onTimeout(supplier) -> " + r));
+        
+        Promise<Object> k3 = CompletableTask.supplyAsync(() -> produceStringSlow(), executorService);
+        k3.orTimeout(Duration.ofMillis(30))
+            .whenComplete((r, e) -> System.out.println(Thread.currentThread() + " - orTimeout -> " + e));
+
+        
+        Thread.sleep(150);
         
         final Promise<Number> p = Promises.any(
             CompletableTask.supplyAsync(() -> awaitAndProduce1(20, 100), executorService),
@@ -204,6 +217,17 @@ public class J8Examples {
             System.out.println("awaitAndProduceN interrupted, requested value " + i);
             return -1;
         }
+    }
+    
+    
+    static String produceStringSlow() {
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            System.out.println("Interrupted!!!");
+            return "INTERRUPTED";
+        }
+        return "PRODUCED";
     }
     
     private static String pollingMethod(RetryContext ctx) throws InterruptedException {

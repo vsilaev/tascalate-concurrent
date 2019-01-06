@@ -15,10 +15,13 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.dereferenceOr;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.supply;
+import static net.tascalate.concurrent.SharedFunctions.timeout;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.ObjectRef;
 import static net.tascalate.concurrent.TrampolineExecutorPromise.trampolineExecutor;
 
 import java.time.Duration;
@@ -115,15 +118,17 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        Promise<T> timeout = Timeouts.failAfter(duration);
+        Promise<? extends ObjectRef<T>> onTimeout = Timeouts.delayed(null, duration);
         Promise<T> result = this
             .dependent()
-            .applyToEither(timeout, Function.identity(), PromiseOrigin.PARAM_ONLY)
+            .thenApply(ObjectRef::new, false)
+            // Use async to execute on default "this" executor
+            .applyToEitherAsync(onTimeout, v -> dereferenceOr(v, timeout(duration)), PromiseOrigin.ALL)
             ;
 
-        result.whenComplete(Timeouts.timeoutsCleanup(this, timeout, cancelOnTimeout));
+        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         // Use trampoline to execute on default "this" executor
-        return trampolineExecutor(result.raw());
+        return result.raw();
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -141,11 +146,11 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
         // timeout converted to supplier
         Promise<T> onTimeout = Timeouts.delayed(value, duration);
-        Promise<T> result = dependent().applyToEither(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
+        // Use async to execute on default "this" executor
+        Promise<T> result = dependent().applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        // Use trampoline to execute on default "this" executor
-        return trampolineExecutor(result.raw());
+        return result.raw();
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
@@ -176,8 +181,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             ;
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        // Use trampoline to execute on default "this" executor
-        return trampolineExecutor(result.raw());
+        return result.raw();
     }
     
     /**

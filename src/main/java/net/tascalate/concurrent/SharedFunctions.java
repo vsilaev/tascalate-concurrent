@@ -16,12 +16,14 @@
 package net.tascalate.concurrent;
 
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -111,6 +113,35 @@ class SharedFunctions {
     
     static <T> Supplier<T> supply(T value) {
         return () -> value;
+    }
+    
+    static <T> T dereferenceOr(ObjectRef<? extends T> ref, Supplier<? extends Throwable> error) {
+        if (null != ref) {
+            return ref.dereference();
+        } else {
+            return sneakyThrow(error.get());
+        }
+    }
+    
+    static Supplier<TimeoutException> timeout(Duration duration) {
+        return supply(new TimeoutException("Timeout after " + duration));        
+    }
+    
+    @SuppressWarnings("unchecked")
+    private static <T, E extends Throwable> T sneakyThrow(Throwable e) throws E {
+        throw (E) e;
+    }
+    
+    static class ObjectRef<T> {
+        private final T reference;
+        
+        ObjectRef(T reference) {
+            this.reference = reference;
+        }
+        
+        T dereference() {
+            return reference;
+        }
     }
     
     private static final BiFunction<Object, Object, Object> SELECT_FIRST  = (u, v) -> u;
