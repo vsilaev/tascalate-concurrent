@@ -15,11 +15,11 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.enlistParamOrNone;
 import static net.tascalate.concurrent.SharedFunctions.selectSecond;
 import static net.tascalate.concurrent.TrampolineExecutorPromise.trampolineExecutor;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -236,5 +236,9 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
     @Override
     protected <U> AbstractCompletableTask<U> createCompletionStage(Executor executor) {
         return new CompletableSubTask<U>(executor);
+    }
+    
+    private static Set<PromiseOrigin> enlistParamOrNone(boolean enlistParam) {
+        return enlistParam ? PromiseOrigin.PARAM_ONLY : PromiseOrigin.NONE;
     }
 }

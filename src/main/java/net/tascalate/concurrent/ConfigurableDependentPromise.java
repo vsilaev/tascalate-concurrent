@@ -18,7 +18,6 @@ package net.tascalate.concurrent;
 import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.dereferenceOr;
-import static net.tascalate.concurrent.SharedFunctions.enlistParamOrAll;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.supply;
 import static net.tascalate.concurrent.SharedFunctions.timeout;
@@ -714,6 +713,10 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     private boolean defaultEnlistOrigin() {
         return defaultEnlistOptions.contains(PromiseOrigin.THIS);
+    }
+    
+    private static Set<PromiseOrigin> enlistParamOrAll(boolean enlistThis) {
+        return enlistThis ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY;
     }
 
     static void cancelPromises(CompletionStage<?>[] promises, boolean mayInterruptIfRunning) {

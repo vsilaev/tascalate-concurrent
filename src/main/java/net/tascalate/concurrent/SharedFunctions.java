@@ -17,7 +17,6 @@ package net.tascalate.concurrent;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -90,16 +89,6 @@ class SharedFunctions {
             return null;
         }
     }
-    
-    
-    static Set<PromiseOrigin> enlistParamOrAll(boolean enlistThis) {
-        return enlistThis ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY;
-    }
-    
-    static Set<PromiseOrigin> enlistParamOrNone(boolean enlistParam) {
-        return enlistParam ? PromiseOrigin.PARAM_ONLY : PromiseOrigin.NONE;
-    }
-
     
     @SuppressWarnings("unchecked")
     static <U, V> BiFunction<U, V, U> selectFirst() {
