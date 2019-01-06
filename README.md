@@ -165,7 +165,7 @@ Promise<?> nextPromiseAsync = callPromise.whenCompleteAsync((v,e) -> processResu
 ```
 In the example above `callPromise` will be settled within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or exceptionally with a `TimeoutException`.
 
-It's worth to mention, that _both_ `processResultSync` and `processResultAsync` will be executed with `myExecutor`, even if no timeout is triggered.
+It's worth to mention, that _both_ `processResultSync` and `processResultAsync` will be executed with `myExecutor`, if timeout is triggered.
 
 The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when ommitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete.
 
@@ -180,7 +180,7 @@ Promise<?> t1 = resultPromise
     .orTimeout( Duration.ofSeconds(2), false )
     .exceptionally( e -> {
       if (e instanceof TimeoutException) {
-        UI.showMessage("Operation takes longer than expected, please wait...");
+        UI.showMessage("The operation takes longer than expected, please wait...");
       }
       return null;
     }, false); 
@@ -190,7 +190,8 @@ Promise<?> t2 = resultPromise
     .orTimeout( Duration.ofSeconds(5), false )
     .exceptionally( e -> {
       if (e instanceof TimeoutException) {
-        UI.showConfirmation("Service does not responding. Do you whant to cancel (Y/N)?");
+        UI.clearMessages();
+        UI.showConfirmation("Service does not respond. Do you whant to cancel (Y/N)?");
       }
       return null;
     }, false); 
