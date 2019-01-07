@@ -40,7 +40,26 @@ So it should be pretty straightforward to use the `Promise` as a drop-in replace
 
 Besides this, there are numerous opertors in `Promise` API to work with timeouts and delays, to override default asynchronous executor and similar. All of them will be discussed later.
 
-## 2. CompletableTask 
+When discussing `Promise` interface, it's mandatory to mention the accompanying class `Promises` that provides several useful methods to adapt third-party `CompletionStage` (including the standard `CompletableFuture`) to the `Promise` API. First, there are two unit operations to cretae successfully/faulty settled `Promise`-es: 
+```java
+static <T> Promise<T> success(T value)
+static <T> Promise<T> failure(Throwable exception)
+```
+Second, there is an adapter method `from`:
+```java
+static <T> Promise<T> from(CompletionStage<T> stage)
+```
+It behaves as the following: 
+a. If the supplied `stage` is already a `Promise` then it is returned unchenged
+b. If `stage` is a `CompletableFuture` then a specially-tailored wrapper is returned.
+c. If `stage` additionally implements `Future` then specialized wrapper is returned that delegates all the blocking methods defined in `Future` API
+d. Otherwise generic wrapper is created with good-enough implementation of blocking `Future` API atop of asynchronous `CompletionStage` API.
+
+To summarize, the returned wrapper delegates as much as possible functionality to the supplied `stage` and _never_ resorts to [CompletionStage.toCompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html#toCompletableFuture--) because in Java 8 API it's an optional method. From documentation: "A CompletionStage implementation that does not choose to interoperate with others may throw UnsupportedOperationException." (this text was dropped in Java 9+). In general, Tascalate Concurrent library does not depend on this method and should be interoperable with any minimal (but valid) `CompletionStage` implementation.
+
+It's important to emphasize, that `Promise`-s returned from `Promises.success`, `Promises.failure` and `Promises.from` methods are cancellable in the same way as `CompletableFuture`, but are not interruptible in general, while interruption depends on a concrete implementation. Next we discuss the concrete implementation of an interruptible `Promise` provided by the Tascalate Concurrent library -- the `CompletableTask` class.
+
+## 2. CompletableTask
 This is why this project was ever started. `CompletableTask` is the implementation of the `Promise` API for long-running blocking tasks.
 Typically, to create a `CompletableTask`, you should submit [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html) / [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) to the [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) right away, in a similar way as with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html):
 
@@ -165,9 +184,9 @@ Promise<?> nextPromiseAsync = callPromise.whenCompleteAsync((v,e) -> processResu
 ```
 In the example above `callPromise` will be settled within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or exceptionally with a `TimeoutException`.
 
-It's worth to mention, that _both_ `processResultSync` and `processResultAsync` will be executed with `myExecutor`, if timeout is triggered.
+It's worth to mention, that _both_ `processResultSync` and `processResultAsync` will be executed with `myExecutor`, if timeout is triggered - this rule is true for all timeout-related methods.
 
-The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when ommitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete.
+The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when ommitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete. Pay attaention: any `Promise` is cancellable on timeout, even wrappers created via `Promises.from(stage)`, but only `CompletableTask` is interruptible!
 
 Cancelling original promise on timeout is a desired behavior in most cases but not always. The library provides an option to set several non-cancelling timeouts like in example below:
 ```java
@@ -210,7 +229,7 @@ Promise<List<String>> resultPromise = CompletableTask
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
     .orTimeout( Duration.ofSeconds(5) );
 ```
-In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. If it's necessary to restrict execution time of the single step, please use standard `CompletionStage.thenCompose` method. Say, that in example above we have to restrict execution time of the `converterMethod`. Then the chain will look like:
+In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. If it's necessary to restrict execution time of the single step, please use standard `CompletionStage.thenCompose` method. Say, that in the previous example we have to restrict execution time of the `converterMethod` only. Then the chain will look like:
 ```java
 Promise<List<String>> resultPromise = CompletableTask
     .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
@@ -295,8 +314,44 @@ As long as back-off execution is not a very rare case, the library provides the 
 static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor);
 static Promise<Duration> delay(Duration duration, Executor executor);
 ```
+## 5. Combining several `Promise`-s
+The utility class `Promises` provides convenient methods to combine several `CompletionStage`-s:
 
-## 5. DependentPromise
+```java
+static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+````
+Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well.
+
+```java
+static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+```
+Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well.
+
+```java
+static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+```
+Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before the first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if any result is available at all).
+
+```java
+static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] 
+                                    CompletionStage<? extends T>... promises)
+```
+Generalization of the `any` method. Returns a promise that is completed normally when at least `minResultCount`
+of `CompletionStage`-s passed as parameters are completed normally (race is possible); if less than `minResultCount` of promises completed normally, then resulting promise is completed exceptionally.
+
+```java
+static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
+                                          CompletionStage<? extends T>... promises)
+```
+Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of successful results).
+
+All methods above have an optional parameter `cancelRemaining` (since library's version [0.5.3](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.3)). When ommitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known (i.e. enough number of `promises` passed are settled successfully). 
+
+There are additional overloads of aforementioned combinator methods that accept a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `Promise`-s instead of the latest varagr parameter (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library).
+
+Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods returns a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, then resulting `Promise` is settled with a failure of type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
+
+## 6. DependentPromise
 As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
 
 However, when you cancel derived `Promise`, the original `Promise` is not cancelled: 
@@ -367,7 +422,7 @@ public Promise<DataStructure> loadData(String url) {
 }
 ```
 
-## 6. Polling and asynchronous retry functionality
+## 7. Polling and asynchronous retry functionality
 Provided by utility class Promises but stands on its own
 ```java
 static Promise<Void> poll(Runnable codeBlock, 
@@ -378,65 +433,6 @@ static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock,
                                    Executor executor, RetryPolicy retryPolicy)
 ```
 TBD
-
-## 7. Utility class Promises
-The class
-provides convenient methods to combine several `CompletionStage`-s:
-
-```java
-static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-````
-
-Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well
-
-```java
-static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-```
-
-Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well
-
-```java
-static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-```
-
-Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if result is available at all)
-
-```java
-static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] 
-                                    CompletionStage<? extends T>... promises)
-```
-
-Generalization of the `any` method. Returns a promise that is completed normally when at least `minResultCount`
-of `CompletionStage`-s passed as parameters are completed normally (race is possible); if less than `minResultCount` of promises completed normally, then resulting promise is completed exceptionally
-
-```java
-static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
-                                          CompletionStage<? extends T>... promises)
-```
-
-Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of results are available at all)
-
-Please note that since library's version 0.5.3 it is possible to define explicitly whether or not to eagerly cancel remaining `promises` once the result of the invocation is known. The option is controlled by the parameter `cancelRemaining`. When ommitted, it means implicitly `cancelRemaining = true`.
-
-The version 0.5.4 of the library adds additional overloads to aforementioned methods - now it's possible to supply a [list](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `Promise`-s instead of the latest varagr parameter.
-
-Additionally, it's possible to convert to `Promise` API ready value:
-
-```java
-static <T> Promise<T> success(T value)
-```
-
-...exception:
-
-```java
-static <T> Promise<T> failure(Throwable exception)
-```
-
-...or arbitrary `CompletionStage` implementation:
-
-```java
-static <T> Promise<T> from(CompletionStage<T> stage)
-```
 
 ## 8. Extensions to ExecutorService API
 
