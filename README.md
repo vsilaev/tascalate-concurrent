@@ -146,7 +146,12 @@ Promise<T> defaultAsyncOn(Executor executor)
 ```
 The returned decorator will use the specified executor for all nested asynchronous composition methods without explicit `Executor` parameter. So, at any point, you are able to switch to the desired default asynchronous executor and keep using it for all nested composition call.
 
-Having the best of three(!) worlds, the only responsibility of the library user is to use these options consistently!
+To summarize, with Tascalate Concurrent you have the following options to control what is the default aynchronous executor:
+1. The latest explicit `Executor` passed to `*Async` method is used for derived `Promise`-s -- the default option.
+2. Single default `Executor` passed to the root `CompletableTask.asyncOn(Executor executor, true)` call is propageted through the whole chain. This is the only option variant supported with `CompletableFuture` in Java 9+, though, with custom coding.
+3. Redefine `Executor` with `defaultAsyncOn(Executor executor)` for all derived `Promise`-s.
+Having the best of three(!) worlds, the only responsibility of the library user is to use these options consistently! 
+
 The last thing that should be mentioned is a typical task when you would like to start interruptible blocking method after completion of the standard `CompletableFuture`. The following utility method is defined in the `CompletableTask`:
 ```java
 public static <T> Promise<T> waitFor(CompletionStage<T> stage, Executor executor)
@@ -319,19 +324,22 @@ The utility class `Promises` provides convenient methods to combine several `Com
 
 ```java
 static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-static <T> Promise<List<T>> all([boolean cancelRemaining=true,] List<? extends CompletionStage<? extends T>> promises)
+static <T> Promise<List<T>> all([boolean cancelRemaining=true,] 
+                                List<? extends CompletionStage<? extends T>> promises)
 ````
 Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well.
 
 ```java
 static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-static <T> Promise<T> any([boolean cancelRemaining=true,] List<? extends CompletionStage<? extends T>> promises)
+static <T> Promise<T> any([boolean cancelRemaining=true,] 
+                          List<? extends CompletionStage<? extends T>> promises)
 ```
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well.
 
 ```java
 static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] List<? extends CompletionStage<? extends T>> promises)
+static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] 
+                                List<? extends CompletionStage<? extends T>> promises)
 ```
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before the first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if any result is available at all).
 
@@ -350,9 +358,9 @@ static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRe
 static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
                                           List<? extends CompletionStage<? extends T>> promises)
 ```
-Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of successful results).
+Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of successful results is available).
 
-All methods above have an optional parameter `cancelRemaining` (since library's version [0.5.3](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.3)). When ommitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known (i.e. enough number of `promises` passed are settled successfully). 
+All methods above have an optional parameter `cancelRemaining` (since library's version [0.5.3](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.3)). When ommitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known, i.e. enough number of `promises` passed are settled successfully _or_ some `CompletionStage` completed exceptionally in strict version. 
 
 There are 2 overloads of aforementioned combinator methods that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library) or varagr array of `CompletionStage`-s.
 
