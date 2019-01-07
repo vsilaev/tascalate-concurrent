@@ -7,9 +7,9 @@ Since the version `0.7.0` the library is shipped as a multi-release JAR and may 
 # Why a CompletableFuture is not enough?
 There are several shortcomings associated with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its usage for real-life asynchronous programming, especially when you have to work with I/O-bound interruptible tasks:
 1.	`CompletableFuture.cancel()` [method](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html#cancel-boolean-) does not interrupt underlying thread; it merely puts future to exceptionally completed state. So even if you use any blocking calls inside functions passed to `thenApplyAsync` / `thenAcceptAsync` / etc - these functions will run till the end and never will be interrupted. Please see [CompletableFuture can't be interrupted](http://www.nurkiewicz.com/2015/03/completablefuture-cant-be-interrupted.html) by Tomasz Nurkiewicz.
-2.	By default, all `*Async` composition methods of `CompletableFutrure` use `ForkJoinPool.commonPool()` ([see here](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html#commonPool--)) unless explicit [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) is specified. This thread pool is shared between all [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html)-s and all parallel streams across all applications deployed on the same JVM. This hard-coded, unconfigurable thread pool is completely outside of application developers' control, hard to monitor and scale. Therefore, in robust real-life applications you should always specify your own `Executor`.
+2.	By default, all `*Async` composition methods of `CompletableFutrure` use `ForkJoinPool.commonPool()` ([see here](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html#commonPool--)) unless explicit [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) is specified. This thread pool is shared between all [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html)-s and all parallel streams across all applications deployed on the same JVM. This hard-coded, unconfigurable thread pool is completely outside of application developers' control, hard to monitor and scale. Therefore, in robust real-life applications you should always specify your own `Executor`. With API enhancements in Java 9+, you can fix this drawback, but it will require some custom coding.
 3.	Additionally, built-in Java 8 concurrency classes provides pretty inconvenient API to combine several [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)-s. `CompletableFuture.allOf` / `CompletableFuture.anyOf` methods accept only [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) as arguments; you have no mechanism to combine arbitrary [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)-s without converting them to [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) first. Also, the return type of the aforementioned `CompletableFuture.allOf` is declared as `CompletableFuture<Void>` - hence you are unable to extract conveniently individual results of the each future supplied. `CompletableFuture.anyOf` is even worse in this regard; for more details please read on here: [CompletableFuture in Action](http://www.nurkiewicz.com/2013/05/java-8-completablefuture-in-action.html) (see Shortcomings) by Tomasz Nurkiewicz.
-4. Support for timeouts/delays was introduced to [CompletableFuture](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html) only in Java 9, so still widely supported applications running on Java 8 are left out without this important functionality.
+4. Support for timeouts/delays was introduced to [CompletableFuture](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html) only in Java 9, so still widely supported applications running on Java 8 are left out without this important functionality. Plus, some design decisions like using delayed executors instead of 'delay' operator, are somewhat questionable.
 
 There are numerous free open-source libraries that address some of the aforementioned shortcomings. However, none of them provides implementation of interruptible `CompletionStage` and no one solves _all_ of the issues coherently.
 
@@ -103,7 +103,7 @@ CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
 ```
 The call to `produceValue` will be executed on the `executorInitial` - it is passed explicitly. However, the call to `transformValueA` will be excuted on... `ForkJoinPool.commonPool()`! Hmmmm... Probably this makes sense, but how to force using alternative executor by default? No way! Probably this is possible with deeper calls? The answer is "NO" again! The invocation to `transformValueB` ran on explicitly supplied `executorNext`. But next call, `transformValueC` will be executed on... you guess it... `ForkJoinPool.commonPool()`!
 
-So, once you use `CompletableFuture` with JEE environment you must pass explicit instance of [ManagedExecutorService](https://docs.oracle.com/javaee/7/api/javax/enterprise/concurrent/ManagedExecutorService.html) to each and every method call. Not very convinient!
+So, once you use `CompletableFuture` with JEE environment you must pass explicit instance of [ManagedExecutorService](https://docs.oracle.com/javaee/7/api/javax/enterprise/concurrent/ManagedExecutorService.html) to each and every method call. Not very convinient! To be fair, with Java 9+ API you can redefine this behavior via sublassing `CompletableFuture` and overriding two methods: [defaultExecutor](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#defaultExecutor--) and [newIncompleteFuture](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#newIncompleteFuture--). Plus, you will have to define your own "entry points" instead of the standard `CompletableFuture.runAsync` and `CompletableFuture.supplyAsync`. 
 
 With `CompletableTask` the situation is just the opposite. Let us rewrite the example above:
 ```java
@@ -158,7 +158,7 @@ These methods creates a new `Promise` that is either settled sucessfully/excepti
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise = CompletableTask
     .supplyAsync( () -> someLongRunningIoBoundMehtod(), myExecutor )
-    .orTimeout( Duration.ofSeconds(3000) );
+    .orTimeout( Duration.ofSeconds(3) );
     
 Promise<?> nextPromiseSync = callPromise.whenComplete((v, e) -> processResultSync(v, e));
 Promise<?> nextPromiseAsync = callPromise.whenCompleteAsync((v,e) -> processResultAsync(v, e));
@@ -206,11 +206,27 @@ Promise<String> parallelPromise = CompletableTask
     .supplyAsync( () -> someLongRunningDbCall(), executor );
 Promise<List<String>> resultPromise = CompletableTask
     .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .thenApplyAsync( v -> converterMethod() )
+    .thenApplyAsync( v -> converterMethod(v) )
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
     .orTimeout( Duration.ofSeconds(5) );
 ```
-In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. Moreover, in the example above only the call to `thenCombineAsync` will be cancelled on timeout, to cancel the whole tree please use the functionality of the `DependentPromise` interface (will be discussed later):
+In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. If it's necessary to restrict execution time of the single step, please use standard `CompletionStage.thenCompose` method. Say, that in example above we have to restrict execution time of the `converterMethod`. Then the chain will look like:
+```java
+Promise<List<String>> resultPromise = CompletableTask
+    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
+    // Restict only execution time of converterMethod
+    // -- start of changes
+    .thenCompose( v -> 
+        CompletableTask.complete(v, executor)
+                       .thenApplyAsync(v -> converterMethod(v))
+                       .orTimeout( Duration.ofSeconds(5) )
+    )
+    // -- end of changes
+    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
+    ;
+```
+
+Moreover, in the original example above only the call to the `thenCombineAsync` will be cancelled on timeout, to cancel the whole chain please use the functionality of the `DependentPromise` interface (will be discussed later):
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> parallelPromise = CompletableTask
