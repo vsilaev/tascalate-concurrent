@@ -218,7 +218,7 @@ Promise<List<String>> resultPromise = CompletableTask
     // -- start of changes
     .thenCompose( v -> 
         CompletableTask.complete(v, executor)
-                       .thenApplyAsync(v -> converterMethod(v))
+                       .thenApplyAsync(vv -> converterMethod(vv))
                        .orTimeout( Duration.ofSeconds(5) )
     )
     // -- end of changes
