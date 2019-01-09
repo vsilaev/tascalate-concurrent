@@ -466,7 +466,18 @@ static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker
 static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, T> invoker, 
                                   RetryPolicy<? super T> retryPolicy);
 ```
-TBD
+All the methods from `retry` family share the same pattern. First, there is a block of code that is executed per every attempt. It could be either a full block of the asynchronous code (`retry` and `retryOptional`) or a method that returns a CompletionStage<T> from third-party API like Async Http library (`retryFuture`). Next, if we retry custom code block, then it's necessary to provide an `Executor` it should be run on. For `retryFuture` there is no explicit `Executor`, and it's up to the third-party library to provide scalable and robust `Executor` as a default asynchronous executor of the returned `CompletionStage`. Finally, `RetryPolicy` should be specified that provides a lot of customization options:
+1. How much attempts should be made?
+2. What is a time interval between attempts? Should it be fixed or dynamic?
+3. What is a timeout before a single attempted is considered "hanged"? Should it be dynamic?
+4. What exceptions are re-trieable and what are not?
+5. What result is expected to be valid? Is a `null` result valid? Is any non-`null` result valid or some returned object properties should be examined?
+    
+All in all, `RetryPolicy` is provides an API with endless customizations per every imaginable use-case.
+But before discussing it, it's necessary to explain a difference in each pair of methods. Why there are overloads with `Runnable` vs `RetryRunnable` and `Callable` vs `RetryCallable`? The reason is the following:
+1. Contextless retriable operations are captured as `Runnable` or `Callable` lambdas - they behaves the same for every iteration, and hence do not need a context.
+2. Methods with `RetryRunnable` and `RetryCallable` are contextual and may dynamically alter their behavior for the given iteration depending on the context passed. The `RetryContext` provides provides all necessary iteration-specific information. 
+
 
 ## 8. Extensions to ExecutorService API
 
