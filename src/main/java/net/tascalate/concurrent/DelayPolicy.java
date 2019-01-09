@@ -33,102 +33,102 @@ import net.tascalate.concurrent.delays.FixedIntervalDelayPolicy;
 import net.tascalate.concurrent.delays.ProportionalRandomDelayPolicy;
 import net.tascalate.concurrent.delays.UniformRandomDelayPolicy;
 
-public interface DelayPolicy {
-    public static final DelayPolicy DEFAULT = new FirstRetryNoDelayPolicy(new FixedIntervalDelayPolicy());
-    public static final DelayPolicy INVALID = ctx -> Timeouts.NEGATIVE_DURATION;
+public interface DelayPolicy<T> {
+    public static final DelayPolicy<Object> DEFAULT = new FirstRetryNoDelayPolicy<Object>(new FixedIntervalDelayPolicy<>());
+    public static final DelayPolicy<Object> INVALID = ctx -> Timeouts.NEGATIVE_DURATION;
     
-    Duration delay(RetryContext context);
+    Duration delay(RetryContext<? extends T> retryContext);
     
-    public static DelayPolicy fixedInterval() {
-    	return new FixedIntervalDelayPolicy();
+    public static <T> DelayPolicy<T> fixedInterval() {
+    	return new FixedIntervalDelayPolicy<>();
     }
     
-    public static DelayPolicy fixedInterval(Duration interval) {
-        return new FixedIntervalDelayPolicy(interval);
+    public static <T> DelayPolicy<T> fixedInterval(Duration interval) {
+        return new FixedIntervalDelayPolicy<>(interval);
     }
     
-    public static DelayPolicy fixedInterval(long interval, TimeUnit timeUnit) {
+    public static <T> DelayPolicy<T> fixedInterval(long interval, TimeUnit timeUnit) {
         return fixedInterval(Timeouts.toDuration(interval, timeUnit));
     }
     
-    public static DelayPolicy fixedInterval(long intervalMillis) {
+    public static <T> DelayPolicy<T> fixedInterval(long intervalMillis) {
     	return fixedInterval(Duration.ofMillis(intervalMillis));
     }
     
-    public static DelayPolicy exponential(double multiplier) {
-    	return new ExponentialDelayPolicy(multiplier);
+    public static <T> DelayPolicy<T> exponential(double multiplier) {
+    	return new ExponentialDelayPolicy<>(multiplier);
     }
     
-    public static DelayPolicy exponential(Duration initialDelay, double multiplier) {
-        return new ExponentialDelayPolicy(initialDelay, multiplier);
+    public static <T> DelayPolicy<T> exponential(Duration initialDelay, double multiplier) {
+        return new ExponentialDelayPolicy<>(initialDelay, multiplier);
     }
 
-    public static DelayPolicy exponential(long initialDelay, TimeUnit timeUnit, double multiplier) {
+    public static <T> DelayPolicy<T> exponential(long initialDelay, TimeUnit timeUnit, double multiplier) {
         return exponential(Timeouts.toDuration(initialDelay, timeUnit), multiplier);
     }
     
-    public static DelayPolicy exponential(long initialDelayMillis, double multiplier) {
+    public static <T> DelayPolicy<T> exponential(long initialDelayMillis, double multiplier) {
     	return exponential(Duration.ofMillis(initialDelayMillis), multiplier);
     }
     
-    default DelayPolicy withUniformJitter() {
-        return new UniformRandomDelayPolicy(this);
+    default DelayPolicy<T> withUniformJitter() {
+        return new UniformRandomDelayPolicy<>(this);
     }
 
-    default DelayPolicy withUniformJitter(long range) {
+    default DelayPolicy<T> withUniformJitter(long range) {
         return withUniformJitter(range, TimeUnit.MILLISECONDS);
     }
     
-    default DelayPolicy withUniformJitter(long range, TimeUnit timeUnit) {
+    default DelayPolicy<T> withUniformJitter(long range, TimeUnit timeUnit) {
         return withUniformJitter(Timeouts.toDuration(range, timeUnit));
     }
     
-    default DelayPolicy withUniformJitter(Duration range) {
-        return new UniformRandomDelayPolicy(this, range);
+    default DelayPolicy<T> withUniformJitter(Duration range) {
+        return new UniformRandomDelayPolicy<>(this, range);
     }
 
-    default DelayPolicy withProportionalJitter() {
-        return new ProportionalRandomDelayPolicy(this);
+    default DelayPolicy<T> withProportionalJitter() {
+        return new ProportionalRandomDelayPolicy<>(this);
     }
 
-    default DelayPolicy withProportionalJitter(double multiplier) {
-        return new ProportionalRandomDelayPolicy(this, multiplier);
+    default DelayPolicy<T> withProportionalJitter(double multiplier) {
+        return new ProportionalRandomDelayPolicy<>(this, multiplier);
     }
     
-    default DelayPolicy withMinDelay() {
-        return new BoundedMinDelayPolicy(this);
+    default DelayPolicy<T> withMinDelay() {
+        return new BoundedMinDelayPolicy<>(this);
     }
 
-    default DelayPolicy withMinDelay(Duration minDelay) {
-        return new BoundedMinDelayPolicy(this, minDelay);
+    default DelayPolicy<T> withMinDelay(Duration minDelay) {
+        return new BoundedMinDelayPolicy<>(this, minDelay);
     }
 
-    default DelayPolicy withMinDelay(long minDelay, TimeUnit timeUnit) {
+    default DelayPolicy<T> withMinDelay(long minDelay, TimeUnit timeUnit) {
         return withMaxDelay(Timeouts.toDuration(minDelay, timeUnit));
     }
     
-    default DelayPolicy withMinDelay(long minDelayMillis) {
+    default DelayPolicy<T> withMinDelay(long minDelayMillis) {
         return withMinDelay(Duration.ofMillis(minDelayMillis));
     }
 
-    default DelayPolicy withMaxDelay() {
-        return new BoundedMaxDelayPolicy(this);
+    default DelayPolicy<T> withMaxDelay() {
+        return new BoundedMaxDelayPolicy<>(this);
     }
 
-    default DelayPolicy withMaxDelay(Duration maxDelay) {
-        return new BoundedMaxDelayPolicy(this, maxDelay);
+    default DelayPolicy<T> withMaxDelay(Duration maxDelay) {
+        return new BoundedMaxDelayPolicy<>(this, maxDelay);
     }
     
-    default DelayPolicy withMaxDelay(long maxDelay, TimeUnit timeUnit) {
+    default DelayPolicy<T> withMaxDelay(long maxDelay, TimeUnit timeUnit) {
         return withMaxDelay(Timeouts.toDuration(maxDelay, timeUnit));
     }
     
-    default DelayPolicy withMaxDelay(long maxDelayMillis) {
+    default DelayPolicy<T> withMaxDelay(long maxDelayMillis) {
         return withMaxDelay(Duration.ofMillis(maxDelayMillis));
     }
 
-    default DelayPolicy withFirstRetryNoDelay() {
-        return new FirstRetryNoDelayPolicy(this);
+    default DelayPolicy<T> withFirstRetryNoDelay() {
+        return new FirstRetryNoDelayPolicy<>(this);
     }
     
     public static boolean isValid(Duration d) {

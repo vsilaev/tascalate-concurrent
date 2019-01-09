@@ -30,24 +30,24 @@ import java.util.function.Supplier;
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
-abstract public class RandomDelayPolicy extends DelayPolicyWrapper {
+abstract public class RandomDelayPolicy<T> extends DelayPolicyWrapper<T> {
     private final Supplier<Random> randomSource;
 
-    protected RandomDelayPolicy(DelayPolicy target) {
+    protected RandomDelayPolicy(DelayPolicy<? super T> target) {
         this(target, ThreadLocalRandom::current);
     }
 
-    protected RandomDelayPolicy(DelayPolicy target, Random randomSource) {
+    protected RandomDelayPolicy(DelayPolicy<? super T> target, Random randomSource) {
         this(target, () -> randomSource);
     }
 
-    private RandomDelayPolicy(DelayPolicy target, Supplier<Random> randomSource) {
+    private RandomDelayPolicy(DelayPolicy<? super T> target, Supplier<Random> randomSource) {
         super(target);
         this.randomSource = randomSource;
     }
     
     @Override
-    public Duration delay(RetryContext context) {
+    public Duration delay(RetryContext<? extends T> context) {
         double randomizer = random().nextDouble();
         return DurationCalcs.safeTransform(
             target.delay(context), 

@@ -17,28 +17,21 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 
-public final class RetryContext {
-    private final RetryPolicy policy;
+public final class RetryContext<T> {
+    private final RetryPolicy<? super T> policy;
     private final int retryCount;
     private final Duration lastCallDuration;
-    private final Throwable lastThrowable;
+    private final T lastResult;
+    private final Throwable lastError;
     
-    private RetryContext(RetryPolicy policy, int retryCount, Duration lastCallDuration, Throwable lastThrowable) {
+    private RetryContext(RetryPolicy<? super T> policy, int retryCount, Duration lastCallDuration, T lastResult, Throwable lastError) {
         this.policy = policy;
         this.retryCount = retryCount;
-        this.lastCallDuration = lastCallDuration; 
-        this.lastThrowable = lastThrowable;
+        this.lastCallDuration = lastCallDuration;
+        this.lastResult = lastResult;
+        this.lastError  = lastError;
     }
-    
 
-    static RetryContext initial(RetryPolicy policy) {
-        return new RetryContext(policy, 0, Duration.ZERO, null);
-    }
-    
-    RetryPolicy.Outcome shouldContinue() {
-        return policy.shouldContinue(this);
-    }
-    
     public int getRetryCount() {
         return retryCount;
     }
@@ -47,33 +40,54 @@ public final class RetryContext {
         return lastCallDuration;
     }
 
-    public Throwable getLastThrowable() {
-        return lastThrowable;
+    public T getLastResult() {
+        return lastResult;
+    }    
+    
+    public Throwable getLastError() {
+        return lastError;
     }
     
-    RetryContext nextRetry(Duration callDuration) {
-        return nextRetry(callDuration, null);
+    public RetryContext<T> overrideRetryCount(int newRetryCount) {
+        return new RetryContext<>(policy, newRetryCount, lastCallDuration, lastResult, lastError);
     }
     
-    RetryContext nextRetry(Duration callDuration, Throwable throwable) {
-        return new RetryContext(policy, retryCount + 1, callDuration, throwable);
+    public RetryContext<T> overrideLastCallDuration(Duration newDuration) {
+        return new RetryContext<>(policy, retryCount, newDuration, lastResult, lastError);
+    }
+
+    public RetryContext<T> overrideLastResult(T newResult) {
+        return new RetryContext<>(policy, retryCount, lastCallDuration, newResult, lastError);
+    }
+    
+    public RetryContext<T> overrideLastError(Throwable newError) {
+        return new RetryContext<>(policy, retryCount, lastCallDuration, lastResult, newError);
+    }
+    
+    static <T> RetryContext<T> initial(RetryPolicy<? super T> policy) {
+        return new RetryContext<>(policy, 0, Duration.ZERO, null, null);
+    }
+    
+    RetryPolicy.Verdict shouldContinue() {
+        return policy.shouldContinue(this);
+    }
+    
+    RetryContext<T> nextRetry(Duration callDuration, T lastResult) {
+        return new RetryContext<>(policy, retryCount + 1, callDuration, lastResult, null);
+    }
+    
+    RetryContext<T> nextRetry(Duration callDuration, Throwable lastError) {
+        return new RetryContext<>(policy, retryCount + 1, callDuration, null, lastError);
+    }
+    
+    boolean isValidResult(T newResult) {
+        return policy.acceptResult(newResult);
     }
     
     RetryException asFailure() {
-        RetryException result = new RetryException(retryCount, lastCallDuration, lastThrowable);
+        RetryException result = new RetryException(retryCount, lastCallDuration, lastError);
         result.fillInStackTrace();
         return result;
     }
-    
-    public RetryContext overrideRetryCount(int newRetryCount) {
-        return new RetryContext(policy, newRetryCount, lastCallDuration, lastThrowable);
-    }
-    
-    public RetryContext overrideLastCallDuration(Duration newDuration) {
-        return new RetryContext(policy, retryCount, newDuration, lastThrowable);
-    }
 
-    public RetryContext overrideLastThrowable(Throwable newThrowable) {
-        return new RetryContext(policy, retryCount, lastCallDuration, newThrowable);
-    }
 }

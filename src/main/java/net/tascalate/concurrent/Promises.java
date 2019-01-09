@@ -449,83 +449,45 @@ public class Promises {
         }
     }
     
-    public static Promise<Void> retry(Runnable codeBlock, Executor executor, RetryPolicy retryPolicy) {
+    public static Promise<Void> retry(Runnable codeBlock, Executor executor, RetryPolicy<? super Void> retryPolicy) {
         return retry(ctx -> { codeBlock.run(); }, executor, retryPolicy);
     }
     
-    public static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        Promise<Object> wrappedResult = poll(
-            ctx -> { codeBlock.run(ctx); return IGNORE; }, 
-            executor, retryPolicy
-        );
-        return wrappedResult.dependent()
-                            .thenApply(v -> (Void)null, true)
-                            .raw();  
-    }
-    
-    public static <T> Promise<T> retry(Callable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        return retry(toRetryCallable(codeBlock), executor, retryPolicy);
-    }
-    
-    public static <T> Promise<T> retry(RetryCallable<? extends T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        Promise<Reference<T>> wrappedResult = poll(
-            ctx -> new Reference<>( codeBlock.call(ctx) ), 
-            executor, retryPolicy
-        );
-        return wrappedResult.dependent()
-                            .thenApply(Reference::get, true)
-                            .raw();
-    }
-    
-    public static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<? extends T>> invoker, RetryPolicy retryPolicy) {
-        return retryFuture(toRetryCallable(invoker), retryPolicy);
-    }
-    
-    public static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<? extends T>> invoker, RetryPolicy retryPolicy) {
-        Promise<Reference<T>> wrappedResult = pollFuture(
-            ctx -> Promises.from(invoker.call(ctx))
-                           .dependent()
-                           .thenApply(r -> new Reference<T>(r), true)
-                           .raw()
-            , 
-            retryPolicy
-        );
-        return wrappedResult.dependent()
-                            .thenApply(Reference::get, true)
-                            .raw();
-    }
-    
-    public static <T> Promise<T> poll(Callable<T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        return poll(toRetryCallable(codeBlock), executor, retryPolicy);
+    public static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, RetryPolicy<? super Void> retryPolicy) {
+        return retry(ctx -> { codeBlock.run(ctx); return null; }, executor, retryPolicy.acceptNullResult());
     }
 
-    public static <T> Promise<T> poll(RetryCallable<T> codeBlock, Executor executor, RetryPolicy retryPolicy) {
+    public static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
+        return retry(toRetryCallable(codeBlock), executor, retryPolicy);
+    }
+
+    public static <T> Promise<T> retry(RetryCallable<T, T> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
         return invokePoller(
             retryPolicy, 
             (ctx, result, cancellation) -> pollValueOnce(codeBlock, executor, ctx, result, cancellation)
         );
     }
     
-    public static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        return pollOptional(toRetryCallable(codeBlock), executor, retryPolicy);
+    public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
+        return retryOptional(toRetryCallable(codeBlock), executor, retryPolicy);
     }
     
-    public static <T> Promise<T> pollOptional(RetryCallable<Optional<? extends T>> codeBlock, Executor executor, RetryPolicy retryPolicy) {
-        return poll(ctx -> codeBlock.call(ctx).orElse(null), executor, retryPolicy);
+    public static <T> Promise<T> retryOptional(RetryCallable<Optional<T>, T> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
+        return retry(ctx -> codeBlock.call(ctx).orElse(null), executor, retryPolicy);
     }
     
-    public static <T> Promise<T> pollFuture(Callable<? extends CompletionStage<? extends T>> invoker, RetryPolicy retryPolicy) {
-        return pollFuture(toRetryCallable(invoker), retryPolicy);
+    public static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, RetryPolicy<? super T> retryPolicy) {
+        return retryFuture(toRetryCallable(invoker), retryPolicy);
     }
     
-    public static <T> Promise<T> pollFuture(RetryCallable<? extends CompletionStage<? extends T>> invoker, RetryPolicy retryPolicy) {
+    public static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, T> invoker, RetryPolicy<? super T> retryPolicy) {
         return invokePoller(
             retryPolicy, 
             (ctx, result, cancellation) -> pollFutureOnce(invoker, ctx, result, cancellation, null)
         );
     }
     
-    private static <T> Promise<T> invokePoller(RetryPolicy retryPolicy, F3<RetryContext, CompletableFuture<T>, Consumer<Promise<?>>> initiator) {
+    private static <T> Promise<T> invokePoller(RetryPolicy<? super T> retryPolicy, F3<RetryContext<T>, CompletableFuture<T>, Consumer<Promise<?>>> initiator) {
         final CompletableFuture<T> result = new CompletableFuture<>();
         final AtomicReference<Promise<?>> callPromiseRef = new AtomicReference<>();
         // Cleanup latest timeout on completion;
@@ -544,14 +506,14 @@ public class Promises {
             }
         };
         
-        RetryContext ctx = RetryContext.initial(retryPolicy);     
+        RetryContext<T> ctx = RetryContext.initial(retryPolicy);     
         initiator.apply(ctx, result, cancellation);
         return new CompletableFutureWrapper<>(result);
     }
     
-    private static <T> void pollValueOnce(RetryCallable<? extends T> codeBlock, 
+    private static <T> void pollValueOnce(RetryCallable<T, T> codeBlock, 
                                           Executor executor, 
-                                          RetryContext ctx, 
+                                          RetryContext<T> ctx, 
                                           CompletableFuture<T> result, 
                                           Consumer<Promise<?>> cancellation) {
         
@@ -560,35 +522,36 @@ public class Promises {
             return;
         }
         
-        RetryPolicy.Outcome answer = ctx.shouldContinue();
-        if (answer.shouldExecute()) {
+        RetryPolicy.Verdict verdict = ctx.shouldContinue();
+        if (verdict.shouldExecute()) {
             Supplier<Promise<?>> callSupplier = () -> {
                 long startTime = System.nanoTime();                
                 Runnable call = () -> {
                     try {
                         T value = codeBlock.call(ctx);
-                        if (value != null) {
+                        if (ctx.isValidResult(value)) {
                             result.complete(value);
                         } else {
                             long finishTime = System.nanoTime();
-                            RetryContext nextCtx = ctx.nextRetry(duration(startTime, finishTime));
+                            RetryContext<T> nextCtx = ctx.nextRetry(duration(startTime, finishTime), value);
                             pollValueOnce(codeBlock, executor, nextCtx, result, cancellation);
                         }
                     } catch (Exception ex) {
                         long finishTime = System.nanoTime();
-                        RetryContext nextCtx = ctx.nextRetry(duration(startTime, finishTime), ex);
+                        RetryContext<T> nextCtx = ctx.nextRetry(duration(startTime, finishTime), ex);
                         pollValueOnce(codeBlock, executor, nextCtx, result, cancellation);
                     }
                 };
                 
                 // Call should be done via CompletableTask to let it be interruptible               
             	Promise<?> p = CompletableTask.runAsync(call, executor);
-            	return applyExecutionTimeout(p, answer);
+            	return applyExecutionTimeout(p, verdict);
             };
-            Duration backoffDelay = answer.backoffDelay();
+            Duration backoffDelay = verdict.backoffDelay();
             if (DelayPolicy.isValid(backoffDelay)) {
                 // Invocation after timeout, change cancellation target
-                Promise<?> later = Timeouts.delay( backoffDelay )
+                Promise<?> later = Timeouts
+                    .delay(backoffDelay)
                     .dependent()
                     .thenRun(() -> cancellation.accept( callSupplier.get() ), true);
                 cancellation.accept( later );
@@ -601,8 +564,8 @@ public class Promises {
         }
     }
     
-    private static <T> void pollFutureOnce(RetryCallable<? extends CompletionStage<? extends T>> invoker, 
-                                           RetryContext ctx, 
+    private static <T> void pollFutureOnce(RetryCallable<? extends CompletionStage<T>, T> invoker, 
+                                           RetryContext<T> ctx, 
                                            CompletableFuture<T> result,
                                            Consumer<Promise<?>> cancellation,
                                            Promise<?> prev) {
@@ -611,8 +574,8 @@ public class Promises {
             return;
         }
         
-        RetryPolicy.Outcome answer = ctx.shouldContinue();
-        if (answer.shouldExecute()) {
+        RetryPolicy.Verdict verdict = ctx.shouldContinue();
+        if (verdict.shouldExecute()) {
             Supplier<Promise<?>> callSupplier = () -> {
                 long startTime = System.nanoTime();
                 
@@ -628,11 +591,11 @@ public class Promises {
 
                 Promise<? extends T> p = target;
                 p.whenComplete((value, ex) -> {
-                    if (null == ex && null != value) {
+                    if (null == ex && ctx.isValidResult(value)) {
                         result.complete(value);
                     } else {
                         long finishTime = System.nanoTime();
-                        RetryContext nextCtx = ctx.nextRetry(
+                        RetryContext<T> nextCtx = ctx.nextRetry(
                             duration(startTime, finishTime), unwrapCompletionException(ex)
                         );
                         boolean callLater = isRecursive.get() && Thread.currentThread() == invokerThread;
@@ -648,9 +611,9 @@ public class Promises {
                     }
                 });
                 isRecursive.set(false);
-                return applyExecutionTimeout(p, answer);
+                return applyExecutionTimeout(p, verdict);
             };
-            Duration backoffDelay = answer.backoffDelay();
+            Duration backoffDelay = verdict.backoffDelay();
             if (null != prev && DelayPolicy.isValid(backoffDelay)) {
                 callLater(prev, backoffDelay, cancellation, () -> cancellation.accept( callSupplier.get() ));
             } else {
@@ -670,8 +633,8 @@ public class Promises {
         cancellation.accept(later);
     }
     
-    private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Outcome answer) {
-        Duration timeout = answer.timeout();
+    private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Verdict verdict) {
+        Duration timeout = verdict.timeout();
         if (DelayPolicy.isValid(timeout)) {
             singleInvocationPromise.orTimeout( timeout );
         }
@@ -721,7 +684,7 @@ public class Promises {
         throw new IllegalArgumentException(message);        
     }
     
-    private static <V> RetryCallable<V> toRetryCallable(Callable<? extends V> callable) {
+    private static <V, T> RetryCallable<V, T> toRetryCallable(Callable<? extends V> callable) {
         return ctx -> callable.call();
     }
     

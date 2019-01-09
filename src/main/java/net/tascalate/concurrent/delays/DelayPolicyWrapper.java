@@ -27,11 +27,11 @@ import java.util.Objects;
 
 import net.tascalate.concurrent.DelayPolicy;
 
-public abstract class DelayPolicyWrapper implements DelayPolicy {
+public abstract class DelayPolicyWrapper<T> implements DelayPolicy<T> {
 
-    protected final DelayPolicy target;
+    protected final DelayPolicy<? super T> target;
 
-    public DelayPolicyWrapper(DelayPolicy target) {
+    public DelayPolicyWrapper(DelayPolicy<? super T> target) {
         this.target = Objects.requireNonNull(target);
     }
     

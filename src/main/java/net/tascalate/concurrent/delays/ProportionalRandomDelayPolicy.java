@@ -26,7 +26,7 @@ import java.util.Random;
 
 import net.tascalate.concurrent.DelayPolicy;
 
-public class ProportionalRandomDelayPolicy extends RandomDelayPolicy {
+public class ProportionalRandomDelayPolicy<T> extends RandomDelayPolicy<T> {
     /**
      * Randomly up to +/- 10%
      */
@@ -34,15 +34,15 @@ public class ProportionalRandomDelayPolicy extends RandomDelayPolicy {
 
     private final double multiplier;
 
-    public ProportionalRandomDelayPolicy(DelayPolicy target) {
+    public ProportionalRandomDelayPolicy(DelayPolicy<? super T> target) {
         this(target, DEFAULT_MULTIPLIER);
     }
 
-    public ProportionalRandomDelayPolicy(DelayPolicy target, Random random) {
+    public ProportionalRandomDelayPolicy(DelayPolicy<? super T> target, Random random) {
         this(target, DEFAULT_MULTIPLIER, random);
     }
 
-    public ProportionalRandomDelayPolicy(DelayPolicy target, double multiplier) {
+    public ProportionalRandomDelayPolicy(DelayPolicy<? super T> target, double multiplier) {
         super(target);
         if (multiplier <= 0) {
             throw new IllegalArgumentException("Multiplier must be a positive number but was: " + multiplier);
@@ -50,7 +50,7 @@ public class ProportionalRandomDelayPolicy extends RandomDelayPolicy {
         this.multiplier = multiplier;
     }
 
-    public ProportionalRandomDelayPolicy(DelayPolicy target, double multiplier, Random random) {
+    public ProportionalRandomDelayPolicy(DelayPolicy<? super T> target, double multiplier, Random random) {
         super(target, random);
         if (multiplier <= 0) {
             throw new IllegalArgumentException("Multiplier must be a positive number but was: " + multiplier);

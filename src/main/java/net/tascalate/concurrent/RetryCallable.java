@@ -16,6 +16,6 @@
 package net.tascalate.concurrent;
 
 @FunctionalInterface
-public interface RetryCallable<V> {
-    V call(RetryContext ctx) throws Exception;
+public interface RetryCallable<V, T> {
+    V call(RetryContext<T> ctx) throws Exception;
 }

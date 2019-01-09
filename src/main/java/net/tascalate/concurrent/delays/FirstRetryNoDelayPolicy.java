@@ -27,14 +27,14 @@ import java.time.Duration;
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
-public class FirstRetryNoDelayPolicy extends DelayPolicyWrapper {
+public class FirstRetryNoDelayPolicy<T> extends DelayPolicyWrapper<T> {
     
-    public FirstRetryNoDelayPolicy(DelayPolicy target) {
+    public FirstRetryNoDelayPolicy(DelayPolicy<? super T> target) {
         super(target);
     }
 
     @Override
-    public Duration delay(RetryContext context) {
+    public Duration delay(RetryContext<? extends T> context) {
         if (context.getRetryCount() == 0) {
             return Duration.ZERO;
         } else {

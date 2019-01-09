@@ -70,32 +70,33 @@ public class J8Examples {
         //p.cancel(true);
         p.get();
         
-        Promise<String> retry1 = Promises.poll(
+        Promise<String> retry1 = Promises.retry(
             () -> "ABC",
             executorService, RetryPolicy.DEFAULT
         );
         
         Promise<String> retry2 = Promises.retry(
             ctx -> "ABC",
-            executorService, RetryPolicy.DEFAULT
+            executorService, RetryPolicy.DEFAULT.rejectNullResult()
         );
 
-        System.out.println(retry1 + " vs " + retry2);
+        System.out.println(retry1.join() + " vs " + retry2.join());
 
-        Promise<String> pollerFuture = Promises.pollFuture( 
+        Promise<String> pollerFuture = Promises.retryFuture( 
             ctx -> pollingFutureMethod(ctx, executorService),
             RetryPolicy.DEFAULT
-            .withMaxRetries(10)
-            .withBackoff(DelayPolicy.fixedInterval(200))
+                       .withMaxRetries(10)
+                       .withBackoff(DelayPolicy.fixedInterval(200))
         );
         System.out.println("Poller (future): " + pollerFuture.get());
         
         Promise<String> pollerPlain = Promises.retry(
             J8Examples::pollingMethod, executorService, 
             RetryPolicy.DEFAULT
-            .withMaxRetries(10)
-            .withTimeout(DelayPolicy.fixedInterval(3200))
-            .withBackoff(DelayPolicy.fixedInterval(200).withMinDelay(100).withFirstRetryNoDelay())
+                       .rejectNullResult()
+                       .withMaxRetries(10)
+                       .withTimeout(DelayPolicy.fixedInterval(3200))
+                       .withBackoff(DelayPolicy.fixedInterval(200).withMinDelay(100).withFirstRetryNoDelay())
         );
         
         System.out.println("Poller (plain): " + pollerPlain.get());
@@ -235,7 +236,7 @@ public class J8Examples {
         return "PRODUCED" + suffix;
     }
     
-    private static String pollingMethod(RetryContext ctx) throws InterruptedException {
+    private static String pollingMethod(RetryContext<String> ctx) throws InterruptedException {
         System.out.println("Polling method, #" + ctx.getRetryCount());
         try {
             if (ctx.getRetryCount() < 5) {
@@ -252,7 +253,7 @@ public class J8Examples {
         }
     }
     
-    private static CompletionStage<String> pollingFutureMethod(RetryContext ctx, Executor executor) throws InterruptedException {
+    private static CompletionStage<String> pollingFutureMethod(RetryContext<String> ctx, Executor executor) throws InterruptedException {
         System.out.println("Polling future, #" + ctx.getRetryCount());
         if (ctx.getRetryCount() < 3) {
             throw new RuntimeException("Fail to start future");

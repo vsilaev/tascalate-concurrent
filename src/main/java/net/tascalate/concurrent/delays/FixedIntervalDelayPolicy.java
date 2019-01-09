@@ -27,7 +27,7 @@ import java.time.Duration;
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
-public class FixedIntervalDelayPolicy implements DelayPolicy {
+public class FixedIntervalDelayPolicy<T> implements DelayPolicy<T> {
     public static final long DEFAULT_PERIOD_MILLIS = 1000;
 
     private final Duration interval;
@@ -45,7 +45,7 @@ public class FixedIntervalDelayPolicy implements DelayPolicy {
     }
 
     @Override
-    public Duration delay(RetryContext context) {
+    public Duration delay(RetryContext<? extends T> context) {
         return interval;
     }
 }

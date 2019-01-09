@@ -27,7 +27,7 @@ import java.util.Random;
 
 import net.tascalate.concurrent.DelayPolicy;
 
-public class UniformRandomDelayPolicy extends RandomDelayPolicy {
+public class UniformRandomDelayPolicy<T> extends RandomDelayPolicy<T> {
     /**
      * Randomly between +/- 100ms
      */
@@ -35,19 +35,19 @@ public class UniformRandomDelayPolicy extends RandomDelayPolicy {
 
     private final Duration range;
 
-    public UniformRandomDelayPolicy(DelayPolicy target) {
+    public UniformRandomDelayPolicy(DelayPolicy<? super T> target) {
         this(target, DEFAULT_RANDOM_RANGE_MILLIS);
     }
 
-    public UniformRandomDelayPolicy(DelayPolicy target, Random random) {
+    public UniformRandomDelayPolicy(DelayPolicy<? super T> target, Random random) {
         this(target, DEFAULT_RANDOM_RANGE_MILLIS, random);
     }
 
-    public UniformRandomDelayPolicy(DelayPolicy target, long range) {
+    public UniformRandomDelayPolicy(DelayPolicy<? super T> target, long range) {
         this(target, Duration.ofMillis(range));
     }
     
-    public UniformRandomDelayPolicy(DelayPolicy target, Duration range) {
+    public UniformRandomDelayPolicy(DelayPolicy<? super T> target, Duration range) {
         super(target);
         if (!DelayPolicy.isValid(range)) {
             throw new IllegalArgumentException("Range must be positive but was: " + range);
@@ -55,11 +55,11 @@ public class UniformRandomDelayPolicy extends RandomDelayPolicy {
         this.range = range;
     }
 
-    public UniformRandomDelayPolicy(DelayPolicy target, long range, Random random) {
+    public UniformRandomDelayPolicy(DelayPolicy<? super T> target, long range, Random random) {
         this(target, Duration.ofMillis(range), random);
     }
     
-    public UniformRandomDelayPolicy(DelayPolicy target, Duration range, Random random) {
+    public UniformRandomDelayPolicy(DelayPolicy<? super T> target, Duration range, Random random) {
         super(target, random);
         if (!DelayPolicy.isValid(range)) {
             throw new IllegalArgumentException("Range must be positive but was: " + range);

@@ -27,7 +27,7 @@ import java.time.Duration;
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
-public class ExponentialDelayPolicy implements DelayPolicy {
+public class ExponentialDelayPolicy<T> implements DelayPolicy<T> {
     private final Duration initialDelay;
     private final double multiplier;
 
@@ -51,7 +51,7 @@ public class ExponentialDelayPolicy implements DelayPolicy {
     }
 
     @Override
-    public Duration delay(RetryContext context) {
+    public Duration delay(RetryContext<? extends T> context) {
         double factor = Math.pow(multiplier, context.getRetryCount());
         return DurationCalcs.safeTransform(
             initialDelay, 

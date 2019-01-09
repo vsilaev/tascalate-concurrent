@@ -27,20 +27,20 @@ import java.time.Duration;
 import net.tascalate.concurrent.DelayPolicy;
 import net.tascalate.concurrent.RetryContext;
 
-public class BoundedMinDelayPolicy extends DelayPolicyWrapper {
+public class BoundedMinDelayPolicy<T> extends DelayPolicyWrapper<T> {
     public static final long DEFAULT_MIN_DELAY_MILLIS = 100;
 
     private final Duration minDelay;
 
-    public BoundedMinDelayPolicy(DelayPolicy target) {
+    public BoundedMinDelayPolicy(DelayPolicy<? super T> target) {
         this(target, DEFAULT_MIN_DELAY_MILLIS);
     }
 
-    public BoundedMinDelayPolicy(DelayPolicy target, long minDelayMillis) {
+    public BoundedMinDelayPolicy(DelayPolicy<? super T> target, long minDelayMillis) {
         this(target, Duration.ofMillis(minDelayMillis));
     }
     
-    public BoundedMinDelayPolicy(DelayPolicy target, Duration minDelay) {
+    public BoundedMinDelayPolicy(DelayPolicy<? super T> target, Duration minDelay) {
         super(target);
         if (!DelayPolicy.isValid(minDelay)) {
             throw new IllegalArgumentException("MinDelay must be positive but was: " + minDelay);
@@ -49,7 +49,7 @@ public class BoundedMinDelayPolicy extends DelayPolicyWrapper {
     }
 
     @Override
-    public Duration delay(RetryContext context) {
+    public Duration delay(RetryContext<? extends T> context) {
         return max(target.delay(context), minDelay);
     }
 }
