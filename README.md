@@ -24,7 +24,7 @@ To use a library you have to add a single Maven dependency
 ```
 # What is inside?
 ## 1.	Promise interface
-This is the core intarface of the Tascalate Concurrent library. It may be best described by the formula: 
+This is the core interface of the Tascalate Concurrent library. It may be best described by the formula: 
 ```java
 Promise == CompletionStage + Future
 ```
@@ -193,7 +193,7 @@ It's worth to mention, that _both_ `processResultSync` and `processResultAsync` 
 
 The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when ommitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete. Pay attaention: any `Promise` is cancellable on timeout, even wrappers created via `Promises.from(stage)`, but only `CompletableTask` is interruptible!
 
-Cancelling original promise on timeout is a desired behavior in most cases but not always. The library provides an option to set several non-cancelling timeouts like in example below:
+Cancelling original promise on timeout is a desired behavior in most cases but not always. In reality, "Warn-first-Cancel-next" scenario happens quite oftently, where "warn" may be logging, sending notification emails, showing messages to user on UI etc. The library provides an option to set several non-cancelling timeouts like in the example below:
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> resultPromise = CompletableTask
@@ -319,7 +319,7 @@ As long as back-off execution is not a very rare case, the library provides the 
 static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor);
 static Promise<Duration> delay(Duration duration, Executor executor);
 ```
-## 5. Combining several `Promise`-s
+## 5. Combining several CompletionStage-s.
 The utility class `Promises` provides convenient methods to combine several `CompletionStage`-s:
 
 ```java
@@ -364,7 +364,7 @@ All methods above have an optional parameter `cancelRemaining` (since library's 
 
 There are 2 overloads of aforementioned combinator methods that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library) or varagr array of `CompletionStage`-s.
 
-Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods returns a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or failed with strict version, then resulting `Promise` is settled with a failure of type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
+Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods returns a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one failed with strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
 
 ## 6. DependentPromise
 As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
@@ -438,14 +438,33 @@ public Promise<DataStructure> loadData(String url) {
 ```
 
 ## 7. Polling and asynchronous retry functionality
+Once you departure from the pure algebraic calculations to the unreliable terrain of the I/O-related functionality you have to deal with failures. Network outage, insuffcient disk space, overloaded third-party servers, exhausted database connection pools - these and many similar infrastructure failures is what application have to cope with flawlessly. And many of the aforementioned issues are temporal by the nature, so it makes sense to re-try after small delay and keep fingers crossed that this time everything will run smoothly. So this is the primary use-case for the retry functionality, or better yet -- asynchronous retry functionality, while all we want our applications be as scalable as possible.
+
+Another related area is polling functionality - unlike infrastructure failures these are sporadic, polling is built-in in certain asynchronous protocol communications. Say, an application sends an HTTP request to generate a report and waits for the known file on FTP server. There is no "asynchronous reply" expected from the third-party server, and the application has to `poll` periodically till the file will be available.
+
+Both use-case are fully supported by the Tascalate Concurrent library. The library provides an API that is both unobtrusive and rich for a wide range of tasks. The following `retry*` methods are available in the `Promises` class:
+
 Provided by utility class Promises but stands on its own
 ```java
-static Promise<Void> poll(Runnable codeBlock, 
-                          Executor executor, RetryPolicy retryPolicy)
-static <T> Promise<T> poll(Callable<? extends T> codeBlock, 
-                           Executor executor, RetryPolicy retryPolicy)
-static <T> Promise<T> pollOptional(Callable<Optional<? extends T>> codeBlock, 
-                                   Executor executor, RetryPolicy retryPolicy)
+static Promise<Void> retry(Runnable codeBlock, Executor executor, 
+                           RetryPolicy<? super Void> retryPolicy);
+static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, 
+                           RetryPolicy<? super Void> retryPolicy);
+
+static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, 
+                            RetryPolicy<? super T> retryPolicy);
+static <T> Promise<T> retry(RetryCallable<T, T> codeBlock, Executor executor, 
+                            RetryPolicy<? super T> retryPolicy);
+    
+static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
+                                    RetryPolicy<? super T> retryPolicy);
+static <T> Promise<T> retryOptional(RetryCallable<Optional<T>, T> codeBlock, Executor executor, 
+                                    RetryPolicy<? super T> retryPolicy);
+    
+static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, 
+                                  RetryPolicy<? super T> retryPolicy);
+static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, T> invoker, 
+                                  RetryPolicy<? super T> retryPolicy);
 ```
 TBD
 
