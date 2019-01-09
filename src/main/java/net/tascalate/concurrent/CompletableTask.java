@@ -175,12 +175,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   the new {@link Promise}
      */
     public static Promise<Void> runAsync(Runnable runnable, Executor executor) {
-        CompletableTask<Void> result = new CompletableTask<>(executor, () -> { 
-            runnable.run(); 
-            return null; 
-        });
-        executor.execute(result);
-        return result;
+        return submit(() -> { runnable.run(); return null; }, executor);
     }
     
     /**
@@ -196,7 +191,23 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   the new {@link Promise}
      */
     public static <U> Promise<U> supplyAsync(Supplier<U> supplier, Executor executor) {
-        CompletableTask<U> result = new CompletableTask<>(executor, supplier::get);
+        return submit(supplier::get, executor);
+    }
+    
+    /**
+     * Returns a new {@link Promise} that is asynchronously resolved by a task running in the given executor 
+     * with the value obtained by calling the given {@link Callable}.
+     * @param <U>
+     *   the function's return type
+     * @param call
+     *   a function returning the value to be used to resolve the returned {@link Promise}
+     * @param executor
+     *   the executor to use for asynchronous execution
+     * @return
+     *   the new {@link Promise}
+     */
+    public static <U> Promise<U> submit(Callable<U> call, Executor executor) {
+        CompletableTask<U> result = new CompletableTask<>(executor, call);
         executor.execute(result);
         return result;
     }
