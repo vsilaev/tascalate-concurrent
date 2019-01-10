@@ -28,12 +28,28 @@ import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 
 public class J8Examples {
     
-    static BigInteger tryCalc(RetryContext<Number> ctx) {
-        return BigInteger.ONE;
-    }
-
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
+        
+        @SuppressWarnings("unused")
+        Promise<Void>   t1 = Promises.retry(() -> System.out.println("Hello!"), executorService, RetryPolicy.DEFAULT);
+        
+        @SuppressWarnings("unused")
+        Promise<String> t2 = Promises.retry(() -> "Hello!", executorService, RetryPolicy.DEFAULT);
+        
+        // Must be a block of code in next sample -- otherwise ambiguity
+        @SuppressWarnings("unused")
+        Promise<Void>   t3 = Promises.retry(ctx -> {System.out.println("Hello!");}, executorService, RetryPolicy.DEFAULT);
+        
+        @SuppressWarnings("unused")
+        Promise<String> t4 = Promises.retry(ctx -> "Hello!", executorService, RetryPolicy.DEFAULT);
+        
+        @SuppressWarnings("unused")
+        Promise<Void> t5 = Promises.retry(J8Examples::nop, executorService, RetryPolicy.DEFAULT);
+        
+        @SuppressWarnings("unused")
+        Promise<Void> t6 = Promises.retry(J8Examples::nopCtx, executorService, RetryPolicy.DEFAULT);
+
         
         Promise<BigInteger> tryTyping = Promises.retry(
             J8Examples::tryCalc, executorService, 
@@ -263,6 +279,18 @@ public class J8Examples {
             }, executor);
         }
         return CompletableTask.supplyAsync(() -> "42", executor);
+    }
+    
+    static BigInteger tryCalc(RetryContext<Number> ctx) {
+        return BigInteger.ONE;
+    }
+    
+    static void nop() {
+        
+    }
+    
+    static void nopCtx(RetryContext<?> ctx) {
+        
     }
     
     private static void onComplete(int i) {
