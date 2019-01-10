@@ -470,7 +470,7 @@ public class Promises {
     public static <C, T extends C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
                                                     RetryPolicy<? super C> retryPolicy) {
         
-        // Need type on lambda param to please Eclipse compiler        
+        // Need explicit type on lambda param        
         return invokePoller(retryPolicy, (RetryContext<C> ctx, 
                                           CompletableFuture<T> result, 
                                           Consumer<Promise<?>> cancellation) 
@@ -487,7 +487,7 @@ public class Promises {
     public static <C, T extends C> Promise<T> retryOptional(RetryCallable<Optional<T>, C> codeBlock, Executor executor, 
                                                             RetryPolicy<? super C> retryPolicy) {
         
-        // Need type on lambda param to please Eclipse compiler
+        // Need explicit type on lambda param
         return retry((RetryContext<C> ctx) -> codeBlock.call(ctx).orElse(null), executor, retryPolicy);
     }
     
@@ -500,6 +500,7 @@ public class Promises {
     public static <C, T extends C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
                                                           RetryPolicy<? super C> retryPolicy) {
         
+        // Need explicit type on lambda param        
         return invokePoller(retryPolicy, (RetryContext<C> ctx, 
                                           CompletableFuture<T> result, 
                                           Consumer<Promise<?>> cancellation) 
