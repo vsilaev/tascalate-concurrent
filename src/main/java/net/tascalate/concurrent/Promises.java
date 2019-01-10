@@ -449,45 +449,67 @@ public class Promises {
         }
     }
     
-    public static Promise<Void> retry(Runnable codeBlock, Executor executor, RetryPolicy<? super Void> retryPolicy) {
+    public static Promise<Void> retry(Runnable codeBlock, Executor executor, 
+                                      RetryPolicy<? super Void> retryPolicy) {
+        
         return retry(ctx -> { codeBlock.run(); }, executor, retryPolicy);
     }
     
-    public static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, RetryPolicy<? super Void> retryPolicy) {
+    public static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, 
+                                      RetryPolicy<? super Void> retryPolicy) {
+        
         return retry(ctx -> { codeBlock.run(ctx); return null; }, executor, retryPolicy.acceptNullResult());
     }
 
-    public static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
+    public static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, 
+                                       RetryPolicy<? super T> retryPolicy) {
+        
         return retry(toRetryCallable(codeBlock), executor, retryPolicy);
     }
 
-    public static <T> Promise<T> retry(RetryCallable<T, T> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
-        return invokePoller(
-            retryPolicy, 
-            (ctx, result, cancellation) -> pollValueOnce(codeBlock, executor, ctx, result, cancellation)
+    public static <C, T extends C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
+                                                    RetryPolicy<? super C> retryPolicy) {
+        
+        // Need type on lambda param to please Eclipse compiler        
+        return invokePoller(retryPolicy, (RetryContext<C> ctx, 
+                                          CompletableFuture<T> result, 
+                                          Consumer<Promise<?>> cancellation) 
+                                          -> pollValueOnce(codeBlock, executor, ctx, result, cancellation)
         );
     }
     
-    public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
+    public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
+                                               RetryPolicy<? super T> retryPolicy) {
+        
         return retryOptional(toRetryCallable(codeBlock), executor, retryPolicy);
     }
     
-    public static <T> Promise<T> retryOptional(RetryCallable<Optional<T>, T> codeBlock, Executor executor, RetryPolicy<? super T> retryPolicy) {
-        return retry(ctx -> codeBlock.call(ctx).orElse(null), executor, retryPolicy);
+    public static <C, T extends C> Promise<T> retryOptional(RetryCallable<Optional<T>, C> codeBlock, Executor executor, 
+                                                            RetryPolicy<? super C> retryPolicy) {
+        
+        // Need type on lambda param to please Eclipse compiler
+        return retry((RetryContext<C> ctx) -> codeBlock.call(ctx).orElse(null), executor, retryPolicy);
     }
     
-    public static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, RetryPolicy<? super T> retryPolicy) {
+    public static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, 
+                                             RetryPolicy<? super T> retryPolicy) {
+        
         return retryFuture(toRetryCallable(invoker), retryPolicy);
     }
     
-    public static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, T> invoker, RetryPolicy<? super T> retryPolicy) {
-        return invokePoller(
-            retryPolicy, 
-            (ctx, result, cancellation) -> pollFutureOnce(invoker, ctx, result, cancellation, null)
+    public static <C, T extends C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
+                                                          RetryPolicy<? super C> retryPolicy) {
+        
+        return invokePoller(retryPolicy, (RetryContext<C> ctx, 
+                                          CompletableFuture<T> result, 
+                                          Consumer<Promise<?>> cancellation) 
+                                          -> pollFutureOnce(futureFactory, ctx, result, cancellation, null)
         );
     }
     
-    private static <T> Promise<T> invokePoller(RetryPolicy<? super T> retryPolicy, F3<RetryContext<T>, CompletableFuture<T>, Consumer<Promise<?>>> initiator) {
+    private static <C, T extends C> Promise<T> invokePoller(RetryPolicy<? super C> retryPolicy, 
+                                                            F3<RetryContext<C>, CompletableFuture<T>, Consumer<Promise<?>>> initiator) {
+        
         final CompletableFuture<T> result = new CompletableFuture<>();
         final AtomicReference<Promise<?>> callPromiseRef = new AtomicReference<>();
         // Cleanup latest timeout on completion;
@@ -506,16 +528,16 @@ public class Promises {
             }
         };
         
-        RetryContext<T> ctx = RetryContext.initial(retryPolicy);     
+        RetryContext<C> ctx = RetryContext.initial(retryPolicy);     
         initiator.apply(ctx, result, cancellation);
         return new CompletableFutureWrapper<>(result);
     }
     
-    private static <T> void pollValueOnce(RetryCallable<T, T> codeBlock, 
-                                          Executor executor, 
-                                          RetryContext<T> ctx, 
-                                          CompletableFuture<T> result, 
-                                          Consumer<Promise<?>> cancellation) {
+    private static <C, T extends C> void pollValueOnce(RetryCallable<T, C> codeBlock, 
+                                                       Executor executor, 
+                                                       RetryContext<C> ctx, 
+                                                       CompletableFuture<T> result, 
+                                                       Consumer<Promise<?>> cancellation) {
         
         // Promise may be cancelled outside of polling
         if (result.isDone()) {
@@ -533,12 +555,12 @@ public class Promises {
                             result.complete(value);
                         } else {
                             long finishTime = System.nanoTime();
-                            RetryContext<T> nextCtx = ctx.nextRetry(duration(startTime, finishTime), value);
+                            RetryContext<C> nextCtx = ctx.nextRetry(duration(startTime, finishTime), value);
                             pollValueOnce(codeBlock, executor, nextCtx, result, cancellation);
                         }
                     } catch (Exception ex) {
                         long finishTime = System.nanoTime();
-                        RetryContext<T> nextCtx = ctx.nextRetry(duration(startTime, finishTime), ex);
+                        RetryContext<C> nextCtx = ctx.nextRetry(duration(startTime, finishTime), ex);
                         pollValueOnce(codeBlock, executor, nextCtx, result, cancellation);
                     }
                 };
@@ -564,11 +586,11 @@ public class Promises {
         }
     }
     
-    private static <T> void pollFutureOnce(RetryCallable<? extends CompletionStage<T>, T> invoker, 
-                                           RetryContext<T> ctx, 
-                                           CompletableFuture<T> result,
-                                           Consumer<Promise<?>> cancellation,
-                                           Promise<?> prev) {
+    private static <C, T extends C> void pollFutureOnce(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
+                                                        RetryContext<C> ctx, 
+                                                        CompletableFuture<T> result,
+                                                        Consumer<Promise<?>> cancellation,
+                                                        Promise<?> prev) {
         // Promise may be cancelled outside of polling
         if (result.isDone()) {
             return;
@@ -581,7 +603,7 @@ public class Promises {
                 
                 Promise<? extends T> target;
                 try {
-                    target = Promises.from(invoker.call(ctx));
+                    target = Promises.from(futureFactory.call(ctx));
                 } catch (Exception ex) {
                     target = Promises.failure(ex);
                 }
@@ -595,7 +617,7 @@ public class Promises {
                         result.complete(value);
                     } else {
                         long finishTime = System.nanoTime();
-                        RetryContext<T> nextCtx = ctx.nextRetry(
+                        RetryContext<C> nextCtx = ctx.nextRetry(
                             duration(startTime, finishTime), unwrapCompletionException(ex)
                         );
                         boolean callLater = isRecursive.get() && Thread.currentThread() == invokerThread;
@@ -603,10 +625,10 @@ public class Promises {
                             // Call after minimal possible delay
                             callLater(
                                 p, Duration.ofNanos(1), cancellation, 
-                                () -> pollFutureOnce(invoker, nextCtx, result, cancellation, p)
+                                () -> pollFutureOnce(futureFactory, nextCtx, result, cancellation, p)
                             );
                         } else {
-                            pollFutureOnce(invoker, nextCtx, result, cancellation, p);
+                            pollFutureOnce(futureFactory, nextCtx, result, cancellation, p);
                         }
                     }
                 });

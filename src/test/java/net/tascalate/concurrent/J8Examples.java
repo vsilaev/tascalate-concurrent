@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
@@ -26,9 +27,19 @@ import java.util.stream.Collectors;
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 
 public class J8Examples {
+    
+    static BigInteger tryCalc(RetryContext<Number> ctx) {
+        return BigInteger.ONE;
+    }
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
+        
+        Promise<BigInteger> tryTyping = Promises.retry(
+            J8Examples::tryCalc, executorService, 
+            RetryPolicy.<Number>create().withResultValidator(v -> v.intValue() > 0).withMaxRetries(2)
+        );
+        System.out.println( tryTyping.get() );
 
         Promise<Object> k = CompletableTask.supplyAsync(() -> produceStringSlow("-ABC"), executorService);
         //Promise<Object> k = CompletableTask.complete("ABC", executorService);
@@ -70,18 +81,6 @@ public class J8Examples {
         //p.cancel(true);
         p.get();
         
-        Promise<String> retry1 = Promises.retry(
-            () -> "ABC",
-            executorService, RetryPolicy.DEFAULT
-        );
-        
-        Promise<String> retry2 = Promises.retry(
-            ctx -> "ABC",
-            executorService, RetryPolicy.DEFAULT.rejectNullResult()
-        );
-
-        System.out.println(retry1.join() + " vs " + retry2.join());
-
         Promise<String> pollerFuture = Promises.retryFuture( 
             ctx -> pollingFutureMethod(ctx, executorService),
             RetryPolicy.DEFAULT
