@@ -85,6 +85,10 @@ public class RetryPolicy<T> {
     private final DelayPolicy<? super T> backoff;
     private final DelayPolicy<? super T> timeout;
 
+    public static <T> RetryPolicy<T> create() {
+        return new RetryPolicy<>(-1);
+    }
+    
     @SafeVarargs
     public final RetryPolicy<T> retryOn(Class<? extends Throwable>... retryOnThrowables) {
         return retryOn(Arrays.asList(retryOnThrowables));
