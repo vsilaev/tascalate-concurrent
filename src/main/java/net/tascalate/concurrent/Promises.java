@@ -110,11 +110,13 @@ public final class Promises {
     }
     
     /**
-     * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters are completed normally; 
-     * if any promise completed exceptionally, then resulting promise is resolved faulty as well.
-     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
-     * argument at corresponding positions.
-     * <p>When resulting promise is resolved faulty, all remaining incomplete {@link CompletionStage}-s are cancelled.  
+     * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters
+     * are completed normally; if any promise completed exceptionally, then resulting promise is resolved faulty
+     * as well.
+     * <p>The resolved result of this promise contains a list of the resolved results of the 
+     * {@link CompletionStage}-s passed as an argument at corresponding positions.
+     * <p>When resulting promise is resolved faulty, all remaining incomplete {@link CompletionStage}-s are 
+     * cancelled.  
      * @param <T>
      *   a common supertype of the resulting values
      * @param promises
@@ -132,12 +134,13 @@ public final class Promises {
         return all(true, promises);        
     }
     /**
-     * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters are completed normally; 
-     * if any promise completed exceptionally, then resulting promise is resolved faulty as well.
-     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
-     * argument at corresponding positions.
-     * <p>When resulting promise is resolved faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
-     * all remaining incomplete {@link CompletionStage}-s are cancelled.  
+     * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters
+     * are completed normally; if any promise completed exceptionally, then resulting promise is resolved faulty
+     * as well.
+     * <p>The resolved result of this promise contains a list of the resolved results of the 
+     * {@link CompletionStage}-s passed as an argument at corresponding positions.
+     * <p>When resulting promise is resolved faulty <em>and</em> <code>cancelRemaining</code> parameter is
+     * <code>true</code>, all remaining incomplete {@link CompletionStage}-s are cancelled.  
      * @param <T>
      *   a common supertype of the resulting values
      * @param cancelRemaining
@@ -156,11 +159,13 @@ public final class Promises {
         return atLeast(null != promises ? promises.size() : 0, 0, cancelRemaining, promises);
     }
     /**
-     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
-     * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
-     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
-     * argument.
-     * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s are cancelled.
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters
+     * is completed normally (race is possible); if all promises completed exceptionally, then resulting promise
+     * is resolved faulty as well.
+     * <p>The resolved result of this promise contains a value of the first resolved result of the 
+     * {@link CompletionStage}-s passed as an argument.
+     * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s
+     * are cancelled.
      * 
      * @param <T>
      *   a common supertype of the resulting values 
@@ -178,12 +183,13 @@ public final class Promises {
         return any(true, promises);
     }
     /**
-     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
-     * if all promises completed exceptionally, then resulting promise is resolved faulty as well.
-     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
-     * argument.
-     * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
-     * all remaining incomplete {@link CompletionStage}-s are cancelled.
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters
+     * is completed normally (race is possible); if all promises completed exceptionally, then resulting promise 
+     * is resolved faulty as well.
+     * <p>The resolved result of this promise contains a value of the first resolved result of the 
+     * {@link CompletionStage}-s passed as an argument.
+     * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter is
+     * <code>true</code>, all remaining incomplete {@link CompletionStage}-s are cancelled.
      * 
      * @param <T>
      *   a common supertype of the resulting values 
@@ -217,14 +223,16 @@ public final class Promises {
     }
     
     /**
-     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
-     * if any promise completed exceptionally before first result is available, then resulting promise is resolved faulty as well 
-     * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
-     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
-     * argument.
-     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled. 
-     * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns from this method reports 
-     * exact exception. All other methods wrap it to {@link MultitargetException}. 
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters 
+     * is completed normally (race is possible); if any promise completed exceptionally before first result is 
+     * available, then resulting promise is resolved faulty as well (unlike non-Strict variant, where exceptions 
+     * are ignored if result is available at all).
+     * <p>The resolved result of this promise contains a value of the first resolved result of the 
+     * {@link CompletionStage}-s passed as an argument.
+     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete 
+     * {@link CompletionStage}-s are cancelled. 
+     * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns
+     * from this method reports exact exception. All other methods wrap it to {@link MultitargetException}. 
      * @param <T>
      *   a common supertype of the resulting values 
      * @param promises
@@ -242,15 +250,16 @@ public final class Promises {
     }
 
     /**
-     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters is completed normally (race is possible); 
-     * if any promise completed exceptionally before first result is available, then resulting promise is resolved faulty as well 
-     * (unlike non-Strict variant, where exceptions are ignored if result is available at all).
-     * <p>The resolved result of this promise contains a value of the first resolved result of the {@link CompletionStage}-s passed as an 
-     * argument.
-     * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
-     * all remaining incomplete {@link CompletionStage}-s are cancelled. 
-     * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns from this method reports 
-     * exact exception. All other methods wrap it to {@link MultitargetException}. 
+     * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters
+     *  is completed normally (race is possible); if any promise completed exceptionally before first result is
+     *  available, then resulting promise is resolved faulty as well (unlike non-Strict variant, where exceptions
+     *  are ignored if result is available at all).
+     * <p>The resolved result of this promise contains a value of the first resolved result of the 
+     * {@link CompletionStage}-s passed as an argument.
+     * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code>
+     * parameter is <code>true</code>, all remaining incomplete {@link CompletionStage}-s are cancelled. 
+     * <p>Unlike other methods to combine promises (any, all, atLeast, atLeastStrict), the {@link Promise} returns 
+     * from this method reports exact exception. All other methods wrap it to {@link MultitargetException}. 
      * @param <T>
      *   a common supertype of the resulting values 
      * @param cancelRemaining
@@ -284,12 +293,14 @@ public final class Promises {
     
     /**
      * <p>Generalization of the {@link Promises#any(CompletionStage...)} method.</p>
-     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
-     * are completed normally (race is possible); if less than <code>minResultCount</code> of promises completed normally, then resulting promise 
-     * is resolved faulty.
-     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
-     * argument at corresponding positions. Non-completed or completed exceptionally promises have <code>null</code> values.
-     * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s are cancelled. 
+     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of 
+     * {@link CompletionStage}-s passed as parameters are completed normally (race is possible); if less than 
+     * <code>minResultCount</code> of promises completed normally, then resulting promise is resolved faulty.
+     * <p>The resolved result of this promise contains a list of the resolved results of the 
+     * {@link CompletionStage}-s passed as an argument at corresponding positions. Non-completed or completed 
+     * exceptionally promises have <code>null</code> values.
+     * <p>When resulting promise is resolved successfully, all remaining incomplete {@link CompletionStage}-s 
+     * are cancelled. 
      * 
      * @param <T>
      *   a common supertype of the resulting values 
@@ -311,13 +322,14 @@ public final class Promises {
 
     /**
      * <p>Generalization of the {@link Promises#any(CompletionStage...)} method.</p>
-     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
-     * are completed normally (race is possible); if less than <code>minResultCount</code> of promises completed normally, then resulting promise 
-     * is resolved faulty.
-     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
-     * argument at corresponding positions. Non-completed or completed exceptionally promises have <code>null</code> values.
-     * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
-     * all remaining incomplete {@link CompletionStage}-s are cancelled.  
+     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of 
+     * {@link CompletionStage}-s passed as parameters are completed normally (race is possible); if less than 
+     * <code>minResultCount</code> of promises completed normally, then resulting promise is resolved faulty.
+     * <p>The resolved result of this promise contains a list of the resolved results of the 
+     * {@link CompletionStage}-s passed as an argument at corresponding positions. Non-completed or completed 
+     * exceptionally promises have <code>null</code> values.
+     * <p>When resulting promise is resolved successfully <em>and</em> <code>cancelRemaining</code> parameter 
+     * is <code>true</code>, all remaining incomplete {@link CompletionStage}-s are cancelled.  
      * 
      * @param <T>
      *   a common supertype of the resulting values 
@@ -331,23 +343,30 @@ public final class Promises {
      *   a combined promise 
      */
     @SafeVarargs
-    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, 
+                                               CompletionStage<? extends T>... promises) {
+        
         return atLeast(minResultsCount, cancelRemaining, Arrays.asList(promises));
     }
     
-    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining,
+            
+                                               List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, (promises == null ? 0 : promises.size()) - minResultsCount, cancelRemaining, promises);
     }
     
     /**
      * <p>Generalization of the {@link Promises#anyStrict(CompletionStage...)} method.</p>
-     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
-     * are completed normally (race is possible); if less than <code>minResultCount</code> of promises completed normally, then resulting promise 
-     * is resolved faulty. If any promise completed exceptionally <em>before</em> <code>minResultCount</code> of results are available, then 
-     * resulting promise is resolved faulty as well. 
-     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
-     * argument at corresponding positions. Non-completed promises have <code>null</code> values.
-     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled.
+     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of 
+     * {@link CompletionStage}-s passed as parameters are completed normally (race is possible); if less than 
+     * <code>minResultCount</code> of promises completed normally, then resulting promise is resolved faulty. 
+     * If any promise completed exceptionally <em>before</em> <code>minResultCount</code> of results are 
+     * available, then resulting promise is resolved faulty as well. 
+     * <p>The resolved result of this promise contains a list of the resolved results of the 
+     * {@link CompletionStage}-s passed as an argument at corresponding positions. Non-completed promises 
+     * have <code>null</code> values.
+     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete 
+     * {@link CompletionStage}-s are cancelled.
      *  
      * @param <T>
      *   a common supertype of the resulting values 
@@ -363,20 +382,23 @@ public final class Promises {
         return atLeastStrict(minResultsCount, Arrays.asList(promises));
     }
     
-    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, List<? extends CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, 
+                                                     List<? extends CompletionStage<? extends T>> promises) {
         return atLeastStrict(minResultsCount, true, promises);
     }
 
     /**
      * <p>Generalization of the {@link Promises#anyStrict(CompletionStage...)} method.</p>
-     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
-     * are completed normally (race is possible); if less than <code>minResultCount</code> of promises completed normally, then resulting promise 
-     * is resolved faulty. If any promise completed exceptionally <em>before</em> <code>minResultCount</code> of results are available, then 
-     * resulting promise is resolved faulty as well. 
-     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
-     * argument at corresponding positions. Non-completed promises have <code>null</code> values.
-     * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code> parameter is <code>true</code>, 
-     * all remaining incomplete {@link CompletionStage}-s are cancelled.
+     * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of 
+     * {@link CompletionStage}-s passed as parameters are completed normally (race is possible); if less than 
+     * <code>minResultCount</code> of promises completed normally, then resulting promise is resolved faulty. 
+     * If any promise completed exceptionally <em>before</em> <code>minResultCount</code> of results are available, 
+     * then resulting promise is resolved faulty as well. 
+     * <p>The resolved result of this promise contains a list of the resolved results of the 
+     * {@link CompletionStage}-s passed as an argument at corresponding positions. Non-completed promises have 
+     * <code>null</code> values.
+     * <p>When resulting promise is resolved either successfully or faulty <em>and</em> <code>cancelRemaining</code> 
+     * parameter is <code>true</code>, all remaining incomplete {@link CompletionStage}-s are cancelled.
      *  
      * @param <T>
      *   a common supertype of the resulting values 
@@ -390,25 +412,29 @@ public final class Promises {
      *   a combined promise 
      */    
     @SafeVarargs
-    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, 
+                                                     CompletionStage<? extends T>... promises) {
         return atLeast(minResultsCount, cancelRemaining, Arrays.asList(promises));
     }    
     
-    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
+    public static <T> Promise<List<T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, 
+                                                     List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, 0, cancelRemaining, promises);
     }
     
     /**
      * <p>General method to combine several {@link CompletionStage}-s passed as arguments into single promise.</p>
-     * <p>The resulting promise is resolved successfully when at least <code>minResultCount</code> of {@link CompletionStage}-s passed as parameters 
-     * are completed normally (race is possible).
-     * <p>If less than <code>minResultCount</code> of promises completed normally, then resulting promise is resolved faulty. 
-     * <p>If <code>maxErrorsCount</code> of promises completed exceptionally <em>before</em> <code>minResultCount</code> of results are available, then 
-     * resulting promise is resolved faulty as well. 
-     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s passed as an 
-     * argument at corresponding positions. Non-completed promises and promises completed exceptionally have <code>null</code> values.
-     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete {@link CompletionStage}-s are cancelled <em>if</em>
-     * <code>cancelRemaining</code> parameter is <code>true</code>. 
+     * <p>The resulting promise is resolved successfully when at least <code>minResultCount</code> of 
+     * {@link CompletionStage}-s passed as parameters are completed normally (race is possible).
+     * <p>If less than <code>minResultCount</code> of promises completed normally, then resulting promise is 
+     * resolved faulty. 
+     * <p>If <code>maxErrorsCount</code> of promises completed exceptionally <em>before</em> <code>minResultCount</code> 
+     * of results are available, then resulting promise is resolved faulty as well. 
+     * <p>The resolved result of this promise contains a list of the resolved results of the {@link CompletionStage}-s 
+     * passed as an argument at corresponding positions. Non-completed promises and promises completed exceptionally 
+     * have <code>null</code> values.
+     * <p>When resulting promise is resolved either successfully or faulty, all remaining incomplete 
+     * {@link CompletionStage}-s are cancelled <em>if</em> <code>cancelRemaining</code> parameter is <code>true</code>. 
      * 
      * @param <T>
      *   a common supertype of the resulting values 
@@ -417,8 +443,8 @@ public final class Promises {
      * @param maxErrorsCount
      *   a maximum number of promises that may be completed exceptionally before resolving resulting promise faulty
      * @param cancelRemaining
-     *   a flag that indicates (if true) whether or not all remaining incomplete {@link CompletionStage}-s should be cancelled
-     *   once a resulting promise outcome is known. 
+     *   a flag that indicates (if true) whether or not all remaining incomplete {@link CompletionStage}-s should 
+     *   be cancelled once a resulting promise outcome is known. 
      * @param promises
      *   an array of {@link CompletionStage}-s to combine 
      * @return
@@ -426,7 +452,8 @@ public final class Promises {
      */    
     @SafeVarargs
     public static <T> Promise<List<T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
-            CompletionStage<? extends T>... promises) {
+                                               CompletionStage<? extends T>... promises) {
+        
         return atLeast(minResultsCount, maxErrorsCount, cancelRemaining, Arrays.asList(promises));
     }
     
@@ -468,15 +495,15 @@ public final class Promises {
         return retry(toRetryCallable(codeBlock), executor, retryPolicy);
     }
 
-    public static <C, T extends C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
+    public static <T extends C, C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
                                                     RetryPolicy<? super C> retryPolicy) {
         
-        // Need explicit type on lambda param        
-        return invokePoller(retryPolicy, (RetryContext<C> ctx, 
-                                          CompletableFuture<T> result, 
-                                          Consumer<Promise<?>> cancellation) 
-                                          -> pollValueOnce(codeBlock, executor, ctx, result, cancellation)
-        );
+        return startRetry(retryPolicy, new RetryInitiator<T, C>() {
+            @Override
+            public void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation) {
+                tryValueOnce(codeBlock, executor, ctx, result, cancellation);
+            }
+        });        
     }
     
     public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
@@ -485,7 +512,7 @@ public final class Promises {
         return retryOptional(toRetryCallable(codeBlock), executor, retryPolicy);
     }
     
-    public static <C, T extends C> Promise<T> retryOptional(RetryCallable<Optional<T>, C> codeBlock, Executor executor, 
+    public static <T extends C, C> Promise<T> retryOptional(RetryCallable<Optional<T>, C> codeBlock, Executor executor, 
                                                             RetryPolicy<? super C> retryPolicy) {
         
         // Need explicit type on lambda param
@@ -498,19 +525,18 @@ public final class Promises {
         return retryFuture(toRetryCallable(invoker), retryPolicy);
     }
     
-    public static <C, T extends C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
+    public static <T extends C, C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
                                                           RetryPolicy<? super C> retryPolicy) {
         
-        // Need explicit type on lambda param        
-        return invokePoller(retryPolicy, (RetryContext<C> ctx, 
-                                          CompletableFuture<T> result, 
-                                          Consumer<Promise<?>> cancellation) 
-                                          -> pollFutureOnce(futureFactory, ctx, result, cancellation, null)
-        );
+        return startRetry(retryPolicy, new RetryInitiator<T, C>() {
+            @Override
+            public void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation) {
+                tryFutureOnce(futureFactory, ctx, result, cancellation, null);
+            }
+        });
     }
     
-    private static <C, T extends C> Promise<T> invokePoller(RetryPolicy<? super C> retryPolicy, 
-                                                            F3<RetryContext<C>, CompletableFuture<T>, Consumer<Promise<?>>> initiator) {
+    private static <T extends C, C> Promise<T> startRetry(RetryPolicy<? super C> retryPolicy, RetryInitiator<T, C> initiator) {
         
         final CompletableFuture<T> result = new CompletableFuture<>();
         final AtomicReference<Promise<?>> callPromiseRef = new AtomicReference<>();
@@ -531,15 +557,15 @@ public final class Promises {
         };
         
         RetryContext<C> ctx = RetryContext.initial(retryPolicy);     
-        initiator.apply(ctx, result, cancellation);
+        initiator.run(ctx, result, cancellation);
         return new CompletableFutureWrapper<>(result);
     }
     
-    private static <C, T extends C> void pollValueOnce(RetryCallable<T, C> codeBlock, 
-                                                       Executor executor, 
-                                                       RetryContext<C> ctx, 
-                                                       CompletableFuture<T> result, 
-                                                       Consumer<Promise<?>> cancellation) {
+    private static <T extends C, C> void tryValueOnce(RetryCallable<T, C> codeBlock, 
+                                                      Executor executor, 
+                                                      RetryContext<C> ctx, 
+                                                      CompletableFuture<T> result, 
+                                                      Consumer<Promise<?>> cancellation) {
         
         // Promise may be cancelled outside of polling
         if (result.isDone()) {
@@ -558,12 +584,12 @@ public final class Promises {
                         } else {
                             long finishTime = System.nanoTime();
                             RetryContext<C> nextCtx = ctx.nextRetry(duration(startTime, finishTime), value);
-                            pollValueOnce(codeBlock, executor, nextCtx, result, cancellation);
+                            tryValueOnce(codeBlock, executor, nextCtx, result, cancellation);
                         }
                     } catch (Exception ex) {
                         long finishTime = System.nanoTime();
                         RetryContext<C> nextCtx = ctx.nextRetry(duration(startTime, finishTime), ex);
-                        pollValueOnce(codeBlock, executor, nextCtx, result, cancellation);
+                        tryValueOnce(codeBlock, executor, nextCtx, result, cancellation);
                     }
                 };
                 
@@ -588,11 +614,11 @@ public final class Promises {
         }
     }
     
-    private static <C, T extends C> void pollFutureOnce(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
-                                                        RetryContext<C> ctx, 
-                                                        CompletableFuture<T> result,
-                                                        Consumer<Promise<?>> cancellation,
-                                                        Promise<?> prev) {
+    private static <T extends C, C> void tryFutureOnce(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
+                                                       RetryContext<C> ctx, 
+                                                       CompletableFuture<T> result,
+                                                       Consumer<Promise<?>> cancellation,
+                                                       Promise<?> prev) {
         // Promise may be cancelled outside of polling
         if (result.isDone()) {
             return;
@@ -627,10 +653,10 @@ public final class Promises {
                             // Call after minimal possible delay
                             callLater(
                                 p, Duration.ofNanos(1), cancellation, 
-                                () -> pollFutureOnce(futureFactory, nextCtx, result, cancellation, p)
+                                () -> tryFutureOnce(futureFactory, nextCtx, result, cancellation, p)
                             );
                         } else {
-                            pollFutureOnce(futureFactory, nextCtx, result, cancellation, p);
+                            tryFutureOnce(futureFactory, nextCtx, result, cancellation, p);
                         }
                     }
                 });
@@ -721,9 +747,8 @@ public final class Promises {
         return Duration.ofNanos(finishTime - startTime);
     }
     
-    @FunctionalInterface
-    private static interface F3<T, U, V> {
-        void apply(T p1, U p2, V p3);
+    private static abstract class RetryInitiator<T extends C, C> {
+        abstract void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation);
     }
 
 }
