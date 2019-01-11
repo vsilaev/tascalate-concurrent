@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -46,7 +47,7 @@ import java.util.function.Supplier;
  * @author vsilaev
  *
  */
-public class Promises {
+public final class Promises {
 
     private Promises() {}
     
@@ -703,8 +704,13 @@ public class Promises {
         String message = String.format(
             "The number of futures supplied (%d) is less than a number of futures to await (%d)", size, minResultCount
         );
-        //return failure(new NoSuchElementException(message));
+        Exception ex = new NoSuchElementException(message);
+        //TODO: exceptional completion vs runtime exception on combined promise construction?
+        ex.fillInStackTrace();
+        return failure(ex);
+        /*
         throw new IllegalArgumentException(message);        
+        */
     }
     
     private static <V, T> RetryCallable<V, T> toRetryCallable(Callable<? extends V> callable) {
@@ -715,10 +721,8 @@ public class Promises {
         return Duration.ofNanos(finishTime - startTime);
     }
     
-    static final Object IGNORE = new Object();
-    
     @FunctionalInterface
-    static interface F3<T, U, V> {
+    private static interface F3<T, U, V> {
         void apply(T p1, U p2, V p3);
     }
 

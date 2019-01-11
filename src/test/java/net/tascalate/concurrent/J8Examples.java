@@ -53,7 +53,7 @@ public class J8Examples {
         
         Promise<BigInteger> tryTyping = Promises.retry(
             J8Examples::tryCalc, executorService, 
-            RetryPolicy.<Number>create().withResultValidator(v -> v.intValue() > 0).withMaxRetries(2)
+            new RetryPolicy<Number>().withResultValidator(v -> v.intValue() > 0).withMaxRetries(2)
         );
         System.out.println( tryTyping.get() );
 

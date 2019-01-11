@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -24,7 +25,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
 
 class SharedFunctions {
     
@@ -68,25 +72,17 @@ class SharedFunctions {
             Future<?> future = (Future<?>) promise;
             return future.cancel(mayInterruptIfRunning);
         } else {
-            Method m = completeExceptionallyMethodOf(promise);
-            if (null != m) {
-                try {
-                    return (Boolean) m.invoke(promise, new CancellationException());
-                } catch (final ReflectiveOperationException ex) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-    }
-
-    private static Method completeExceptionallyMethodOf(CompletionStage<?> promise) {
-        try {
-            Class<?> clazz = promise.getClass();
-            return clazz.getMethod("completeExceptionally", Throwable.class);
-        } catch (ReflectiveOperationException | SecurityException ex) {
-            return null;
+            Stream<Function<Class<?>, ExceptionalCancellation>> options = Stream.of(
+               SharedFunctions::cancelInterruptibleMethodOf,     
+               SharedFunctions::cancelMethodOf,
+               SharedFunctions::completeExceptionallyMethodOf
+            );
+            
+            return options.map(f -> tryCancellation(f, promise, mayInterruptIfRunning))  
+                          .filter(Optional::isPresent)
+                          .map(Optional::get)
+                          .findFirst()
+                          .orElse(Boolean.FALSE);
         }
     }
     
@@ -113,6 +109,63 @@ class SharedFunctions {
         throw (E) e;
     }
     
+    
+    private static Optional<Boolean> tryCancellation(Function<Class<?>, ExceptionalCancellation> option, 
+                                                     CompletionStage<?> promise,
+                                                     boolean mayInterruptIfRunning) {
+        
+
+        return Optional.ofNullable( option.apply(promise.getClass()) )
+                       .map(SharedFunctions::uncheckedReflectionException) // TODO: False for reflective operation or runtime exception?
+                       .map(bf -> bf.apply(promise, mayInterruptIfRunning ? Boolean.TRUE : Boolean.FALSE))
+        ;      
+    }
+
+    private static ExceptionalCancellation completeExceptionallyMethodOf(Class<?> clazz) {
+        try {
+            Method m = clazz.getMethod("completeExceptionally", Throwable.class);
+            return (p, b) -> (Boolean)m.invoke(p, new CancellationException());
+        } catch (ReflectiveOperationException | SecurityException ex) {
+            return null;
+        }
+    }
+    
+    private static ExceptionalCancellation cancelInterruptibleMethodOf(Class<?> clazz) {
+        try {
+            Method m = clazz.getMethod("cancel", boolean.class);
+            return (p, b) -> (Boolean)m.invoke(p, b);
+        } catch (ReflectiveOperationException | SecurityException ex) {
+            return null;
+        }
+    }
+    
+    private static ExceptionalCancellation cancelMethodOf(Class<?> clazz) {
+        try {
+            Method m = clazz.getMethod("cancel");
+            return (p, b) -> (Boolean)m.invoke(p);
+        } catch (ReflectiveOperationException | SecurityException ex) {
+            return null;
+        }
+    }
+    
+    private static <T, U> Cancellation uncheckedReflectionException(ExceptionalCancellation original ) {
+        return (a, b) -> { 
+            try {
+                return original.apply(a, b);
+            } catch (ReflectiveOperationException ex) {
+                throw new RuntimeException(ex);
+            }
+        };
+    }
+    
     private static final BiFunction<Object, Object, Object> SELECT_FIRST  = (u, v) -> u;
     private static final BiFunction<Object, Object, Object> SELECT_SECOND = (u, v) -> v;
+    
+    @FunctionalInterface
+    private static interface Cancellation extends BiFunction<CompletionStage<?>, Boolean, Boolean> { }
+    
+    @FunctionalInterface
+    public interface ExceptionalCancellation {
+        Boolean apply(CompletionStage<?> p, Boolean b) throws ReflectiveOperationException;
+    }
 }
