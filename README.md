@@ -185,14 +185,14 @@ Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorS
 The `dataPromise` returned may be cancelled later and `loadDataInterruptibly` will be interrupted if not completed by that time.
 
 ## 4. Timeouts
-Any robust application requires certain level of functionality, that handle situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) the library fills the gap in this functionality with timeout-related stuff.
+Any robust application requires certain level of functionality, that handles situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) the library fills the gap in this functionality with timeout-related stuff.
 
-An application developer now have the following options to control execution time of the `Promise` (declared in Promise interface itself):
+An application developer now has the following options to control execution time of the `Promise` (declared in `Promise` interface itself):
 ```java
 <T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> orTimeout(Duration duration[, boolean cancelOnTimeout = true])
 ```
-These methods creates a new `Promise` that is either settled sucessfully/exceptionally when original promise is completed within a timeout given; or it is settled exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
+These methods creates a new `Promise` that is either settled successfully/exceptionally when original promise is completed within a timeout given; or it is settled exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise = CompletableTask
@@ -206,9 +206,9 @@ In the example above `callPromise` will be settled within 3 seconds either succe
 
 It's worth to mention, that _both_ `processResultSync` and `processResultAsync` will be executed with `myExecutor`, if timeout is triggered - this rule is true for all timeout-related methods.
 
-The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when ommitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete. Pay attaention: any `Promise` is cancellable on timeout, even wrappers created via `Promises.from(stage)`, but only `CompletableTask` is interruptible!
+The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when omitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete. Pay attention: any `Promise` is cancellable on timeout, even wrappers created via `Promises.from(stage)`, but only `CompletableTask` is interruptible!
 
-Cancelling original promise on timeout is a desired behavior in most cases but not always. In reality, "Warn-first-Cancel-next" scenario happens quite oftently, where "warn" may be logging, sending notification emails, showing messages to user on UI etc. The library provides an option to set several non-cancelling timeouts like in the example below:
+Cancelling original promise on timeout is a desired behavior in most cases but not always. In reality, "Warn-first-Cancel-next"  scenarios are not rare, where "warn" may be logging, sending notification emails, showing messages to user on UI etc. The library provides an option to set several non-cancelling timeouts like in the example below:
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> resultPromise = CompletableTask
@@ -249,7 +249,7 @@ Promise<List<String>> resultPromise = CompletableTask
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
     .orTimeout( Duration.ofSeconds(5) );
 ```
-In the example above `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. If it's necessary to restrict execution time of the single step, please use standard `CompletionStage.thenCompose` method. Say, that in the previous example we have to restrict execution time of the `converterMethod` only. Then the chain will look like:
+In the latest example `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. If it's necessary to restrict execution time of the single step, please use standard `CompletionStage.thenCompose` method. Say, that in the previous example we have to restrict execution time of the `converterMethod` only. Then the modified chain will look like:
 ```java
 Promise<List<String>> resultPromise = CompletableTask
     .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
@@ -265,7 +265,7 @@ Promise<List<String>> resultPromise = CompletableTask
     ;
 ```
 
-Moreover, in the original example above only the call to the `thenCombineAsync` will be cancelled on timeout, to cancel the whole chain please use the functionality of the `DependentPromise` interface (will be discussed later):
+Moreover, in the _original_ example only the call to the `thenCombineAsync` will be cancelled on timeout (the last in the chain), to cancel the whole chain please use the functionality of the `DependentPromise` interface (will be discussed later):
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> parallelPromise = CompletableTask
@@ -279,7 +279,7 @@ Promise<List<String>> resultPromise = CompletableTask
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v), PromiseOrigin.ALL)
     .orTimeout( Duration.ofSeconds(5) ); // now timeout will cancel the whole chain
 ```
-Another useful timeout-related methods declared in Promise interface are:
+Another useful timeout-related methods declared in `Promise` interface are:
 ```java
 <T> Promise<T> onTimeout(T value, long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> onTimeout(T value, Duration duration[, boolean cancelOnTimeout = true])
@@ -300,7 +300,7 @@ Finally, the `Promise` interface provides an option to insert delays into the ca
 <T> Promise<T> delay(long timeout, TimeUnit unit[, boolean delayOnError = true])
 <T> Promise<T> delay(Duration duration[, boolean delayOnError = true])
 ```
-The delay is started only after the original `Promise` is completed either successfully or exceptionally (unlike `orTimeout` / `onTimeout` methods where timeout is strated immediately). The resulting delay `Promise` is resolved after the timeout specified with the same result as the original `Promise`. The latest methods' argument - `delayOnError` - specifies whether or not we should delay if original Promise is resolved exceptionally, by default this argument is true. If false, then delay `Promise` is completed immediately after the failed original `Promise`. 
+The delay is started only after the original `Promise` is completed either successfully or exceptionally (unlike `orTimeout` / `onTimeout` methods where timeout is started immediately). The resulting delay `Promise` is resolved after the timeout specified with the same result as the original `Promise`. The latest methods' argument - `delayOnError` - specifies whether or not we should delay if original Promise is resolved exceptionally, by default this argument is `true`. If `false`, then delay `Promise` is completed immediately after the failed original `Promise`. 
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise1 = CompletableTask
@@ -329,7 +329,7 @@ Promises.from(CompletableFuture.completedFuture(""))
     .delay( Duration.ofSeconds(5) )
     .thenApplyAsync(ignore -> produceValue());
 ```
-As long as back-off execution is not a very rare case, the library provides the following convinient methods in the `CompletableTask` class:
+As long as back-off execution is not a very rare case, the library provides the following convenient shortcuts in the `CompletableTask` class:
 ```java
 static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor);
 static Promise<Duration> delay(Duration duration, Executor executor);
@@ -381,9 +381,9 @@ There are 2 overloads of aforementioned combinator methods that accept either a 
 
 Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods returns a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one failed with strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
 
-The returned `Promise` has the following characteristics:
+The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
-2. Default asynchronous executor of the resulting promise is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necesary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
+2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
 
 ## 6. DependentPromise
 As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
