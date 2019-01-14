@@ -101,13 +101,13 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
                     .raw()
             );
         }
-        CompletableFuture<Either<? super T>> delayed = new CompletableFuture<>();
+        CompletableFuture<Try<? super T>> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *Async to execute on default "this" executor
         return 
         this.dependent()
-            .thenApply(Either::success, false)
-            .exceptionally(Either::failure, true)
+            .thenApply(Try::success, false)
+            .exceptionally(Try::failure, true)
             .thenCombineAsync(delayed, (u, v) -> u.done(), PromiseOrigin.ALL)
             .raw();
     }

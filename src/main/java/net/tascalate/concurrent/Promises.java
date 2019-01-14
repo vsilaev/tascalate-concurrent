@@ -503,7 +503,7 @@ public final class Promises {
             public void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation) {
                 tryValueOnce(codeBlock, executor, ctx, result, cancellation);
             }
-        });        
+        }).defaultAsyncOn(executor);        
     }
     
     public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 

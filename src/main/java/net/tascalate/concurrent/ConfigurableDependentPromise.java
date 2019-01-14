@@ -137,12 +137,12 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
                 v -> thenCombineAsync(Timeouts.delay(duration), selectFirst(), PromiseOrigin.PARAM_ONLY)
             );
         }
-        CompletableFuture<Either<? super T>> delayed = new CompletableFuture<>();
+        CompletableFuture<Try<? super T>> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *Async to execute on default "this" executor
         return 
-        this.thenApply(Either::success, enlistOrigin)
-            .exceptionally(Either::failure, true)
+        this.thenApply(Try::success, enlistOrigin)
+            .exceptionally(Try::failure, true)
             .thenCombineAsync(delayed, (u, v) -> u.done(), PromiseOrigin.ALL);
     }
 

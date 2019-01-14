@@ -40,6 +40,15 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
 
     @Override
+    public DependentPromise<T> defaultAsyncOn(Executor executor) {
+        if (executor == defaultExecutor) {
+            return this;
+        } else {
+            return new ExecutorBoundDependentPromise<>(delegate, executor);
+        }
+    }
+    
+    @Override
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, boolean enlistOrigin) {
         return thenApplyAsync(fn, defaultExecutor, enlistOrigin);
     }

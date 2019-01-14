@@ -39,6 +39,15 @@ public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise
     }
     
     @Override
+    public Promise<T> defaultAsyncOn(Executor executor) {
+        if (executor == defaultExecutor) {
+            return this;
+        } else {
+            return new ExecutorBoundPromise<>(delegate, executor);
+        }
+    }
+    
+    @Override
     public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn) {
         return thenApplyAsync(fn, defaultExecutor);
     }

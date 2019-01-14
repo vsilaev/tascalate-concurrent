@@ -15,11 +15,11 @@
  */
 package net.tascalate.concurrent;
 
-abstract class Either<R> {
+abstract class Try<R> {
 
     abstract R done();
     
-    static final class Success<R> extends Either<R> {
+    static final class Success<R> extends Try<R> {
         
         private final R result;
         
@@ -33,7 +33,7 @@ abstract class Either<R> {
         }
     }
     
-    static final class Failure<R> extends Either<R> {
+    static final class Failure<R> extends Try<R> {
         
         private final Throwable error;
         
@@ -48,17 +48,17 @@ abstract class Either<R> {
         
     }
     
-    static <R> Either<R> success(R result) {
+    static <R> Try<R> success(R result) {
         return new Success<R>(result);
     }
 
-    static <R> Either<R> failure(Throwable error) {
+    static <R> Try<R> failure(Throwable error) {
         return new Failure<R>(error);
     }
  
     @SuppressWarnings("unchecked")
-    static <R> Either<R> nothing() {
-        return (Either<R>)NOTHING;
+    static <R> Try<R> nothing() {
+        return (Try<R>)NOTHING;
     }
-    private static final Either<Object> NOTHING = success(null); 
+    private static final Try<Object> NOTHING = success(null); 
 }

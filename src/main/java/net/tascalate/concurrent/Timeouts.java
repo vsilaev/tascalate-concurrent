@@ -117,15 +117,15 @@ class Timeouts {
         };
     }
     
-    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletableFuture<Either<? super T>> delayed, Duration duration, boolean delayOnError) {
+    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletableFuture<Try<? super T>> delayed, Duration duration, boolean delayOnError) {
         return (result, error) -> {
             if (error == null || (delayOnError && !self.isCancelled())) {
                 Promise<?> timeout = delay(duration);
                 delayed.whenComplete( (r, e) -> timeout.cancel(true) );
-                timeout.whenComplete( (r, e) -> delayed.complete(Either.nothing()) );
+                timeout.whenComplete( (r, e) -> delayed.complete(Try.nothing()) );
             } else {
                 // when error and should not delay on error
-                delayed.complete(Either.nothing());
+                delayed.complete(Try.nothing());
             }
         };
     }
