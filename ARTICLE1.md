@@ -8,7 +8,6 @@ There are several shortcomings associated with [CompletableFuture](https://docs.
 2.	By default, all `*Async` composition methods of `CompletableFutrure` use `ForkJoinPool.commonPool()` ([see here](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html#commonPool--)) unless explicit [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) is specified. This thread pool is shared between all [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html)-s and all parallel streams across all applications deployed on the same JVM. This hard-coded, unconfigurable thread pool is completely outside of application developers' control, hard to monitor and scale. Therefore, in robust real-life applications you should always specify your own `Executor`. With API enhancements in Java 9+, you can fix this drawback, but it will require some custom coding.
 3.	Additionally, built-in Java 8 concurrency classes provides pretty inconvenient API to combine several [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)-s. `CompletableFuture.allOf` / `CompletableFuture.anyOf` methods accept only [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) as arguments; you have no mechanism to combine arbitrary [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)-s without converting them to [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) first. Also, the return type of the aforementioned `CompletableFuture.allOf` is declared as `CompletableFuture<Void>` - hence you are unable to extract conveniently individual results of the each future supplied. `CompletableFuture.anyOf` is even worse in this regard; for more details please read on here: [CompletableFuture in Action](http://www.nurkiewicz.com/2013/05/java-8-completablefuture-in-action.html) (see Shortcomings) by Tomasz Nurkiewicz.
 4. Support for timeouts/delays was introduced to [CompletableFuture](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html) only in Java 9, so still widely supported applications running on Java 8 are left out without this important functionality. Plus, some design decisions like using delayed executors instead of 'delay' operator, are somewhat questionable.
-
 There are numerous free open-source libraries that address some of the aforementioned shortcomings. However, none of them provides implementation of interruptible `CompletionStage` and no one solves _all_ of the issues coherently.
 
 # How to use?
@@ -55,7 +54,6 @@ It behaves as the following:
 To summarize, the returned wrapper delegates as much as possible functionality to the supplied `stage` and _never_ resorts to [CompletionStage.toCompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html#toCompletableFuture--) because in Java 8 API it's an optional method. From documentation: "A CompletionStage implementation that does not choose to interoperate with others may throw UnsupportedOperationException." (this text was dropped in Java 9+). In general, Tascalate Concurrent library does not depend on this method and should be interoperable with any minimal (but valid) `CompletionStage` implementation.
 
 It's important to emphasize, that `Promise`-s returned from `Promises.success`, `Promises.failure` and `Promises.from` methods are cancellable in the same way as `CompletableFuture`, but are not interruptible in general, while interruption depends on a concrete implementation. Next we discuss the concrete implementation of an interruptible `Promise` provided by the Tascalate Concurrent library -- the `CompletableTask` class.
-
 ## 2. CompletableTask
 This is why this project was ever started. `CompletableTask` is the implementation of the `Promise` API for long-running blocking tasks.
 Typically, to create a `CompletableTask`, you should submit [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html) / [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) to the [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) right away, in a similar way as with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html):
@@ -141,6 +139,7 @@ CompletionStage<String> p3 = p2.thenApplyAsync(this::transformValueB, executorNe
 CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
 ```
 The call to `produceValue` will be executed on the `executorInitial`, obviously. But now, the call to `transformValueA` will be executed also on `executorInitial`! What's about deeper calls? The invocation to `transformValueB` ran on explicitly supplied `executorNext`. And next call, `transformValueC` will be executed on... check your intuition... `executorNext`. The logic behinds this is the following: the latest explicitly specified `Executor` is what will be used for all nested asynchronous composition methods without an explicit `Executor` parameter.
+
 Obviously, it's rarely the case when one size fits all. therefore two additional options exist to specify default asynchronous executor:
 1. `CompletableTask` has an overloaded method:
 ```java
@@ -152,6 +151,7 @@ When `enforceDefaultAsync` is `true` then all nested asynchronous composition me
 Promise<T> defaultAsyncOn(Executor executor)
 ```
 The returned decorator will use the specified executor for all nested asynchronous composition methods without explicit `Executor` parameter. So, at any point, you are able to switch to the desired default asynchronous executor and keep using it for all nested composition call.
+
 To summarize, with Tascalate Concurrent you have the following options to control what is the default asynchronous executor:
 1. The latest explicit `Executor` passed to `*Async` method is used for derived `Promise`-s - the default option.
 2. Single default `Executor` passed to the root `CompletableTask.asyncOn(Executor executor, true)` call is propagated through the whole chain. This is the only variant supported with `CompletableFuture` in Java 9+, though, with custom coding.
@@ -175,6 +175,7 @@ Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorS
 The `dataPromise` returned may be cancelled later and `loadDataInterruptibly` will be interrupted if not completed by that time.
 ## 4. Timeouts
 Any robust application must handles situations when things go wrong. An ability to cancel an operation that takes too long existed in the library from the day one. But, the very definition of the "too long" was left to an application code initially. However, the practice shows that a lack of the proven, thoroughly tested timeout-related stuff in the library leads to a complex, repeatative and, unfortunately, error-prone code in application. Hence Tascalate Concurrent was extended to address this omission.
+
 The library offers the following operations to control execution time of the `Promise` (declared in `Promise` interface):
 ```java
 <T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
@@ -252,7 +253,6 @@ Promise<List<String>> resultPromise = CompletableTask
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
     ;
 ```
-
 Moreover, in the _original_ example only the call to the `thenCombineAsync` will be cancelled on timeout (the last in the chain), to cancel the whole chain it's necessary to use a functionality of the `DependentPromise` interface (will be discussed in next article).
 
 Another useful timeout-related methods declared in `Promise` interface are:
@@ -322,30 +322,27 @@ The utility class `Promises` provides a rich set of methods to combine several `
 4. There is an option to cancel non-settled `CompletionStage`-s passed once the result of the operation is known.
 5. Optionally you can specify whether or not to tolerate individual failures as long as they don't affect the final result.
 6. General _M completed successfully out of N passed promises_ scenario is possible.
-
 Let us review the relevant methods, from the simplest ones to the most advance.
-
 ```java
-static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+static <T> Promise<List<T>> all([boolean cancelRemaining=true,] 
+                                 CompletionStage<? extends T>... promises)
 static <T> Promise<List<T>> all([boolean cancelRemaining=true,] 
                                 List<? extends CompletionStage<? extends T>> promises)
 ````
 Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well.
-
 ```java
-static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
+static <T> Promise<T> any([boolean cancelRemaining=true,] 
+                          CompletionStage<? extends T>... promises)
 static <T> Promise<T> any([boolean cancelRemaining=true,] 
                           List<? extends CompletionStage<? extends T>> promises)
 ```
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well.
-
 ```java
 static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
 static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] 
                                 List<? extends CompletionStage<? extends T>> promises)
 ```
 Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before the first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if any result is available at all).
-
 ```java
 static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] 
                                     CompletionStage<? extends T>... promises)
@@ -368,15 +365,10 @@ All methods above have an optional parameter `cancelRemaining`. When omitted, it
 Each operation to combine `CompletionStage`-s has overloaded versions that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s or varagr array of `CompletionStage`-s.
 
 Besides `any`/`anyStrict` methods that return single-valued promise, all other combining methods return a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one completed exceptionally in strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
-
 The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
 2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
-
 The list of features provided by the Tascalate Concurrent library doesn't stop here. There is more interesting stuff like Retry / Poll functionality, controlling cancellation of the chain of `Promises`, extensions to `ExecutorService` etc. But this article is already getting too long, so the reamaing is left for the next time. In the meantime, you can check the home page of the [Tascalate Concurrent](https://github.com/vsilaev/tascalate-concurrent) library for the most up-to-date documentation.
-
-
 # Acknowledgements
-
 Internal implementation details of the `CompletableTask` class hierarchy are greatly inspired [by the work](https://github.com/lukas-krecan/completion-stage) done by [Lukáš Křečan](https://github.com/lukas-krecan). A description of his library is available as a two-part article on DZone: [Part 1](https://dzone.com/articles/implementing-java-8) and [Part II](https://dzone.com/articles/implementing-java-8-0). It's a worth reading for those, who'd like to have better understanding of the `CompletableTask` internals.
 
