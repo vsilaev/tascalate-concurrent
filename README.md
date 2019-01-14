@@ -336,11 +336,11 @@ static Promise<Duration> delay(Duration duration, Executor executor);
 ```
 ## 5. Combining several CompletionStage-s.
 The utility class `Promises` provides a rich set of methods to combine several `CompletionStage`-s, that lefts limited functionality of `CompletableFuter.allOf / anyOf` far behind:
-1. The library works with any `CompletionStage` implemenation without resorting to converting arguments to `CompletableFuture` first (and `CompletionStage.toCompletableFuture` is an optional operation, at least it's documented so in Java 8).
-2. It's possible to pass both an array and a `List` of `CompletionStage`-s as arguments.
+1. The library works with any `CompletionStage` implementation without resorting to converting arguments to `CompletableFuture` first (and `CompletionStage.toCompletableFuture` is an optional operation, at least it's documented so in Java 8).
+2. It's possible to pass either an array or a `List` of `CompletionStage`-s as arguments.
 3. The resulting `Promise` let access individual results of the settled `CompletionStage`-s passed.
 4. There is an option to cancel non-settled `CompletionStage`-s passed once the result of the operation is known.
-5. Optionally you can specify whether or not tolerate individual failures as long as they don't affect final result.
+5. Optionally you can specify whether or not to tolerate individual failures as long as they don't affect the final result.
 6. General _M completed successfully out of N passed promises_ scenario is possible.
 
 Let us review the relevant methods, from the simplest ones to the most advance.
@@ -381,13 +381,13 @@ static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRe
 static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
                                           List<? extends CompletionStage<? extends T>> promises)
 ```
-Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of successful results is available).
+Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of successful results are available).
 
-All methods above have an optional parameter `cancelRemaining` (since library's version [0.5.3](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.3)). When ommitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known, i.e. enough number of `promises` passed are settled successfully _or_ some `CompletionStage` completed exceptionally in strict version. 
+All methods above have an optional parameter `cancelRemaining` (since library's version [0.5.3](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.3)). When omitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known, i.e. enough `promises` passed are settled successfully _or_ some `CompletionStage` completed exceptionally in strict version. 
 
-There are 2 overloads of aforementioned combinator methods that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library) or varagr array of `CompletionStage`-s.
+Each operation to combine `CompletionStage`-s has overloaded versions that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library) or varagr array of `CompletionStage`-s.
 
-Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods returns a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one failed with strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
+Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods return a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one completed exceptionally in strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
 
 The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
