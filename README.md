@@ -72,6 +72,21 @@ Promise<Void> p2 = CompletableTask.runAsync(this::someIoBoundMethod, myExecutor)
 ```
 `blockingCalculationOfSomeValue` and `someIoBoundMethod` in the example above can have I/O code, work with blocking queues, do blocking get on regular Java-s `Future`-s and alike. If at later time you decide to cancel either of the returned promises then corresponding `blockingCalculationOfSomeValue` and `someIoBoundMethod` will be interrupted (if not completed yet).
 
+In the realm of I/O-related functionality, failures like connection time-outs, missing or locked files are pretty common, and checked exceptions mechanism is used frequently to signal failures. Therefore the library provides an entry point to the API that accepts [Callable](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Callable.html) instead of `Supplier`:
+```java
+// Notice the checked exception in the method signature
+byte[] loadFile(File file) throws IOException {
+    byte[] result = ... //load file content;
+    return result;
+}
+...
+ExecutorService executorService = Executors.newFixedThreadPool(6);
+Promise<byte[]> contentPromise = CompletableTask.submit(
+    () -> loadFile(new File("./myfile.dat")), 
+    executorService
+); 
+```
+
 Additionally, there are 2 unit operations to create a `CompletableTask`:
 
 a.	`CompletableTask.asyncOn(Executor executor)`
@@ -365,6 +380,10 @@ All methods above have an optional parameter `cancelRemaining` (since library's 
 There are 2 overloads of aforementioned combinator methods that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library) or varagr array of `CompletionStage`-s.
 
 Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods returns a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one failed with strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
+
+The returned `Promise` has the following characteristics:
+1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
+2. Default asynchronous executor of the resulting promise is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necesary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
 
 ## 6. DependentPromise
 As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
