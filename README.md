@@ -337,7 +337,7 @@ As long as back-off execution is not a very rare case, the library provides the 
 static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor);
 static Promise<Duration> delay(Duration duration, Executor executor);
 ```
-Notice, that in Java 9+ a different approach is choosen to implement delays - there is no corresponding operation defined for the `CompletableFuture` object and you should use delayed `Executor`. Please read documentation on the [CompletableFuture.delayedExecutor](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#delayedExecutor-long-java.util.concurrent.TimeUnit-java.util.concurrent.Executor-) method for details.
+Notice, that in Java 9+ a different approach is chosen to implement delays - there is no corresponding operation defined for the `CompletableFuture` object and you should use delayed `Executor`. Please read documentation on the [CompletableFuture.delayedExecutor](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#delayedExecutor-long-java.util.concurrent.TimeUnit-java.util.concurrent.Executor-) method for details.
 
 ## 5. Combining several CompletionStage-s.
 The utility class `Promises` provides a rich set of methods to combine several `CompletionStage`-s, that lefts limited functionality of `CompletableFuter.allOf / anyOf` far behind:
