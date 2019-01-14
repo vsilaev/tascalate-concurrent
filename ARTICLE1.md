@@ -52,7 +52,6 @@ It behaves as the following:
 2. If `stage` is a `CompletableFuture` then a specially-tailored wrapper is returned.
 3. If `stage` additionally implements `Future` then specialized wrapper is returned that delegates all the blocking methods defined in `Future` API
 4. Otherwise generic wrapper is created with good-enough implementation of blocking `Future` API atop of asynchronous `CompletionStage` API.
-
 To summarize, the returned wrapper delegates as much as possible functionality to the supplied `stage` and _never_ resorts to [CompletionStage.toCompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html#toCompletableFuture--) because in Java 8 API it's an optional method. From documentation: "A CompletionStage implementation that does not choose to interoperate with others may throw UnsupportedOperationException." (this text was dropped in Java 9+). In general, Tascalate Concurrent library does not depend on this method and should be interoperable with any minimal (but valid) `CompletionStage` implementation.
 
 It's important to emphasize, that `Promise`-s returned from `Promises.success`, `Promises.failure` and `Promises.from` methods are cancellable in the same way as `CompletableFuture`, but are not interruptible in general, while interruption depends on a concrete implementation. Next we discuss the concrete implementation of an interruptible `Promise` provided by the Tascalate Concurrent library -- the `CompletableTask` class.
@@ -84,9 +83,7 @@ Promise<byte[]> contentPromise = CompletableTask.submit(
     executorService
 ); 
 ```
-
 Additionally, there are 2 unit operations to create a `CompletableTask`:
-
 a.	`CompletableTask.asyncOn(Executor executor)`
 Returns an already-completed null-valued `Promise` that is "bound" to the specified executor. I.e. any function passed to asynchronous composition methods of `Promise` (like `thenApplyAsync` / `thenAcceptAsync` / `whenCompleteAsync` etc.) will be executed using this executor unless executor is overridden via explicit composition method parameter. Moreover, any nested composition calls will use same executor, if it’s not redefined via explicit composition method parameter:
 ```java
@@ -97,7 +94,6 @@ CompletableTask
   .thenRunAsync(myAction);
 ```  
 All of `myValueGenerator`, `myConsumer`, `myAction` will be executed using `myExecutor`.
-
 b.	`CompletableTask.complete(T value, Executor executor)`
 Same as above, but the starting point is a `Promise` completed with the specified value:
 ```java
@@ -145,26 +141,22 @@ CompletionStage<String> p3 = p2.thenApplyAsync(this::transformValueB, executorNe
 CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
 ```
 The call to `produceValue` will be executed on the `executorInitial`, obviously. But now, the call to `transformValueA` will be executed also on `executorInitial`! What's about deeper calls? The invocation to `transformValueB` ran on explicitly supplied `executorNext`. And next call, `transformValueC` will be executed on... check your intuition... `executorNext`. The logic behinds this is the following: the latest explicitly specified `Executor` is what will be used for all nested asynchronous composition methods without an explicit `Executor` parameter.
-
 Obviously, it's rarely the case when one size fits all. therefore two additional options exist to specify default asynchronous executor:
 1. `CompletableTask` has an overloaded method:
 ```java
 public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync)
 ```
 When `enforceDefaultAsync` is `true` then all nested asynchronous composition methods without explicit `Executor` parameter will use the provided executor, even if previous composition methods use alternative `Executor`. This is somewhat similar to `CompletableFuture` but with the ability to explicitly set the default asynchronous executor initially.
-
 2. `Promise` interface has the following operation:
 ```java
 Promise<T> defaultAsyncOn(Executor executor)
 ```
 The returned decorator will use the specified executor for all nested asynchronous composition methods without explicit `Executor` parameter. So, at any point, you are able to switch to the desired default asynchronous executor and keep using it for all nested composition call.
-
 To summarize, with Tascalate Concurrent you have the following options to control what is the default asynchronous executor:
 1. The latest explicit `Executor` passed to `*Async` method is used for derived `Promise`-s - the default option.
 2. Single default `Executor` passed to the root `CompletableTask.asyncOn(Executor executor, true)` call is propagated through the whole chain. This is the only variant supported with `CompletableFuture` in Java 9+, though, with custom coding.
 3. Redefine `Executor` with `defaultAsyncOn(Executor executor)` for all derived `Promise`-s.
 Having the best of three(!) worlds, the only responsibility of the library user is to use these options consistently! 
-
 The last thing that should be mentioned is a typical task when you would like to start interruptible blocking method after completion of the standard `CompletableFuture`. The following utility method is defined in the `CompletableTask`:
 ```java
 public static <T> Promise<T> waitFor(CompletionStage<T> stage, Executor executor)
@@ -181,10 +173,8 @@ Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorS
     .thenApplyAsync(url -> loadDataInterruptibly(url));
 ```
 The `dataPromise` returned may be cancelled later and `loadDataInterruptibly` will be interrupted if not completed by that time.
-
 ## 4. Timeouts
 Any robust application must handles situations when things go wrong. An ability to cancel an operation that takes too long existed in the library from the day one. But, the very definition of the "too long" was left to an application code initially. However, the practice shows that a lack of the proven, thoroughly tested timeout-related stuff in the library leads to a complex, repeatative and, unfortunately, error-prone code in application. Hence Tascalate Concurrent was extended to address this omission.
-
 The library offers the following operations to control execution time of the `Promise` (declared in `Promise` interface):
 ```java
 <T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
