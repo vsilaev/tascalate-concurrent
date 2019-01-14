@@ -1,8 +1,6 @@
-[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate.concurrent/net.tascalate.concurrent.lib.svg)](https://search.maven.org/artifact/net.tascalate.concurrent/net.tascalate.concurrent.lib/0.7.0/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.7.0) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
-# tascalate-concurrent
-The library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
+[Tascalate Concurrent](https://github.com/vsilaev/tascalate-concurrent) library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
 
-Since the version [0.7.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.7.0) the library is shipped as a multi-release JAR and may be used both with Java 8 as a classpath library or with Java 9+ as a module.
+The library is shipped as a multi-release JAR and may be used both with Java 8 as a classpath library or with Java 9+ as a module.
 
 # Why a CompletableFuture is not enough?
 There are several shortcomings associated with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its usage for real-life asynchronous programming, especially when you have to work with I/O-bound interruptible tasks:
@@ -148,7 +146,7 @@ CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
 ```
 The call to `produceValue` will be executed on the `executorInitial`, obviously. But now, the call to `transformValueA` will be executed also on `executorInitial`! What's about deeper calls? The invocation to `transformValueB` ran on explicitly supplied `executorNext`. And next call, `transformValueC` will be executed on... check your intuition... `executorNext`. The logic behinds this is the following: the latest explicitly specified `Executor` is what will be used for all nested asynchronous composition methods without an explicit `Executor` parameter.
 
-Obviously, it's rarely the case when one size fits all. Since release [0.6.6](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.6.6) there are two new options to specify default asynchronous executor:
+Obviously, it's rarely the case when one size fits all. therefore two additional options exist to specify default asynchronous executor:
 1. `CompletableTask` has an overloaded method:
 ```java
 public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync)
@@ -388,143 +386,15 @@ static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRe
 ```
 Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of successful results are available).
 
-All methods above have an optional parameter `cancelRemaining` (since library's version [0.5.3](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.3)). When omitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known, i.e. enough `promises` passed are settled successfully _or_ some `CompletionStage` completed exceptionally in strict version. 
+All methods above have an optional parameter `cancelRemaining`. When omitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known, i.e. enough `promises` passed are settled successfully _or_ some `CompletionStage` completed exceptionally in strict version. 
 
-Each operation to combine `CompletionStage`-s has overloaded versions that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library) or varagr array of `CompletionStage`-s.
+Each operation to combine `CompletionStage`-s has overloaded versions that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s or varagr array of `CompletionStage`-s.
 
 Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods return a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one completed exceptionally in strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
 
 The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
 2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
-
-## 6. DependentPromise
-As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
-
-However, when you cancel derived `Promise`, the original `Promise` is not cancelled: 
-```java
-Promise<?> original = CompletableTask.supplyAsync(() -> someIoBoundMethod(), myExecutor);
-Promise<?> derivedA = original.thenRunAsync(() -> someMethodA() );
-Promise<?> derivedB = original.thenRunAsync(() -> someMethodB() );
-...
-derivedB.cancel(true);
-```
-So if you cancel `derivedB` above it's [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) method, wrapping `someMethod`, is interrupted. However the `original` promise is not cancelled and `someIoBoundMethod` keeps running. Also, `derivedA` is not cancelled, and such behavior is expected. However, sometimes we have a linear chain of the promises and have a requirement to cancel the whole chain from a tail to the head. Consider the following method:
-
-```java
-public Promise<DataStructure> loadData(String url) {
-   return CompletableTask.supplyAsync( () -> loadXml(url) ).thenApplyAsync( xml -> parseXml(xml) ); 
-}
-
-...
-Promise<DataStructure> p = loadData("http://someserver.com/rest/ds");
-...
-if (someCondition()) {
-  // Only second promise is canceled, parseXml.
-  p.cancel(true);
-}
-```
-
-Clients of this method see only derived promise, and once they decide to cancel it, it is expected that any of `loadXml` and `parseXml` will be interrupted if not completed yet. To address this issue the library provides [DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) class:
-```java
-public Promise<DataStructure> loadData(String url) {
-   return DependentPromise
-          .from(CompletableTask.supplyAsync( () -> loadXml(url) ))
-          .thenApplyAsync( xml -> parseXml(xml), true ); 
-}
-
-...
-Promise<DataStructure> p = loadData("http://someserver.com/rest/ds");
-...
-if (someCondition()) {
-  // Now the whole chain is canceled.
-  p.cancel(true);
-}
-```
-[DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) overloads methods like `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc with additional argument:
-- if method accepts no other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenApply` / `thenRun` / `thenAccept` etc, then it's a boolean flag `enlistOrigin` to specify whether or not the original `Promise` should be enlisted for the cancellation.
-- if method accepts other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenCombine` / `applyToEither` / `thenAcceptBoth` etc, then it's a set of [PromiseOrigin](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/PromiseOrigin.java) enum values, that specifies whether or not the original `Promise` and/or a `CompletionStage` supplied as argument should be enlisted for the cancellation along with the resulting promise, for example:
-
-```java
-public Promise<DataStructure> loadData(String url) {
-   return DependentPromise
-          .from(CompletableTask.supplyAsync( () -> loadXml(url + "/source1") ))
-          .thenCombine( 
-              CompletableTask.supplyAsync( () -> loadXml(url + "/source2") ), 
-              (xml1, xml2) -> Arrays.asList(xml1, xml2),
-              PromiseOrigin.ALL
-          )          .
-          .thenApplyAsync( xmls -> parseXmlsList(xmls), true ); 
-}
-```
-
-Please note, then in release 0.5.4 there is a new default method `dependent` in interface [Promise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/Promise.java) that serves the same purpose and allows to write chained calls:
-
-```java
-public Promise<DataStructure> loadData(String url) {
-   return CompletableTask
-          .supplyAsync( () -> loadXml(url) )
-          .dependent()
-          .thenApplyAsync( xml -> parseXml(xml), true ); 
-}
-```
-
-## 7. Polling and asynchronous retry functionality
-Once you departure from the pure algebraic calculations to the unreliable terrain of the I/O-related functionality you have to deal with failures. Network outage, insuffcient disk space, overloaded third-party servers, exhausted database connection pools - these and many similar infrastructure failures is what application have to cope with flawlessly. And many of the aforementioned issues are temporal by the nature, so it makes sense to re-try after small delay and keep fingers crossed that this time everything will run smoothly. So this is the primary use-case for the retry functionality, or better yet -- asynchronous retry functionality, while all we want our applications be as scalable as possible.
-
-Another related area is polling functionality - unlike infrastructure failures these are sporadic, polling is built-in in certain asynchronous protocol communications. Say, an application sends an HTTP request to generate a report and waits for the known file on FTP server. There is no "asynchronous reply" expected from the third-party server, and the application has to `poll` periodically till the file will be available.
-
-Both use-case are fully supported by the Tascalate Concurrent library. The library provides an API that is both unobtrusive and rich for a wide range of tasks. The following `retry*` methods are available in the `Promises` class:
-
-Provided by utility class Promises but stands on its own
-```java
-static Promise<Void> retry(Runnable codeBlock, Executor executor, 
-                           RetryPolicy<? super Void> retryPolicy);
-static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, 
-                           RetryPolicy<? super Void> retryPolicy);
-
-static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, 
-                            RetryPolicy<? super T> retryPolicy);
-static <T> Promise<T> retry(RetryCallable<T, T> codeBlock, Executor executor, 
-                            RetryPolicy<? super T> retryPolicy);
-    
-static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
-                                    RetryPolicy<? super T> retryPolicy);
-static <T> Promise<T> retryOptional(RetryCallable<Optional<T>, T> codeBlock, Executor executor, 
-                                    RetryPolicy<? super T> retryPolicy);
-    
-static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, 
-                                  RetryPolicy<? super T> retryPolicy);
-static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, T> invoker, 
-                                  RetryPolicy<? super T> retryPolicy);
-```
-All the methods from `retry` family share the same pattern. First, there is a block of code that is executed per every attempt. It could be either a full block of the asynchronous code (`retry` and `retryOptional`) or a method that returns a CompletionStage<T> from third-party API like Async Http library (`retryFuture`). Next, if we retry custom code block, then it's necessary to provide an `Executor` it should be run on. For `retryFuture` there is no explicit `Executor`, and it's up to the third-party library to provide scalable and robust `Executor` as a default asynchronous executor of the returned `CompletionStage`. Finally, `RetryPolicy` should be specified that provides a lot of customization options:
-1. How much attempts should be made?
-2. What is a time interval between attempts? Should it be fixed or dynamic?
-3. What is a timeout before a single attempted is considered "hanged"? Should it be dynamic?
-4. What exceptions are re-trieable and what are not?
-5. What result is expected to be valid? Is a `null` result valid? Is any non-`null` result valid or some returned object properties should be examined?
-    
-All in all, `RetryPolicy` is provides an API with endless customizations per every imaginable use-case.
-But before discussing it, it's necessary to explain a difference in each pair of methods. Why there are overloads with `Runnable` vs `RetryRunnable` and `Callable` vs `RetryCallable`? The reason is the following:
-1. Contextless retriable operations are captured as `Runnable` or `Callable` lambdas - they behaves the same for every iteration, and hence do not need a context.
-2. Methods with `RetryRunnable` and `RetryCallable` are contextual and may dynamically alter their behavior for the given iteration depending on the context passed. The `RetryContext` provides provides all necessary iteration-specific information. 
-
-
-## 8. Extensions to ExecutorService API
-
-It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
-
-a. Interface `TaskExecutorService`
-
-Specialization of [ExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html) that uses `Promise` as a result of `submit(...)` methods.
-
-b. Class `ThreadPoolTaskExecutor`
-A subclass of the standard [ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) that implements `TaskExecutorService` interface.
-
-c. Class `TaskExecutors`
-
-A drop-in replacement for [Executors](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executors.html) utility class that returns various useful implementations of `TaskExecutorService` instead of the standard [ExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html).
 
 # Acknowledgements
 
