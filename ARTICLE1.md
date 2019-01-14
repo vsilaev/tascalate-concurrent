@@ -141,7 +141,7 @@ CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
 The call to `produceValue` will be executed on the `executorInitial`, obviously. But now, the call to `transformValueA` will be executed also on `executorInitial`! What's about deeper calls? The invocation to `transformValueB` ran on explicitly supplied `executorNext`. And next call, `transformValueC` will be executed on... check your intuition... `executorNext`. The logic behinds this is the following: the latest explicitly specified `Executor` is what will be used for all nested asynchronous composition methods without an explicit `Executor` parameter.
 
 Obviously, it's rarely the case when one size fits all. therefore two additional options exist to specify default asynchronous executor:
-1. `CompletableTask` has an overloaded method:
+1. A. `CompletableTask` has an overloaded method:
 ```java
 public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync)
 ```
