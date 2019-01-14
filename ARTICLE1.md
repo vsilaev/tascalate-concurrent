@@ -263,20 +263,7 @@ Promise<List<String>> resultPromise = CompletableTask
     ;
 ```
 
-Moreover, in the _original_ example only the call to the `thenCombineAsync` will be cancelled on timeout (the last in the chain), to cancel the whole chain please use the functionality of the `DependentPromise` interface (will be discussed later):
-```java
-Executor myExecutor = ...; // Get an executor
-Promise<String> parallelPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningDbCall(), executor );
-Promise<List<String>> resultPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .dependent()
-    // enlist promise of someLongRunningIoBoundMehtod for cancellation
-    .thenApplyAsync( v -> converterMethod(), true )  
-    // enlist result of thenApplyAsync and parallelPromise for cancellation
-    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v), PromiseOrigin.ALL)
-    .orTimeout( Duration.ofSeconds(5) ); // now timeout will cancel the whole chain
-```
+Moreover, in the _original_ example only the call to the `thenCombineAsync` will be cancelled on timeout (the last in the chain), to cancel the whole chain it's necessary to use a functionality of the `DependentPromise` interface (will be discussed in next article).
 
 Another useful timeout-related methods declared in `Promise` interface are:
 ```java
@@ -398,5 +385,5 @@ The `Promise` returned has the following characteristics:
 
 # Acknowledgements
 
-Internal implementation details are greatly inspired [by the work](https://github.com/lukas-krecan/completion-stage) done by [Lukáš Křečan](https://github.com/lukas-krecan). The part of the polling / asynchronous retry functionality is adopted from the [async-retry](https://github.com/nurkiewicz/async-retry) library by [Tomasz Nurkiewicz](http://nurkiewicz.com/)
+Internal implementation details of the `CompletableTask` hierarchy are greatly inspired [by the work](https://github.com/lukas-krecan/completion-stage) done by [Lukáš Křečan](https://github.com/lukas-krecan). A description of his library is available as a two-part article on DZone: [Part 1](https://dzone.com/articles/implementing-java-8) and [Part II](https://dzone.com/articles/implementing-java-8-0). It's a worth reading for those, who'd like to have better understanding of the `CompletableTask` internals.
 
