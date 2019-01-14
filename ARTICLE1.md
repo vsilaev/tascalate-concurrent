@@ -183,14 +183,14 @@ Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorS
 The `dataPromise` returned may be cancelled later and `loadDataInterruptibly` will be interrupted if not completed by that time.
 
 ## 4. Timeouts
-Any robust application requires certain level of functionality, that handles situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) the library fills the gap in this functionality with timeout-related stuff.
+Any robust application must handles situations when things go wrong. An ability to cancel an operation that takes too long existed in the library from the day one. But, the very definition of the "too long" was left to an application code initially. However, the practice shows that a lack of the proven, thoroughly tested timeout-related stuff in the library leads to a complex, repeatative and, unfortunately, error-prone code in application. Hence Tascalate Concurrent was extended to address this omission.
 
-An application developer now has the following options to control execution time of the `Promise` (declared in `Promise` interface itself):
+The library offers the following operations to control execution time of the `Promise` (declared in `Promise` interface):
 ```java
 <T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> orTimeout(Duration duration[, boolean cancelOnTimeout = true])
 ```
-These methods creates a new `Promise` that is either settled successfully/exceptionally when original promise is completed within a timeout given; or it is settled exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
+These methods create a new `Promise` that is either settled successfully/exceptionally when original promise is completed within a timeout given; or it is settled exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise = CompletableTask
@@ -383,7 +383,7 @@ The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
 2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
 
-The list of features provided by the Tascalate Concurrent library doesn't stop here. There is more interesting stuff like Retry / Poll functionality, controlling cancellation of the chain of `Promises`, extensions to `ExecutorService` etc. But this article is already getting too long, so the reamaing is left for another time. In the meantime, you can check the home page of the [Tascalate Concurrent](https://github.com/vsilaev/tascalate-concurrent) library for the most up-to-date documentation.
+The list of features provided by the Tascalate Concurrent library doesn't stop here. There is more interesting stuff like Retry / Poll functionality, controlling cancellation of the chain of `Promises`, extensions to `ExecutorService` etc. But this article is already getting too long, so the reamaing is left for the next time. In the meantime, you can check the home page of the [Tascalate Concurrent](https://github.com/vsilaev/tascalate-concurrent) library for the most up-to-date documentation.
 
 
 # Acknowledgements
