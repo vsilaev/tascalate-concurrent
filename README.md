@@ -335,7 +335,15 @@ static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor);
 static Promise<Duration> delay(Duration duration, Executor executor);
 ```
 ## 5. Combining several CompletionStage-s.
-The utility class `Promises` provides convenient methods to combine several `CompletionStage`-s:
+The utility class `Promises` provides a rich set of methods to combine several `CompletionStage`-s, that lefts limited functionality of `CompletableFuter.allOf / anyOf` far behind:
+1. The library works with any `CompletionStage` implemenation without resorting to converting arguments to `CompletableFuture` first (and `CompletionStage.toCompletableFuture` is an optional operation, at least it's documented so in Java 8).
+2. It's possible to pass both an array and a `List` of `CompletionStage`-s as arguments.
+3. The resulting `Promise` let access individual results of the settled `CompletionStage`-s passed.
+4. There is an option to cancel non-settled `CompletionStage`-s passed once the result of the operation is known.
+5. Optionally you can specify whether or not tolerate individual failures as long as they don't affect final result.
+6. General _M completed successfully out of N passed promises_ scenario is possible.
+
+Let us review the relevant methods, from the simplest ones to the most advance.
 
 ```java
 static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
