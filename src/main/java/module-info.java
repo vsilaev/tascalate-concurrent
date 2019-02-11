@@ -13,26 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent;
-
-import java.util.function.Supplier;
-
-final class Reference<T> {
-    private final T reference;
-    
-    Reference(T reference) {
-        this.reference = reference;
-    }
-    
-    T get() {
-        return reference;
-    }
-    
-    static <T> T getOrElse(Reference<? extends T> ref, Supplier<? extends Throwable> error) {
-        if (null != ref) {
-            return ref.get();
-        } else {
-            return SharedFunctions.sneakyThrow(error.get());
-        }
-    }
+module net.tascalate.concurrent {
+    exports net.tascalate.concurrent;
+    exports net.tascalate.concurrent.decorators;
+    exports net.tascalate.concurrent.delays;
 }

@@ -1,5 +1,5 @@
 /**
- * ﻿Copyright 2015-2018 Valery Silaev (http://vsilaev.com) - original author Adam Jurčík
+ * Copyright 2015-2019 Valery Silaev (http://vsilaev.com) - original author Adam Jurčík
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
