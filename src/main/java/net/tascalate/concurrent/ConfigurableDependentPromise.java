@@ -18,8 +18,6 @@ package net.tascalate.concurrent;
 import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
-import static net.tascalate.concurrent.SharedFunctions.supply;
-import static net.tascalate.concurrent.SharedFunctions.timeout;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -154,11 +152,12 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Promise<? extends Reference<T>> onTimeout = Timeouts.delayed(null, duration);
+        Promise<? extends Try<T>> onTimeout = Timeouts.delayed(null, duration);
         DependentPromise<T> result = 
-        this.thenApply(Reference::new, enlistOrigin)
+        this.thenApply(Try::success, enlistOrigin)
+            .exceptionally(Try::failure, true)
             // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, v -> Reference.getOrElse(v, timeout(duration)), PromiseOrigin.ALL);
+            .applyToEitherAsync(onTimeout, v -> Try.doneOrTimeout(v, duration), PromiseOrigin.ALL);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
@@ -171,9 +170,12 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Promise<T> onTimeout = Timeouts.delayed(value, duration);
-        // Use *Async to execute on default "this" executor
-        DependentPromise<T> result = applyToEitherAsync(onTimeout, Function.identity(), enlistParamOrAll(enlistOrigin));
+        Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
+        DependentPromise<T> result = 
+        this.thenApply(Try::success, enlistOrigin)
+            .exceptionally(Try::failure, true)
+            // Use *Async to execute on default "this" executor
+            .applyToEitherAsync(onTimeout, Try::done, PromiseOrigin.ALL);
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
@@ -187,15 +189,15 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Function<T, Supplier<? extends T>> valueToSupplier = v -> supply(v);
-        
         // timeout converted to supplier
-        Promise<Supplier<? extends T>> onTimeout = Timeouts.delayed(supplier, duration);
+        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.with(supplier), duration);
         
         DependentPromise<T> result = 
-        this.thenApply(valueToSupplier, enlistOrigin) 
+        this.thenApply(Try::success, enlistOrigin)
+            .exceptionally(Try::failure, true)
+            .thenApply(SharedFunctions::supply, true)
             // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Supplier::get,  PromiseOrigin.ALL);
+            .applyToEitherAsync(onTimeout, s -> s.get().done(),  PromiseOrigin.ALL);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
@@ -714,10 +716,6 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     private boolean defaultEnlistOrigin() {
         return defaultEnlistOptions.contains(PromiseOrigin.THIS);
-    }
-    
-    private static Set<PromiseOrigin> enlistParamOrAll(boolean enlistThis) {
-        return enlistThis ? PromiseOrigin.ALL : PromiseOrigin.PARAM_ONLY;
     }
 
     static void cancelPromises(CompletionStage<?>[] promises, boolean mayInterruptIfRunning) {

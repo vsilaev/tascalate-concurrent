@@ -16,19 +16,16 @@
 package net.tascalate.concurrent;
 
 import java.lang.reflect.Method;
-import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-
 
 class SharedFunctions {
     
@@ -98,10 +95,6 @@ class SharedFunctions {
     
     static <T> Supplier<T> supply(T value) {
         return () -> value;
-    }
-    
-    static Supplier<TimeoutException> timeout(Duration duration) {
-        return supply(new TimeoutException("Timeout after " + duration));        
     }
     
     @SuppressWarnings("unchecked")

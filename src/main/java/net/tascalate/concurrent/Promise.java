@@ -16,8 +16,6 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
-import static net.tascalate.concurrent.SharedFunctions.supply;
-import static net.tascalate.concurrent.SharedFunctions.timeout;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 
@@ -52,7 +50,7 @@ import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     default T getNow(T valueIfAbsent) throws CancellationException, CompletionException {
-        return getNow(supply(valueIfAbsent));
+        return getNow(SharedFunctions.supply(valueIfAbsent));
     }
     
     default T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException {
@@ -125,12 +123,13 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        Promise<? extends Reference<T>> onTimeout = Timeouts.delayed(null, duration);
+        Promise<? extends Try<T>> onTimeout = Timeouts.delayed(null, duration);
         Promise<T> result = 
         this.dependent()
-            .thenApply(Reference::new, false)
+            .thenApply(Try::success, false)
+            .exceptionally(Try::failure, true)
             // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, v -> Reference.getOrElse(v, timeout(duration)), PromiseOrigin.ALL);
+            .applyToEitherAsync(onTimeout, v -> Try.doneOrTimeout(v, duration), PromiseOrigin.ALL);
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.raw();
@@ -150,11 +149,13 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
         // timeout converted to supplier
-        Promise<T> onTimeout = Timeouts.delayed(value, duration);
-        // Use *Async to execute on default "this" executor
+        Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
         Promise<T> result = 
         this.dependent()
-            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.PARAM_ONLY);
+            .thenApply(Try::success, false)
+            .exceptionally(Try::failure, true)
+            // Use *Async to execute on default "this" executor
+            .applyToEitherAsync(onTimeout, Try::done, PromiseOrigin.ALL);
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.raw();
@@ -173,17 +174,17 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
-        Function<T, Supplier<? extends T>> valueToSupplier = v -> supply(v);
-        
         // timeout converted to supplier
-        Promise<Supplier<? extends T>> onTimeout = Timeouts.delayed(supplier, duration);
+        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.with(supplier), duration);
         
         Promise<T> result = 
         this.dependent()
-            // resolved value converted to supplier
-            .thenApply(valueToSupplier, false)
+            // resolved value converted to supplier of Try
+            .thenApply(Try::success, false)
+            .exceptionally(Try::failure, true)
+            .thenApply(SharedFunctions::supply, true)
             // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL);
+            .applyToEitherAsync(onTimeout, s -> s.get().done(), PromiseOrigin.ALL);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.raw();

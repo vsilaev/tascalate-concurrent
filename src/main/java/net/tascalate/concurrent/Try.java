@@ -15,6 +15,10 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
+
 abstract class Try<R> {
 
     abstract R done();
@@ -55,7 +59,24 @@ abstract class Try<R> {
     static <R> Try<R> failure(Throwable error) {
         return new Failure<R>(error);
     }
- 
+    
+    static <R> Supplier<Try<R>> with(Supplier<? extends R> supplier) {
+        return () -> of(supplier);
+    }
+    
+    static <R> Try<R> of(Supplier<? extends R> supplier) {
+        try {
+            return success(supplier.get());
+        } catch (Throwable ex) {
+            return failure(ex);
+        }
+    }
+    
+    static <R> R doneOrTimeout(Try<R> result, Duration duration) {
+        Try<R> checkedResult = null != result ? result: failure(new TimeoutException("Timeout after " + duration));
+        return checkedResult.done();        
+    }
+    
     @SuppressWarnings("unchecked")
     static <R> Try<R> nothing() {
         return (Try<R>)NOTHING;

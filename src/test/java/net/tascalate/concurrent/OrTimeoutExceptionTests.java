@@ -3,6 +3,7 @@ package net.tascalate.concurrent;
 import static org.junit.Assert.assertTrue;
 
 import java.time.Duration;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
@@ -35,13 +36,17 @@ public class OrTimeoutExceptionTests {
                 else
                     System.out.println("ERROR: " + err.getMessage());
              });
-        p.join();
+        try {
+            p.join();
+        } catch (CompletionException ex) {
+            assertTrue(ex.getCause() instanceof IllegalStateException);
+        }
     }
     
     private String doTask () throws Exception {
         TimeUnit.SECONDS.sleep(3);
         if (null != System.out)
-            throw new Exception("my error");
+            throw new IllegalStateException("my error");
         return "executed ok";
     }
 

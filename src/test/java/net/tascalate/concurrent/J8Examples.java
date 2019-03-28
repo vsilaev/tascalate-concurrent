@@ -131,7 +131,7 @@ public class J8Examples {
                 System.out.println("After delay: " + v);
                 return v;
             }, true)
-            .onTimeout(123456789, Duration.ofMillis(2000))
+            .onTimeout(() -> 123456789, Duration.ofMillis(2000))
             .thenAcceptAsync(J8Examples::onComplete)
             .get(); 
         
