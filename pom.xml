@@ -9,7 +9,7 @@
 	<version>1.0.0-SNAPSHOT</version>
 	<packaging>jar</packaging>  
 
-	<name>Tascalate Concurrenct</name>
+	<name>Tascalate Concurrent</name>
 	<url>https://github.com/vsilaev/tascalate-concurrent</url> 
 	<description>Implementation of blocking (IO-Bound) cancellable java.util.concurrent.CompletionStage 
         and related extensions to java.util.concurrent.ExecutorService-s</description>
