@@ -1,8 +1,28 @@
-[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate.concurrent/net.tascalate.concurrent.lib.svg)](https://search.maven.org/artifact/net.tascalate.concurrent/net.tascalate.concurrent.lib/0.7.1/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.7.1) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate.concurrent/net.tascalate.concurrent.lib.svg)](https://search.maven.org/artifact/net.tascalate.concurrent/net.tascalate.concurrent.lib/0.8.0/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.0) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
 
 Since the version [0.7.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.7.0) the library is shipped as a multi-release JAR and may be used both with Java 8 as a classpath library or with Java 9+ as a module.
+
+IMPORTANT! 
+
+In the version [0.8.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.0) the artifact was renamed:
+New name:
+```xml
+<dependency>
+    <groupId>net.tascalate</groupId>
+    <artifactId>net.tascalate.concurrent</artifactId>
+    <version>0.8.0</version>
+</dependency>
+```
+Old Name
+```xml
+<dependency>
+    <groupId>net.tascalate.concurrent</groupId>
+    <artifactId>net.tascalate.concurrent.lib</artifactId>
+    <version>0.7.1</version>
+</dependency>
+
 
 # Why a CompletableFuture is not enough?
 There are several shortcomings associated with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its usage for real-life asynchronous programming, especially when you have to work with I/O-bound interruptible tasks:
@@ -17,9 +37,9 @@ There are numerous free open-source libraries that address some of the aforement
 To use a library you have to add a single Maven dependency
 ```xml
 <dependency>
-    <groupId>net.tascalate.concurrent</groupId>
-    <artifactId>net.tascalate.concurrent.lib</artifactId>
-    <version>0.7.1</version>
+    <groupId>net.tascalate</groupId>
+    <artifactId>net.tascalate.concurrent</artifactId>
+    <version>0.8.0</version>
 </dependency>
 ```
 # What is inside?
