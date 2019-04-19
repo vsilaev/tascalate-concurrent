@@ -22,6 +22,7 @@ Old Name
     <artifactId>net.tascalate.concurrent.lib</artifactId>
     <version>0.7.1</version>
 </dependency>
+```
 
 
 # Why a CompletableFuture is not enough?
