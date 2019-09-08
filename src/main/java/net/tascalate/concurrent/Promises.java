@@ -686,7 +686,7 @@ public final class Promises {
     private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Verdict verdict) {
         Duration timeout = verdict.timeout();
         if (DelayPolicy.isValid(timeout)) {
-            singleInvocationPromise.orTimeout( timeout );
+            singleInvocationPromise.dependent().orTimeout( timeout, true, true ).raw();
         }
         return singleInvocationPromise;        
     }

@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent.decorators;
 
+import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
@@ -22,7 +23,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.PromiseOrigin;
 
 public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
 
@@ -36,6 +39,16 @@ public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise
     @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {
         return new ExecutorBoundPromise<>((Promise<U>)original, defaultExecutor);
+    }
+    
+    @Override
+    public DependentPromise<T> dependent() {
+        return new ExecutorBoundDependentPromise<>(super.dependent(), defaultExecutor);
+    }
+    
+    @Override
+    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+        return new ExecutorBoundDependentPromise<>(super.dependent(defaultEnlistOptions), defaultExecutor);
     }
     
     @Override

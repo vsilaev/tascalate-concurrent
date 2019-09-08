@@ -71,8 +71,9 @@ public class RetryPolicy<T> {
     
     private static final Predicate<RetryContext<Object>> PREDICATE_FALSE = ctx -> false;
     
-    public static final Predicate<Object> ACCEPT_NULL_RESULT = v -> true;
-    public static final Predicate<Object> REJECT_NULL_RESULT = v -> v != null;
+    public static final Predicate<Object> ACCEPT_NULL_RESULT  = v -> true;
+    public static final Predicate<Object> REJECT_NULL_RESULT  = v -> v != null;
+    public static final Predicate<Object> IGNORE_RESULT       = v -> false;
     
     public static final RetryPolicy<Object> DEFAULT = new RetryPolicy<>().retryOn(Exception.class);
 
@@ -132,7 +133,7 @@ public class RetryPolicy<T> {
     }
     
     public RetryPolicy<T> retryInfinitely() {
-        return new RetryPolicy<>(0, resultValidator,
+        return new RetryPolicy<>(-1, resultValidator,
                                  retryOn, abortOn, retryPredicate, abortPredicate, backoff, timeout);
     }
 

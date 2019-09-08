@@ -193,7 +193,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     
     @Override
     public DependentPromise<Void> thenRun(Runnable action, boolean enlistOrigin) {
-        return wrap(delegate.thenRun(action));
+        return wrap(delegate.thenRun(action, enlistOrigin));
     }
     
     @Override
@@ -254,7 +254,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
 
     @Override
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.runAfterBoth(other, action));
+        return wrap(delegate.runAfterBoth(other, action, enlistOptions));
     }
     
     @Override
