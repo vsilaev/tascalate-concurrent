@@ -17,7 +17,6 @@ package net.tascalate.concurrent.decorators;
 
 import java.time.Duration;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -30,212 +29,120 @@ import java.util.function.Supplier;
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.PromiseOrigin;
 
-public abstract class AbstractDependentPromiseDecorator<T> 
-    extends AbstractPromiseDecorator<T, DependentPromise<T>> 
-    implements DependentPromise<T> {
+public class ExtendedDependentPromiseDecorator <T> 
+    extends AbstractDependentPromiseDecorator<T> {
 
-    protected AbstractDependentPromiseDecorator(DependentPromise<T> delegate) {
+    protected ExtendedDependentPromiseDecorator(DependentPromise<T> delegate) {
         super(delegate);
     }
     
-    @Override
-    abstract protected <U> DependentPromise<U> wrap(CompletionStage<U> original);
-    
-    @Override
-    public DependentPromise<T> dependent() {
-        DependentPromise<T> result = delegate.dependent();
-        if (result == delegate) {
-            return this;
-        } else {
-            return wrap(result);
-        }
-    }
-
-    @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
-        DependentPromise<T> result = delegate.dependent(defaultEnlistOptions);
-        if (result == delegate) {
-            return this;
-        } else {
-            return wrap(result);
-        }
+    protected Runnable wrapArgument(Runnable original, boolean async) {
+        return original;
     }
     
-    @Override
-    public DependentPromise<T> defaultAsyncOn(Executor executor) {
-        return (DependentPromise<T>)super.defaultAsyncOn(executor);
-    }
-
-    @Override
-    public DependentPromise<T> delay(long timeout, TimeUnit unit) {
-        return (DependentPromise<T>)super.delay(timeout, unit);
+    private <U, R> Function<U, R> wrapArgument(Function<U, R> original, boolean async) {
+        return wrapArgument(original, async, false);
     }
     
-    @Override
-    public DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
-        return (DependentPromise<T>)super.delay(timeout, unit, delayOnError);
+    protected <U, R> Function<U, R> wrapArgument(Function<U, R> original, boolean async, boolean isCompose) {
+        return original;
     }
     
-    @Override
-    public DependentPromise<T> delay(Duration duration) {
-        return (DependentPromise<T>)super.delay(duration);
+    protected <U> Consumer<U> wrapArgument(Consumer<U> original, boolean async) {
+        return original;
+    }
+    
+    protected <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
+        return original;
+    }
+    
+    protected <U, V, R> BiFunction<U, V, R> wrapArgument(BiFunction<U, V, R> original, boolean async) {
+        return original;
+    }
+    
+    protected <U, V> BiConsumer<U, V> wrapArgument(BiConsumer<U, V> original, boolean async) {
+        return original;
+    }
+    
+    protected <U> CompletionStage<U> wrapArgument(CompletionStage<U> original, boolean async) {
+        return original;
+    }
+    
+    protected Executor wrapArgument(Executor original) {
+        return original;
+    }
+    
+    protected <U> DependentPromise<U> wrapResult(CompletionStage<U> original) {
+        return new ExtendedDependentPromiseDecorator<>((DependentPromise<U>)original);
     }
     
     @Override
-    public DependentPromise<T> delay(Duration duration, boolean delayOnError) {
-        return (DependentPromise<T>)super.delay(duration, delayOnError);
-    }
-    
-    @Override
-    public DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError, boolean enlistOrigin) {
-        return wrap(delegate.delay(timeout, unit, delayOnError, enlistOrigin));        
-    }
-
-    @Override
-    public DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin) {
-        return wrap(delegate.delay(duration, delayOnError, enlistOrigin));
-    }
-
-    @Override    
-    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit) {
-        return (DependentPromise<T>)super.orTimeout(timeout, unit);
-    }
-    
-    @Override
-    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return (DependentPromise<T>)super.orTimeout(timeout, unit, cancelOnTimeout);
-    }
-    
-    @Override
-    public DependentPromise<T> orTimeout(Duration duration) {
-        return (DependentPromise<T>)super.orTimeout(duration);
-    }
-    
-    @Override
-    public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        return (DependentPromise<T>)super.orTimeout(duration, cancelOnTimeout);
-    }
-    
-    @Override
-    public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return wrap(delegate.orTimeout(timeout, unit, cancelOnTimeout, enlistOrigin));
-    }
-
-    @Override
-    public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return wrap(delegate.orTimeout(duration, cancelOnTimeout, enlistOrigin));
-    }
-
-    @Override
-    public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit) {
-        return (DependentPromise<T>)super.onTimeout(value, timeout, unit);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return (DependentPromise<T>)super.onTimeout(value, timeout, unit, cancelOnTimeout);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(T value, Duration duration) {
-        return (DependentPromise<T>)super.onTimeout(value, duration);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        return (DependentPromise<T>)super.onTimeout(value, duration, cancelOnTimeout);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
-        return (DependentPromise<T>)super.onTimeout(supplier, timeout, unit);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return (DependentPromise<T>)super.onTimeout(supplier, timeout, unit, cancelOnTimeout);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
-        return (DependentPromise<T>)super.onTimeout(supplier, duration);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
-        return (DependentPromise<T>)super.onTimeout(supplier, duration, cancelOnTimeout);
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return wrap(delegate.onTimeout(value, timeout, unit, cancelOnTimeout, enlistOrigin));
-    }
-    
-    @Override
-    public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return wrap(delegate.onTimeout(value, duration, cancelOnTimeout, enlistOrigin)); 
-    }
+    protected final <U> DependentPromise<U> wrap(CompletionStage<U> original) {
+        return wrapResult(original);
+    }    
     
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return wrap(delegate.onTimeout(supplier, timeout, unit, cancelOnTimeout, enlistOrigin));
+        return super.onTimeout(wrapArgument(supplier, true), timeout, unit, cancelOnTimeout, enlistOrigin);
     }
 
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return wrap(delegate.onTimeout(supplier, duration, cancelOnTimeout, enlistOrigin));
+        return super.onTimeout(wrapArgument(supplier, true), duration, cancelOnTimeout, enlistOrigin);
     }
-    
+
     @Override
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn, boolean enlistOrigin) {
-        return wrap(delegate.thenApply(fn, enlistOrigin));
+        return super.thenApply(wrapArgument(fn, false), enlistOrigin);
     }
     
     @Override
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, boolean enlistOrigin) {
-        return wrap(delegate.thenApplyAsync(fn, enlistOrigin));
+        return super.thenApplyAsync(wrapArgument(fn, true), enlistOrigin);
     }
     
     @Override
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor, boolean enlistOrigin) {
-        return wrap(delegate.thenApplyAsync(fn, executor, enlistOrigin));
+        return super.thenApplyAsync(wrapArgument(fn, true), wrapArgument(executor), enlistOrigin);
     }
     
     @Override
     public DependentPromise<Void> thenAccept(Consumer<? super T> action, boolean enlistOrigin) {
-        return wrap(delegate.thenAccept(action, enlistOrigin));
+        return super.thenAccept(wrapArgument(action, false), enlistOrigin);
     }
 
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, boolean enlistOrigin) {
-        return wrap(delegate.thenAcceptAsync(action, enlistOrigin));
+        return super.thenAcceptAsync(wrapArgument(action, true), enlistOrigin);
     }
     
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor, boolean enlistOrigin) {
-        return wrap(delegate.thenAcceptAsync(action, executor, enlistOrigin));
+        return super.thenAcceptAsync(wrapArgument(action, true), wrapArgument(executor), enlistOrigin);
     }
     
     @Override
     public DependentPromise<Void> thenRun(Runnable action, boolean enlistOrigin) {
-        return wrap(delegate.thenRun(action, enlistOrigin));
+        return super.thenRun(wrapArgument(action, false), enlistOrigin);
     }
     
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action, boolean enlistOrigin) {
-        return wrap(delegate.thenRunAsync(action, enlistOrigin));
+        return super.thenRunAsync(wrapArgument(action, true), enlistOrigin);
     }
 
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action, Executor executor, boolean enlistOrigin) {
-        return wrap(delegate.thenRunAsync(action, executor, enlistOrigin));
+        return super.thenRunAsync(wrapArgument(action, true), wrapArgument(executor), enlistOrigin);
     }
 
     @Override
     public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
                                                   BiFunction<? super T, ? super U, ? extends V> fn,
                                                   Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.thenCombine(other, fn, enlistOptions));
+        return super.thenCombine(
+            wrapArgument(other, false), wrapArgument(fn, false), enlistOptions
+        );
     }
 
     
@@ -243,7 +150,9 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
                                                        BiFunction<? super T, ? super U, ? extends V> fn,
                                                        Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.thenCombineAsync(other, fn, enlistOptions));
+        return super.thenCombineAsync(
+            wrapArgument(other, true), wrapArgument(fn, true), enlistOptions
+        );
     }
     
     @Override
@@ -251,7 +160,9 @@ public abstract class AbstractDependentPromiseDecorator<T>
                                                        BiFunction<? super T, ? super U, ? extends V> fn, 
                                                        Executor executor,
                                                        Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.thenCombineAsync(other, fn, executor, enlistOptions));
+        return super.thenCombineAsync(
+            wrapArgument(other, true), wrapArgument(fn, true), wrapArgument(executor), enlistOptions
+        );
     }
     
 
@@ -259,14 +170,18 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
                                                      BiConsumer<? super T, ? super U> action,
                                                      Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.thenAcceptBoth(other, action, enlistOptions));
+        return super.thenAcceptBoth(
+            wrapArgument(other, false), wrapArgument(action, false), enlistOptions
+        );
     }
 
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
                                                           BiConsumer<? super T, ? super U> action,
                                                           Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.thenAcceptBothAsync(other, action, enlistOptions));
+        return super.thenAcceptBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true), enlistOptions
+        );
     }
 
     @Override
@@ -274,17 +189,23 @@ public abstract class AbstractDependentPromiseDecorator<T>
                                                           BiConsumer<? super T, ? super U> action, 
                                                           Executor executor,
                                                           Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.thenAcceptBothAsync(other, action, executor, enlistOptions));
+        return super.thenAcceptBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor), enlistOptions
+        );
     }
 
     @Override
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.runAfterBoth(other, action, enlistOptions));
+        return super.runAfterBoth(
+            wrapArgument(other, false), wrapArgument(action, false), enlistOptions
+        );
     }
     
     @Override
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.runAfterBothAsync(other, action, enlistOptions));
+        return super.runAfterBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true), enlistOptions
+        );
     }
     
     @Override
@@ -292,14 +213,18 @@ public abstract class AbstractDependentPromiseDecorator<T>
                                                     Runnable action, 
                                                     Executor executor,
                                                     Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.runAfterBothAsync(other, action, executor, enlistOptions));
+        return super.runAfterBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor), enlistOptions
+        );
     }
     
     @Override
     public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
                                                  Function<? super T, U> fn,
                                                  Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.applyToEither(other, fn, enlistOptions));
+        return super.applyToEither(
+            wrapArgument(other, false), wrapArgument(fn, false), enlistOptions
+        );
     }
     
 
@@ -307,7 +232,9 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
                                                       Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.applyToEitherAsync(other, fn, enlistOptions));
+        return super.applyToEitherAsync(
+            wrapArgument(other, true), wrapArgument(fn, true), enlistOptions
+        );
     }
 
     @Override
@@ -315,7 +242,9 @@ public abstract class AbstractDependentPromiseDecorator<T>
                                                       Function<? super T, U> fn,
                                                       Executor executor,
                                                       Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.applyToEitherAsync(other, fn, executor, enlistOptions));
+        return super.applyToEitherAsync(
+            wrapArgument(other, true), wrapArgument(fn, true), wrapArgument(executor), enlistOptions
+        );
     }
     
 
@@ -323,14 +252,18 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
                                                Consumer<? super T> action,
                                                Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.acceptEither(other, action, enlistOptions));
+        return super.acceptEither(
+            wrapArgument(other, false), wrapArgument(action, false), enlistOptions
+        );
     }
 
     @Override
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
                                                     Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.acceptEitherAsync(other, action, enlistOptions));
+        return super.acceptEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true), enlistOptions
+        );
     }
 
     
@@ -339,18 +272,24 @@ public abstract class AbstractDependentPromiseDecorator<T>
                                                     Consumer<? super T> action,
                                                     Executor executor,
                                                     Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.acceptEitherAsync(other, action, executor, enlistOptions));
+        return super.acceptEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor), enlistOptions
+        );
     }
 
     
     @Override
     public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.runAfterEither(other, action, enlistOptions));
+        return super.runAfterEither(
+            wrapArgument(other, false), wrapArgument(action, false), enlistOptions
+        );
     }
     
     @Override
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.runAfterEitherAsync(other, action, enlistOptions));
+        return super.runAfterEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true), enlistOptions
+        );
     }
     
     @Override
@@ -358,269 +297,322 @@ public abstract class AbstractDependentPromiseDecorator<T>
                                                       Runnable action, 
                                                       Executor executor,
                                                       Set<PromiseOrigin> enlistOptions) {
-        return wrap(delegate.runAfterEitherAsync(other, action, executor, enlistOptions));
+        return super.runAfterEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true), executor, enlistOptions
+        );
     }
 
     @Override
     public <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn, boolean enlistOrigin) {
-        return wrap(delegate.thenCompose(fn, enlistOrigin));
+        return super.thenCompose(wrapArgument(fn, false, true), enlistOrigin);
     }
     
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, boolean enlistOrigin) {
-        return wrap(delegate.thenComposeAsync(fn, enlistOrigin));
+        return super.thenComposeAsync(wrapArgument(fn, true, true), enlistOrigin);
     }
     
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor, boolean enlistOrigin) {
-        return wrap(delegate.thenComposeAsync(fn, executor, enlistOrigin));
+        return super.thenComposeAsync(wrapArgument(fn, true, true), wrapArgument(executor), enlistOrigin);
     }
 
     @Override
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
-        return wrap(delegate.exceptionally(fn, enlistOrigin));
+        return super.exceptionally(wrapArgument(fn, false), enlistOrigin);
     }
     
     @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
-        return wrap(delegate.whenComplete(action, enlistOrigin));
+        return super.whenComplete(wrapArgument(action, false), enlistOrigin);
     }
 
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
-        return wrap(delegate.whenCompleteAsync(action, enlistOrigin));
+        return super.whenCompleteAsync(wrapArgument(action, true), enlistOrigin);
     }
 
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor, boolean enlistOrigin) {
-        return wrap(delegate.whenCompleteAsync(action, executor, enlistOrigin));
+        return super.whenCompleteAsync(wrapArgument(action, true), wrapArgument(executor), enlistOrigin);
     }
     
     @Override
     public <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin) {
-        return wrap(delegate.handle(fn, enlistOrigin));
+        return super.handle(wrapArgument(fn, false), enlistOrigin);
     }
     
     @Override
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin) {
-        return wrap(delegate.handleAsync(fn, enlistOrigin));
+        return super.handleAsync(wrapArgument(fn, true), enlistOrigin);
     }
 
     @Override
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor, boolean enlistOrigin) {
-        return wrap(delegate.handleAsync(fn, executor, enlistOrigin));
+        return super.handleAsync(wrapArgument(fn, true), wrapArgument(executor), enlistOrigin);
+    }
+
+    // ---
+    @Override
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
+        return super.onTimeout(wrapArgument(supplier, true), timeout, unit);
     }
     
     @Override
-    @SuppressWarnings("unchecked")
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+        return super.onTimeout(wrapArgument(supplier, true), timeout, unit, cancelOnTimeout);
+    }
+    
+    @Override
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
+        return super.onTimeout(wrapArgument(supplier, true), duration);
+    }
+    
+    @Override
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
+        return super.onTimeout(wrapArgument(supplier, true), duration, cancelOnTimeout);
+    }
+
+    @Override
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn) {
-        return (DependentPromise<U>)super.thenApply(fn);
+        return super.thenApply(wrapArgument(fn, false));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn) {
-        return (DependentPromise<U>)super.thenApplyAsync(fn);
+        return super.thenApplyAsync(wrapArgument(fn, true));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
-        return (DependentPromise<U>)super.thenApplyAsync(fn, executor);
-    }    
-    
+        return super.thenApplyAsync(wrapArgument(fn, true), wrapArgument(executor));
+    }
+
     @Override
     public DependentPromise<Void> thenAccept(Consumer<? super T> action) {
-        return (DependentPromise<Void>)super.thenAccept(action);
+        return super.thenAccept(wrapArgument(action, false));
     }
 
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action) {
-        return (DependentPromise<Void>)super.thenAcceptAsync(action);
+        return super.thenAcceptAsync(wrapArgument(action, true));
     }
 
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor) {
-        return (DependentPromise<Void>)super.thenAcceptAsync(action, executor);
-    }    
+        return super.thenAcceptAsync(wrapArgument(action, true), wrapArgument(executor));
+    }
 
     @Override
     public DependentPromise<Void> thenRun(Runnable action) {
-        return (DependentPromise<Void>)super.thenRun(action);
+        return super.thenRun(wrapArgument(action, false));
     }
 
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action) {
-        return (DependentPromise<Void>)super.thenRunAsync(action);
+        return super.thenRunAsync(wrapArgument(action, true));
     }
 
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action, Executor executor) {
-        return (DependentPromise<Void>)super.thenRunAsync(action, executor);
+        return super.thenRunAsync(wrapArgument(action, true), wrapArgument(executor));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
-        return (DependentPromise<V>)super.thenCombine(other, fn);
+    public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
+                                                  BiFunction<? super T, ? super U, ? extends V> fn) {
+        return super.thenCombine(
+            wrapArgument(other, false), wrapArgument(fn, false)
+        );
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
-        return (DependentPromise<V>)super.thenCombineAsync(other, fn);
+    public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
+                                                       BiFunction<? super T, ? super U, ? extends V> fn) {
+        return super.thenCombineAsync(
+            wrapArgument(other, true), wrapArgument(fn, true)
+        );
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                                        BiFunction<? super T, ? super U, ? extends V> fn, 
                                                        Executor executor) {
-        return (DependentPromise<V>)super.thenCombineAsync(other, fn, executor);
-    }
-    
-    @Override
-    public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
-        return (DependentPromise<Void>)super.thenAcceptBoth(other, action);
+        return super.thenCombineAsync(
+            wrapArgument(other, true), wrapArgument(fn, true), wrapArgument(executor)
+        );
     }
 
     @Override
-    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
-        return (DependentPromise<Void>)super.thenAcceptBothAsync(other, action);
+    public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
+                                                     BiConsumer<? super T, ? super U> action) {
+        return super.thenAcceptBoth(
+            wrapArgument(other, false), wrapArgument(action, false)
+        );
     }
 
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
-                                                          BiConsumer<? super T, ? super U> action,
+                                                          BiConsumer<? super T, ? super U> action) {
+        return super.thenAcceptBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true)
+        );
+    }
+
+    @Override
+    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
+                                                          BiConsumer<? super T, ? super U> action, 
                                                           Executor executor) {
-        return (DependentPromise<Void>)super.thenAcceptBothAsync(other, action, executor);
-    }    
-    
+        return super.thenAcceptBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor)
+        );
+    }
+
     @Override
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
-        return (DependentPromise<Void>)super.runAfterBoth(other, action);
+        return super.runAfterBoth(
+            wrapArgument(other, false), wrapArgument(action, false)
+        );
     }
 
     @Override
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action) {
-        return (DependentPromise<Void>)super.runAfterBothAsync(other, action);
+        return super.runAfterBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true)
+        );
     }
 
     @Override
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                                     Runnable action, 
                                                     Executor executor) {
-        return (DependentPromise<Void>)super.runAfterBothAsync(other, action, executor);
-    }
-    
-    @Override
-    public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn) {
-        return (DependentPromise<U>)super.applyToEither(other, fn);
+        return super.runAfterBothAsync(
+            wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor)
+        );
     }
 
     @Override
-    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
-        return (DependentPromise<U>)super.applyToEitherAsync(other, fn);
+    public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
+                                                 Function<? super T, U> fn) {
+        return super.applyToEither(
+            wrapArgument(other, false), wrapArgument(fn, false)
+        );
+    }
+
+    @Override
+    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
+                                                      Function<? super T, U> fn) {
+        return super.applyToEitherAsync(
+            wrapArgument(other, true), wrapArgument(fn, true)
+        );
     }
 
     @Override
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
                                                       Executor executor) {
-        return (DependentPromise<U>)super.applyToEitherAsync(other, fn, executor);
-    }    
-
-    @Override
-    public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action) {
-        return (DependentPromise<Void>)super.acceptEither(other, action);
+        return super.applyToEitherAsync(
+            wrapArgument(other, true), wrapArgument(fn, true), wrapArgument(executor)
+        );
     }
 
     @Override
-    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action) {
-        return (DependentPromise<Void>)super.acceptEitherAsync(other, action);
+    public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
+                                               Consumer<? super T> action) {
+        return super.acceptEither(
+            wrapArgument(other, false), wrapArgument(action, false)
+        );
+    }
+
+    @Override
+    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
+                                                    Consumer<? super T> action) {
+        return super.acceptEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true)
+        );
     }
 
     @Override
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
                                                     Executor executor) {
-        return (DependentPromise<Void>)super.acceptEitherAsync(other, action, executor);
-    }    
-
-    @Override
-    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
-        return (DependentPromise<Void>)super.runAfterEither(other, action);
+        return super.acceptEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor)
+        );
     }
 
     @Override
-    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
-        return (DependentPromise<Void>)super.runAfterEitherAsync(other, action);
+    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, 
+                                                 Runnable action) {
+        return super.runAfterEither(
+            wrapArgument(other, false), wrapArgument(action, false)
+        );
+    }
+
+    @Override
+    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
+                                                      Runnable action) {
+        return super.runAfterEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true)
+        );
     }
 
     @Override
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                       Runnable action, 
                                                       Executor executor) {
-        
-        return (DependentPromise<Void>)super.runAfterEitherAsync(other, action, executor);
+        return super.runAfterEitherAsync(
+            wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor)
+        );
     }
-    
+
     @Override
     public <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
-        return (DependentPromise<U>)super.thenCompose(fn);
+        return super.thenCompose(wrapArgument(fn, false, true));
     }
 
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
-        return (DependentPromise<U>)super.thenComposeAsync(fn);
+        return super.thenComposeAsync(wrapArgument(fn, true, true));
     }
 
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
-        return (DependentPromise<U>)super.thenComposeAsync(fn, executor);
+        return super.thenComposeAsync(wrapArgument(fn, true, true), wrapArgument(executor));
     }
 
     @Override
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn) {
-        return (DependentPromise<T>)super.exceptionally(fn);
+        return super.exceptionally(wrapArgument(fn, false));
     }
-    
+
     @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
-        return (DependentPromise<T>)super.whenComplete(action);
+        return super.whenComplete(wrapArgument(action, false));
     }
 
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action) {
-        return (DependentPromise<T>)super.whenCompleteAsync(action);
+        return super.whenCompleteAsync(wrapArgument(action, true));
     }
 
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
-        return (DependentPromise<T>)super.whenCompleteAsync(action, executor);
+        return super.whenCompleteAsync(wrapArgument(action, true), wrapArgument(executor));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn) {
-        return (DependentPromise<U>)super.handle(fn);
+        return super.handle(wrapArgument(fn, false));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn) {
-        return (DependentPromise<U>)super.handleAsync(fn);
+        return super.handleAsync(wrapArgument(fn, true));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
-        return (DependentPromise<U>)super.handleAsync(fn, executor);
+        return super.handleAsync(wrapArgument(fn, true), wrapArgument(executor));
     }
-    
-    @Override
-    public CompletableFuture<T> toCompletableFuture(boolean enlistOrigin) {
-        return delegate.toCompletableFuture(enlistOrigin);
-    }
-
 }

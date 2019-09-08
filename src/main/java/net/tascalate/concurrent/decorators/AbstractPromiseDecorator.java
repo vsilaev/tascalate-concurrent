@@ -16,12 +16,16 @@
 package net.tascalate.concurrent.decorators;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.PromiseOrigin;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass via delegation
@@ -61,7 +65,27 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
     public Promise<T> raw() {
         return delegate.raw();
     }
-	
+    
+    @Override
+    public DependentPromise<T> dependent() {
+        throw new UnsupportedOperationException("Method must be re-implemented");
+    }
+
+    @Override
+    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+        throw new UnsupportedOperationException("Method must be re-implemented");
+    }
+    
+    @Override
+    public Promise<T> defaultAsyncOn(Executor executor) {
+        Promise<T> result = delegate.defaultAsyncOn(executor);
+        if (result == delegate) {
+            return this;
+        } else {
+            return wrap(result);
+        }
+    }
+
     @Override
     public Promise<T> delay(long timeout, TimeUnit unit) {
         return wrap(delegate.delay(timeout, unit));

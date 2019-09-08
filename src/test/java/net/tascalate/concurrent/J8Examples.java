@@ -123,7 +123,7 @@ public class J8Examples {
         
         CompletableTask
             .supplyAsync(() -> awaitAndProduceN(73), executorService)
-            .as(ExtendedPromiseDecorator<Integer, Promise<Integer>>::new)
+            .as(ExtendedPromiseDecorator<Integer>::new)
             .dependent()
             .thenApply(Function.identity(), true)
             .delay( Duration.ofMillis(100), true, true )
