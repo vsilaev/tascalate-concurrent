@@ -20,11 +20,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import net.tascalate.concurrent.Promise;
 
 public interface ContextVar<T> {
     
@@ -45,7 +42,7 @@ public interface ContextVar<T> {
     }
     
     public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return define(ContextualPromiseCustomizer.generateVarName(), reader, writer, eraser);
+        return define(ContextualPromiseFactory.generateVarName(), reader, writer, eraser);
     }
     
     public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
@@ -101,30 +98,30 @@ public interface ContextVar<T> {
     }    
     
     
-    public static <T> Function<? super Promise<T>, Promise<T>> relay(ContextVar<?> contextVar) {
-        return ContextualPromiseCustomizer.relayContextVars(Collections.singletonList(contextVar));
+    public static ContextualPromiseFactory relay(ContextVar<?> contextVar) {
+        return new ContextualPromiseFactory(Collections.singletonList(contextVar));
     }
     
-    public static <T> Function<? super Promise<T>, Promise<T>> relay(ThreadLocal<?> threadLocal) {
+    public static ContextualPromiseFactory relay(ThreadLocal<?> threadLocal) {
         return relay(ContextVar.from(threadLocal));
     }
 
-    public static <T> Function<? super Promise<T>, Promise<T>> relay(ContextVar<?>... contextVars) {
-        return ContextualPromiseCustomizer.relayContextVars(Arrays.asList(contextVars));
+    public static ContextualPromiseFactory relay(ContextVar<?>... contextVars) {
+        return new ContextualPromiseFactory(Arrays.asList(contextVars));
     }
     
-    public static <T> Function<? super Promise<T>, Promise<T>> relay(ThreadLocal<?>... threadLocals) {
-        return ContextualPromiseCustomizer.relayContextVars(Arrays.stream(threadLocals).map(ContextVar::from).collect(Collectors.toList()));
+    public static ContextualPromiseFactory relay(ThreadLocal<?>... threadLocals) {
+        return new ContextualPromiseFactory(Arrays.stream(threadLocals).map(ContextVar::from).collect(Collectors.toList()));
     }
 
-    public static <T> Function<? super Promise<T>, Promise<T>> relay1(List<? extends ContextVar<?>> contextVars) {
-        return ContextualPromiseCustomizer.relayContextVars(
+    public static ContextualPromiseFactory relay(List<? extends ContextVar<?>> contextVars) {
+        return new ContextualPromiseFactory(
             contextVars == null ? Collections.emptyList() : new ArrayList<>(contextVars)
         );
     }
     
-    public static <T> Function<? super Promise<T>, Promise<T>> relay2(List<? extends ThreadLocal<?>> threadLocals) {
-        return ContextualPromiseCustomizer.relayContextVars(
+    public static ContextualPromiseFactory relayThreadLocals(List<? extends ThreadLocal<?>> threadLocals) {
+        return new ContextualPromiseFactory(
             threadLocals == null ? Collections.emptyList() : threadLocals
                 .stream()
                 .map(tl -> ContextVar.from((ThreadLocal<?>)tl))

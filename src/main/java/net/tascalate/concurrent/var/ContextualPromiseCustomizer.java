@@ -18,7 +18,6 @@ package net.tascalate.concurrent.var;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -26,29 +25,21 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import net.tascalate.concurrent.DependentPromise;
-import net.tascalate.concurrent.Promise;
-import net.tascalate.concurrent.decorators.CustomizableDependentPromiseDecorator;
-import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
 class ContextualPromiseCustomizer implements PromiseCustomizer {
     
     private final List<? extends ContextVar<?>> contextVars;
+    private final List<Object> capturedContext;
     
-    private List<Object> capturedContext;
-    
-    private ContextualPromiseCustomizer(List<? extends ContextVar<?>> contextVars) {
+    ContextualPromiseCustomizer(List<? extends ContextVar<?>> contextVars, List<Object> capturedContext) {
         this.contextVars = null == contextVars ? 
             Collections.emptyList() : 
             Collections.unmodifiableList(contextVars);
+        this.capturedContext = null == capturedContext ?
+            Collections.emptyList() : 
+            Collections.unmodifiableList(capturedContext);
     }
-    
-    ContextualPromiseCustomizer captureCurrentContext() {
-        capturedContext = captureContextVars();
-        return this;
-    }
-    
     
     
     @Override
@@ -138,20 +129,11 @@ class ContextualPromiseCustomizer implements PromiseCustomizer {
     }
     */
 
-    static <T> Function<? super Promise<T>, Promise<T>> relayContextVars(List<? extends ContextVar<?>> contextVars) {
-        if (null == contextVars || contextVars.isEmpty()) {
-            return Function.identity();
-        }
-        
-        PromiseCustomizer customizer = new ContextualPromiseCustomizer(contextVars).captureCurrentContext();
-        return p ->
-            p instanceof DependentPromise ?
-                new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
-                :
-                new CustomizablePromiseDecorator<>(p, customizer);
+    private List<Object> captureContextVars() {
+        return captureContextVars(contextVars);
     }
     
-    private List<Object> captureContextVars() {
+    static List<Object> captureContextVars(List<? extends ContextVar<?>> contextVars) {
         return contextVars.stream().map(v -> v.get()).collect(Collectors.toList());
     }
     
@@ -169,10 +151,4 @@ class ContextualPromiseCustomizer implements PromiseCustomizer {
             }
         }
     }
-    
-    static String generateVarName() {
-        return "<anonymous" + COUNTER.getAndIncrement() + ">";
-    }
-    
-    private static final AtomicLong COUNTER = new AtomicLong();
 }
