@@ -41,7 +41,10 @@ public final class ContextualPromiseFactory {
             return Function.identity();
         }
         
-        PromiseCustomizer customizer = new ContextualPromiseCustomizer(contextVars, ContextualPromiseCustomizer.captureContextVars(contextVars));
+        PromiseCustomizer customizer = new ContextualPromiseCustomizer(
+            contextVars, ContextualPromiseCustomizer.captureContextVars(contextVars)
+        );
+        
         return p ->
             p instanceof DependentPromise ?
                 new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
