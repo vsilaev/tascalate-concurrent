@@ -12,7 +12,7 @@ New name:
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>0.8.0</version>
+    <version>0.8.1</version>
 </dependency>
 ```
 Old Name
