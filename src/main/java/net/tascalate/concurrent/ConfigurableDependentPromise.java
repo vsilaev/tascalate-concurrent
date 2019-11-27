@@ -365,6 +365,35 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
         return wrap(delegate.exceptionally(fn), origin(enlistOrigin));
     }
+
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
+        return handleAsync(SharedFunctions.exceptionallyApply(fn), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
+        return handleAsync(SharedFunctions.exceptionallyApply(fn), executor, enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
+        return this.handle(SharedFunctions.exceptionallyCompose(fn), enlistOrigin)
+                   .thenCompose(Function.identity(), true); 
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
+        return this.handleAsync(SharedFunctions.exceptionallyCompose(fn), enlistOrigin)
+                   .thenCompose(Function.identity(), true); 
+    }
+
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean enlistOrigin) {
+        return this.handleAsync(SharedFunctions.exceptionallyCompose(fn), executor, enlistOrigin)
+                   .thenCompose(Function.identity(), true); 
+    }
+
     
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return wrap(delegate.whenComplete(action), origin(enlistOrigin));
@@ -562,6 +591,31 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         return exceptionally(fn, defaultEnlistOrigin());
     }
     
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return exceptionallyAsync(fn, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return exceptionallyCompose(fn, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return exceptionallyComposeAsync(fn, defaultEnlistOrigin());
+    }
+
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return exceptionallyComposeAsync(fn, executor, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return exceptionallyAsync(fn, executor, defaultEnlistOrigin());
+    }
+
     @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
         return whenComplete(action, defaultEnlistOrigin());

@@ -317,6 +317,31 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     public Promise<T> exceptionally(Function<Throwable, ? extends T> fn) {
         return super.exceptionally(wrapArgument(fn, false));
     }
+    
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return super.exceptionallyAsync(wrapArgument(fn, true));
+    }
+    
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return super.exceptionallyAsync(wrapArgument(fn, true), executor);
+    }
+    
+    @Override
+    public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return super.exceptionallyCompose(wrapArgument(fn, false, true));
+    }
+    
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return super.exceptionallyComposeAsync(wrapArgument(fn, true, true));
+    }
+
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return super.exceptionallyComposeAsync(wrapArgument(fn, true, true), executor);
+    }
 
     @Override
     public Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {

@@ -111,6 +111,16 @@ public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise
     }
 
     @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return exceptionallyAsync(fn, defaultExecutor);
+    }
+    
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return exceptionallyComposeAsync(fn, defaultExecutor);
+    }
+
+    @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action) {
         return whenCompleteAsync(action, defaultExecutor);
     }

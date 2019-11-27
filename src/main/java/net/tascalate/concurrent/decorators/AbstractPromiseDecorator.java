@@ -19,8 +19,10 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
@@ -165,4 +167,30 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
     public Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
         return wrap(delegate.onTimeout(supplier, duration, cancelOnTimeout));
     }
+    
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return wrap(delegate.exceptionallyAsync(fn));
+    }
+    
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return wrap(delegate.exceptionallyAsync(fn, executor));
+    }
+    
+    @Override
+    public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return wrap(delegate.exceptionallyCompose(fn));
+    }
+    
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return wrap(delegate.exceptionallyComposeAsync(fn));
+    }
+
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return wrap(delegate.exceptionallyComposeAsync(fn, executor));
+    }
+
 }

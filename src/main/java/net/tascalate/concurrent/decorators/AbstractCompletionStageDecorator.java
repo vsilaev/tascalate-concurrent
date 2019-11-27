@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.Promises;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass via delegation
@@ -183,6 +184,26 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
 
     public Promise<T> exceptionally(Function<Throwable, ? extends T> fn) {
         return wrap(delegate.exceptionally(fn));
+    }
+    
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return wrap(Promises.exceptionallyApplyAsync(delegate, fn));
+    }
+    
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return wrap(Promises.exceptionallyApplyAsync(delegate, fn, executor));
+    }
+    
+    public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return wrap(Promises.exceptionallyCompose(delegate, fn));
+    }
+    
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return wrap(Promises.exceptionallyComposeAsync(delegate, fn));
+    }
+
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return wrap(Promises.exceptionallyComposeAsync(delegate, fn, executor));
     }
 
     public Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {

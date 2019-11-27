@@ -323,6 +323,31 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
+        return super.exceptionallyAsync(wrapArgument(fn, true), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
+        return super.exceptionallyAsync(wrapArgument(fn, true), executor, enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
+        return super.exceptionallyCompose(wrapArgument(fn, false, true), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
+        return super.exceptionallyComposeAsync(wrapArgument(fn, true, true), enlistOrigin);
+    }
+
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean enlistOrigin) {
+        return super.exceptionallyComposeAsync(wrapArgument(fn, true, true), executor, enlistOrigin);
+    }
+    
+    @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return super.whenComplete(wrapArgument(action, false), enlistOrigin);
     }
@@ -584,6 +609,31 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn) {
         return super.exceptionally(wrapArgument(fn, false));
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return super.exceptionallyAsync(wrapArgument(fn, true));
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return super.exceptionallyAsync(wrapArgument(fn, true), executor);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return super.exceptionallyCompose(wrapArgument(fn, false, true));
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return super.exceptionallyComposeAsync(wrapArgument(fn, true, true));
+    }
+
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return super.exceptionallyComposeAsync(wrapArgument(fn, true, true), executor);
     }
 
     @Override

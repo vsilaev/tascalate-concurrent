@@ -83,6 +83,15 @@ class SharedFunctions {
         }
     }
     
+    static <T> BiFunction<T, Throwable, T> exceptionallyApply(Function<Throwable, ? extends T> fn) {
+        return (r, ex) -> null != ex ? fn.apply(ex) : r;
+    }
+    
+    static <T> BiFunction<T, Throwable, Promise<T>> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return (r, ex) -> ex != null ? Promises.from(fn.apply(ex)) : Promises.success(r);
+    }
+    
+    
     @SuppressWarnings("unchecked")
     static <U, V> BiFunction<U, V, U> selectFirst() {
         return (BiFunction<U, V, U>)SELECT_FIRST;

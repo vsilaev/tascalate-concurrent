@@ -52,20 +52,24 @@ public class MultitargetException extends Exception {
     
     @Override
     public void printStackTrace(PrintStream s) {
-        super.printStackTrace(s);
-        printExceptions(s, (ex, padding) -> {
-            PrintStream ps = new PrintStream(new PaddedOutputStream(s, padding)); 
-            ex.printStackTrace(ps);       
-        });
+        synchronized (s) {
+            super.printStackTrace(s);
+            printExceptions(s, (ex, padding) -> {
+                PrintStream ps = new PrintStream(new PaddedOutputStream(s, padding)); 
+                ex.printStackTrace(ps);       
+            });
+        }
     }
     
     @Override
     public void printStackTrace(PrintWriter w) {
-        super.printStackTrace(w);
-        printExceptions(w, (ex, padding) -> {
-            PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
-            ex.printStackTrace(pw);          
-        });
+        synchronized (w) {
+            super.printStackTrace(w);
+            printExceptions(w, (ex, padding) -> {
+                PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
+                ex.printStackTrace(pw);          
+            });
+        }
     }
     
     private <O extends Appendable> void printExceptions(O out, BiConsumer<Throwable, String> nestedExceptionPrinter) {

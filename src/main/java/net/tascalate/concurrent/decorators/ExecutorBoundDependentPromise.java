@@ -175,6 +175,16 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
         return thenComposeAsync(fn, defaultExecutor);
     }
+    
+    @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return exceptionallyAsync(fn, defaultExecutor);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return exceptionallyComposeAsync(fn, defaultExecutor);
+    }
 
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action) {

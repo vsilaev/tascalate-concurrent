@@ -317,6 +317,26 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor);
 
     Promise<T> exceptionally(Function<Throwable, ? extends T> fn);
+    
+    default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return handleAsync(SharedFunctions.exceptionallyApply(fn));
+    }
+    
+    default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return handleAsync(SharedFunctions.exceptionallyApply(fn), executor);
+    }
+    
+    default Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return Promises.flatMap(handle(SharedFunctions.exceptionallyCompose(fn)));
+    }
+    
+    default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return Promises.flatMap(handleAsync(SharedFunctions.exceptionallyCompose(fn)));
+    }
+
+    default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return Promises.flatMap(handleAsync(SharedFunctions.exceptionallyCompose(fn), executor));
+    }
 
     Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
 

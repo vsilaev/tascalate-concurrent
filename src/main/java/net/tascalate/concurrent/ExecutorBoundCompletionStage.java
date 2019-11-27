@@ -175,6 +175,26 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     public CompletionStage<T> exceptionally(Function<Throwable, ? extends T> fn) {
         return wrap(delegate.exceptionally(fn));
     }
+    
+    public CompletionStage<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return exceptionallyAsync(fn, defaultExecutor);
+    }
+    
+    public CompletionStage<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return wrap(Promises.exceptionallyApplyAsync(delegate, fn, executor));
+    }
+    
+    public CompletionStage<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return wrap(Promises.exceptionallyCompose(delegate, fn));
+    }
+    
+    public CompletionStage<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return exceptionallyComposeAsync(fn, defaultExecutor);
+    }
+
+    public CompletionStage<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return wrap(Promises.exceptionallyComposeAsync(delegate, fn, executor));
+    }
 
     public CompletionStage<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
         return wrap(delegate.whenComplete(action));

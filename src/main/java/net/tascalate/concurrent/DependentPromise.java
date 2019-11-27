@@ -281,6 +281,16 @@ public interface DependentPromise<T> extends Promise<T> {
 
     DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn, boolean enlistOrigin);
     
+    DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin);
+    
+    DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin);
+    
+    DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin);
+    
+    DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin);
+
+    DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean enlistOrigin);
+    
     DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin);
 
     DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin);
@@ -401,6 +411,21 @@ public interface DependentPromise<T> extends Promise<T> {
     @Override
     DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn);
     
+    @Override
+    DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn);
+    
+    @Override
+    DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor);
+    
+    @Override
+    DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn);
+    
+    @Override
+    DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn);
+
+    @Override
+    DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor);
+
     @Override
     DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
 
