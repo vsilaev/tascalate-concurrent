@@ -488,23 +488,28 @@ public final class Promises {
         }
     }
     
-    public static <T> CompletionStage<T> exceptionallyApplyAsync(CompletionStage<? extends T> delegate, Function<Throwable, ? extends T> fn) {
+    public static <T> CompletionStage<T> exceptionallyApplyAsync(CompletionStage<? extends T> delegate, 
+                                                                 Function<Throwable, ? extends T> fn) {
         return delegate.handleAsync(SharedFunctions.exceptionallyApply(fn));
     }
     
-    public static <T> CompletionStage<T> exceptionallyApplyAsync(CompletionStage<? extends T> delegate, Function<Throwable, ? extends T> fn, Executor executor) {
+    public static <T> CompletionStage<T> exceptionallyApplyAsync(CompletionStage<? extends T> delegate, 
+                                                                 Function<Throwable, ? extends T> fn, Executor executor) {
         return delegate.handleAsync(SharedFunctions.exceptionallyApply(fn), executor);
     }
     
-    public static <T> Promise<T> exceptionallyCompose(CompletionStage<? extends T> delegate, Function<Throwable, ? extends CompletionStage<T>> fn) {
+    public static <T> Promise<T> exceptionallyCompose(CompletionStage<? extends T> delegate, 
+                                                      Function<Throwable, ? extends CompletionStage<T>> fn) {
         return flatMap( delegate.handle(SharedFunctions.exceptionallyCompose(fn)) );
     }
     
-    public static <T> Promise<T> exceptionallyComposeAsync(CompletionStage<? extends T> delegate, Function<Throwable, ? extends CompletionStage<T>> fn) {
+    public static <T> Promise<T> exceptionallyComposeAsync(CompletionStage<? extends T> delegate, 
+                                                           Function<Throwable, ? extends CompletionStage<T>> fn) {
         return flatMap( delegate.handleAsync(SharedFunctions.exceptionallyCompose(fn)) );
     }
     
-    public static <T> Promise<T> exceptionallyComposeAsync(CompletionStage<? extends T> delegate, Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+    public static <T> Promise<T> exceptionallyComposeAsync(CompletionStage<? extends T> delegate, 
+                                                           Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         return flatMap( delegate.handleAsync(SharedFunctions.exceptionallyCompose(fn), executor) ); 
     }
     

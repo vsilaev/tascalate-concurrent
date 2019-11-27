@@ -82,12 +82,14 @@ public class ExtendedDependentPromiseDecorator <T>
     }    
     
     @Override
-    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, 
+                                         boolean cancelOnTimeout, boolean enlistOrigin) {
         return super.onTimeout(wrapArgument(supplier, true), timeout, unit, cancelOnTimeout, enlistOrigin);
     }
 
     @Override
-    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
+    public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, 
+                                         boolean cancelOnTimeout, boolean enlistOrigin) {
         return super.onTimeout(wrapArgument(supplier, true), duration, cancelOnTimeout, enlistOrigin);
     }
 
@@ -102,7 +104,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor, boolean enlistOrigin) {
+    public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, 
+                                                  Executor executor, 
+                                                  boolean enlistOrigin) {
         return super.thenApplyAsync(wrapArgument(fn, true), wrapArgument(executor), enlistOrigin);
     }
     
@@ -117,7 +121,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, 
+                                                  Executor executor, 
+                                                  boolean enlistOrigin) {
         return super.thenAcceptAsync(wrapArgument(action, true), wrapArgument(executor), enlistOrigin);
     }
     
@@ -132,7 +138,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
 
     @Override
-    public DependentPromise<Void> thenRunAsync(Runnable action, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<Void> thenRunAsync(Runnable action, 
+                                               Executor executor, 
+                                               boolean enlistOrigin) {
         return super.thenRunAsync(wrapArgument(action, true), wrapArgument(executor), enlistOrigin);
     }
 
@@ -195,14 +203,18 @@ public class ExtendedDependentPromiseDecorator <T>
     }
 
     @Override
-    public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, 
+                                               Runnable action, 
+                                               Set<PromiseOrigin> enlistOptions) {
         return super.runAfterBoth(
             wrapArgument(other, false), wrapArgument(action, false), enlistOptions
         );
     }
     
     @Override
-    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
+                                                    Runnable action, 
+                                                    Set<PromiseOrigin> enlistOptions) {
         return super.runAfterBothAsync(
             wrapArgument(other, true), wrapArgument(action, true), enlistOptions
         );
@@ -279,14 +291,18 @@ public class ExtendedDependentPromiseDecorator <T>
 
     
     @Override
-    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, 
+                                                 Runnable action, 
+                                                 Set<PromiseOrigin> enlistOptions) {
         return super.runAfterEither(
             wrapArgument(other, false), wrapArgument(action, false), enlistOptions
         );
     }
     
     @Override
-    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
+                                                      Runnable action, 
+                                                      Set<PromiseOrigin> enlistOptions) {
         return super.runAfterEitherAsync(
             wrapArgument(other, true), wrapArgument(action, true), enlistOptions
         );
@@ -313,7 +329,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor, boolean enlistOrigin) {
+    public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, 
+                                                    Executor executor, 
+                                                    boolean enlistOrigin) {
         return super.thenComposeAsync(wrapArgument(fn, true, true), wrapArgument(executor), enlistOrigin);
     }
 
@@ -328,7 +346,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, 
+                                                  Executor executor, 
+                                                  boolean enlistOrigin) {
         return super.exceptionallyAsync(wrapArgument(fn, true), executor, enlistOrigin);
     }
     
@@ -343,7 +363,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
 
     @Override
-    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
+                                                         Executor executor, 
+                                                         boolean enlistOrigin) {
         return super.exceptionallyComposeAsync(wrapArgument(fn, true, true), executor, enlistOrigin);
     }
     
@@ -358,7 +380,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
 
     @Override
-    public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, 
+                                                 Executor executor, 
+                                                 boolean enlistOrigin) {
         return super.whenCompleteAsync(wrapArgument(action, true), wrapArgument(executor), enlistOrigin);
     }
     
@@ -373,7 +397,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
 
     @Override
-    public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor, boolean enlistOrigin) {
+    public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, 
+                                               Executor executor, 
+                                               boolean enlistOrigin) {
         return super.handleAsync(wrapArgument(fn, true), wrapArgument(executor), enlistOrigin);
     }
 

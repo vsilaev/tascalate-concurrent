@@ -88,7 +88,9 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
     
     @Override
-    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
+                                                    Runnable action, 
+                                                    Set<PromiseOrigin> enlistOptions) {
         return runAfterBothAsync(other, action, defaultExecutor, enlistOptions);
     }
 
@@ -107,7 +109,9 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
     
     @Override
-    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
+                                                      Runnable action, 
+                                                      Set<PromiseOrigin> enlistOptions) {
         return runAfterEitherAsync(other, action, defaultExecutor, enlistOptions);
     }
 
@@ -142,12 +146,14 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
 
     @Override
-    public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
+    public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
+                                                       BiFunction<? super T, ? super U, ? extends V> fn) {
         return thenCombineAsync(other, fn, defaultExecutor);
     }
 
     @Override
-    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
+    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
+                                                          BiConsumer<? super T, ? super U> action) {
         return thenAcceptBothAsync(other, action, defaultExecutor);
     }
 
