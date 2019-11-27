@@ -82,12 +82,14 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     @Override
-    public <U, V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
+    public <U, V> CompletionStage<V> thenCombine(CompletionStage<? extends U> other, 
+                                                 BiFunction<? super T, ? super U, ? extends V> fn) {
         return wrap(delegate.thenCombine(other, fn));
     }
 
     @Override
-    public <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
+    public <U, V> CompletionStage<V> thenCombineAsync(CompletionStage<? extends U> other, 
+                                                      BiFunction<? super T, ? super U, ? extends V> fn) {
         return thenCombineAsync(other, fn, defaultExecutor);
     }
 

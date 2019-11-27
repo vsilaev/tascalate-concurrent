@@ -89,7 +89,8 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     @Override
-    default DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
+    default DependentPromise<T> delay(long timeout, TimeUnit unit, 
+                                      boolean delayOnError) {
         return delay(Timeouts.toDuration(timeout, unit), delayOnError);
     }
     
@@ -98,7 +99,8 @@ public interface DependentPromise<T> extends Promise<T> {
         return delay(duration, true);
     }
     
-    default DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError, boolean enlistOrigin) {
+    default DependentPromise<T> delay(long timeout, TimeUnit unit, 
+                                      boolean delayOnError, boolean enlistOrigin) {
         return delay(Timeouts.toDuration(timeout, unit), delayOnError, enlistOrigin);        
     }
     
@@ -114,11 +116,13 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     @Override
-    default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+    default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, 
+                                          boolean cancelOnTimeout) {
         return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
-    default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+    default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, 
+                                          boolean cancelOnTimeout, boolean enlistOrigin) {
         return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
@@ -130,7 +134,8 @@ public interface DependentPromise<T> extends Promise<T> {
     @Override
     DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout);
 
-    DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin);
+    DependentPromise<T> orTimeout(Duration duration, 
+                                  boolean cancelOnTimeout, boolean enlistOrigin);
 
     // On Timeout
     @Override
@@ -139,11 +144,15 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     @Override
-    default DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+    default DependentPromise<T> onTimeout(T value, 
+                                          long timeout, TimeUnit unit, 
+                                          boolean cancelOnTimeout) {
         return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
-    default DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+    default DependentPromise<T> onTimeout(T value, 
+                                          long timeout, TimeUnit unit, 
+                                          boolean cancelOnTimeout, boolean enlistOrigin) {
         return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
@@ -155,19 +164,25 @@ public interface DependentPromise<T> extends Promise<T> {
     @Override
     DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout);
     
-    DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin);
+    DependentPromise<T> onTimeout(T value, Duration duration, 
+                                  boolean cancelOnTimeout, boolean enlistOrigin);
     
     @Override
-    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
+    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, 
+                                          long timeout, TimeUnit unit) {
         return onTimeout(supplier, timeout, unit, true);
     }
     
     @Override
-    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
+    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, 
+                                          long timeout, TimeUnit unit, 
+                                          boolean cancelOnTimeout) {
         return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
     }
     
-    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
+    default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, 
+                                          long timeout, TimeUnit unit, 
+                                          boolean cancelOnTimeout, boolean enlistOrigin) {
         return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
@@ -177,9 +192,11 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     @Override
-    DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout);
+    DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, 
+                                  boolean cancelOnTimeout);
 
-    DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin);
+    DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, 
+                                  boolean cancelOnTimeout, boolean enlistOrigin);
     
     <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn, boolean enlistOrigin);
     
@@ -277,31 +294,41 @@ public interface DependentPromise<T> extends Promise<T> {
     
     <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, boolean enlistOrigin);
     
-    <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor, boolean enlistOrigin);
+    <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, 
+                                             Executor executor, 
+                                             boolean enlistOrigin);
 
     DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn, boolean enlistOrigin);
     
     DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin);
     
-    DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin);
+    DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, 
+                                           Executor executor, 
+                                           boolean enlistOrigin);
     
     DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin);
     
     DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin);
 
-    DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean enlistOrigin);
+    DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
+                                                  Executor executor, 
+                                                  boolean enlistOrigin);
     
     DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin);
 
     DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin);
 
-    DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor, boolean enlistOrigin);
+    DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, 
+                                          Executor executor, 
+                                          boolean enlistOrigin);
     
     <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin);
     
     <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin);
 
-    <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor, boolean enlistOrigin);
+    <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, 
+                                        Executor executor, 
+                                        boolean enlistOrigin);
     
     CompletableFuture<T> toCompletableFuture(boolean enlistOrigin);
     
@@ -334,10 +361,12 @@ public interface DependentPromise<T> extends Promise<T> {
     DependentPromise<Void> thenRunAsync(Runnable action, Executor executor);
 
     @Override
-    <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+    <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
+                                           BiFunction<? super T, ? super U, ? extends V> fn);
 
     @Override
-    <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn);
+    <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
+                                                BiFunction<? super T, ? super U, ? extends V> fn);
 
     @Override
     <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
@@ -345,10 +374,12 @@ public interface DependentPromise<T> extends Promise<T> {
                                                 Executor executor);
     
     @Override
-    <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+    <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
+                                              BiConsumer<? super T, ? super U> action);
 
     @Override
-    <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action);
+    <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
+                                                   BiConsumer<? super T, ? super U> action);
     
     @Override
     <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
