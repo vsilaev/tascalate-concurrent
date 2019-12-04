@@ -534,7 +534,7 @@ But before discussing it, it's necessary to explain a difference in each pair of
 
 ## 9. Context variables & contextual Promises
 
-Ahh, those dreaded `TreadLocal`-s we all hate, love to hate, but, neveretheless, use everywhere. It's quite common to store some contextual data (like authenticated user and current locale) inside `ThreadLocal` variables. Sometimes it's a custom code, sometimes the code from third-party library we can't alter. 
+Ah, those dreaded `TreadLocal`-s we all hate, love to hate, but, neveretheless, use everywhere. It's quite common to store some contextual data (like authenticated user and current locale) inside `ThreadLocal` variables. Sometimes it's a custom code, sometimes the code from third-party library we can't alter. 
 
 Typically, we spawn asynchronous code from some thread with well-known characteristics, like HTTP request thread. Here we can easly access contextual information from thread-local variables. However, using thread-local variables from asynchronous code block is hard while it's impossible to predict what thread from the pool will execute the code. It's necessary to capture the context of the one thread and propagate it to threads executing asynchronous code. 
 
@@ -562,14 +562,16 @@ Promise<Void> httpRequest =
 CompletableTask.supplyAsync(() -> getDownloadUrlTemplate(), myExecutor)
                .as(newContextualPromise) // <--- HERE the conversion is set 
                .thenApply(url -> 
-                   url + "?user=" + MyService.CURRENT_PRINCIPAL.name() + "&locale" + MyService.CURRENT_LOCALE.toString()   
+                   url + 
+                   "?user=" + MyService.CURRENT_PRINCIPAL.getName() + 
+                   "&locale=" + MyService.CURRENT_LOCALE.toString()   
                )
                .thenAccept(url -> {
-                 log.info("Get data for user " + MyService.CURRENT_PRINCIPAL.name());
+                 log.info("Get data for user " + MyService.CURRENT_PRINCIPAL.getName());
                  executeHttpRequest(url);
                });
 ```
-In example above, after the call to `Promise.as(newContextualPromise)` all of the derrived promises may access contextual information captured in originated thread (i.e. code blocks in thenApply / thenAccept). 
+In the example above, after the call to `Promise.as(newContextualPromise)` all of the derrived promises (i.e. code blocks in thenApply / thenAccept) may access contextual information captured in the originated thread. 
 
 Worth to mention, that copying contextual variables has certain performance penalty. To stop it at the certain level, just use `Promise.raw()` to undecorate derrived promises (as with any other decorator):
 ```java
