@@ -532,7 +532,53 @@ But before discussing it, it's necessary to explain a difference in each pair of
 2. Methods with `RetryRunnable` and `RetryCallable` are contextual and may dynamically alter their behavior for the given iteration depending on the context passed. The `RetryContext` provides provides all necessary iteration-specific information. 
 
 
-## 9. Contextual Promises
+## 9. Context variables & contextual Promises
+
+Ahh, those dreaded `TreadLocal`-s we all hate, love to hate, but, neveretheless, use everywhere. It's quite common to store some contextual data (like authenticated user and current locale) inside `ThreadLocal` variables. Sometimes it's a custom code, sometimes the code from third-party library we can't alter. 
+
+Typically, we spawn asynchronous code from some thread with well-known characteristics, like HTTP request thread. Here we can easly access contextual information from thread-local variables. However, using thread-local variables from asynchronous code block is hard while it's impossible to predict what thread from the pool will execute the code. It's necessary to capture the context of the one thread and propagate it to threads executing asynchronous code. 
+
+To solve this issue, there Tascalate Concurrent provides `ContextVar` class, that serves as a proxy over thread-local variable for multi-threaded code. Typical usage scenario is the following:
+
+1. Define `ContextualPromiseFactory` holding `ContextVar`-s from existing thread-local variables.
+2. Capture a context of the thread that spawns asynchronous operations.
+3. Convert a `Promise` to context-aware promise.
+```java
+class MyService {
+  // Tread-local variables; they are configured by some custom code (irrelevant for Tascalate Concurrent)
+  static final ThreadLocal<Principal> CURRENT_PRINCIPAL = new ThreadLocal<Principal>();
+  static final ThreadLocal<Locale> CURRENT_LOCALE = new ThreadLocal<Locale>();
+}
+...
+// [1] -- Define `ContextualPromiseFactory`, it's immutable, thread-safe and may be shared in any manner
+ContextualPromiseFactory cpf = ContextVar.relay(MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE);
+...
+// [2] -- In the invoker thread (like HTTP request thread), 
+// where MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE are available:
+Function<Promise<String>, Promise<String>> newContextualPromise = cpf.captureContext();
+...
+// [3] -- Convert a Promise to context-aware promise with 'newContextualPromise' factory:
+Promise<Void> httpRequest = 
+CompletableTask.supplyAsync(() -> getDownloadUrlTemplate(), myExecutor)
+               .as(newContextualPromise) // <--- HERE the conversion is set 
+               .thenApply(url -> 
+                   url + "?user=" + MyService.CURRENT_PRINCIPAL.name() + "&locale" + MyService.CURRENT_LOCALE.toString()   
+               )
+               .thenAccept(url -> {
+                 log.info("Get data for user " + MyService.CURRENT_PRINCIPAL.name());
+                 executeHttpRequest(url);
+               });
+```
+In example above, after the call to `Promise.as(newContextualPromise)` all of the derrived promises may access contextual information captured in originated thread (i.e. code blocks in thenApply / thenAccept). 
+
+Worth to mention, that copying contextual variables has certain performance penalty. To stop it at the certain level, just use `Promise.raw()` to undecorate derrived promises (as with any other decorator):
+```java
+Promise<Void> afterHttpRequest =
+httpRequest.raw()
+           .thenRun(() -> {
+             // MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE are not available here
+           });
+```
 
 ## 10. Decorators for CompletionStage / CompletableFuture / Promise
 
