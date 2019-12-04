@@ -532,7 +532,7 @@ But before discussing it, it's necessary to explain a difference in each pair of
 2. Methods with `RetryRunnable` and `RetryCallable` are contextual and may dynamically alter their behavior for the given iteration depending on the context passed. The `RetryContext` provides provides all necessary iteration-specific information. 
 
 
-## 9. Context variables & contextual Promises
+## 8. Context variables & contextual Promises
 
 Ah, those dreaded `TreadLocal`-s we all hate, love to hate, but, neveretheless, use everywhere. It's quite common to store some contextual data (like authenticated user and current locale) inside `ThreadLocal` variables. Sometimes it's a custom code, sometimes the code from third-party library we can't alter. 
 
@@ -582,9 +582,9 @@ httpRequest.raw()
            });
 ```
 
-## 10. Decorators for CompletionStage / CompletableFuture / Promise
+## 9. Decorators for CompletionStage / CompletableFuture / Promise
 
-## 11. Extensions to ExecutorService API
+## 10. Extensions to ExecutorService API
 
 It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
 
