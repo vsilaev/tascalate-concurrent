@@ -22,6 +22,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -82,13 +83,10 @@ class SharedFunctions {
                           .orElse(Boolean.FALSE);
         }
     }
-    
-    static <T> BiFunction<T, Throwable, T> exceptionallyApply(Function<Throwable, ? extends T> fn) {
-        return (r, ex) -> null != ex ? fn.apply(ex) : r;
-    }
-    
-    static <T> BiFunction<T, Throwable, Promise<T>> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return (r, ex) -> ex != null ? Promises.from(fn.apply(ex)) : Promises.success(r);
+
+    static <T> T updateReference(T value, AtomicReference<? super T> ref) {
+        ref.set(value);
+        return value;
     }
     
     

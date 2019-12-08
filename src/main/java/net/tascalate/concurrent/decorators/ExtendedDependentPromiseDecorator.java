@@ -82,6 +82,11 @@ public class ExtendedDependentPromiseDecorator <T>
     }    
     
     @Override
+    public DependentPromise<T> onCancel(Runnable code) {
+        return super.onCancel(wrapArgument(code, false));
+    }
+    
+    @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, 
                                          boolean cancelOnTimeout, boolean enlistOrigin) {
         return super.onTimeout(wrapArgument(supplier, true), timeout, unit, cancelOnTimeout, enlistOrigin);

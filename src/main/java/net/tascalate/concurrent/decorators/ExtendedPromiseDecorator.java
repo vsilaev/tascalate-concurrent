@@ -96,6 +96,11 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     }
     
     @Override
+    public Promise<T> onCancel(Runnable code) {
+        return super.onCancel(wrapArgument(code, false));
+    }
+    
+    @Override
     public Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
         return super.onTimeout(wrapArgument(supplier, true), timeout, unit);
     }

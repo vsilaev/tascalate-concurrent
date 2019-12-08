@@ -66,6 +66,11 @@ public abstract class AbstractDependentPromiseDecorator<T>
         return (DependentPromise<T>)super.defaultAsyncOn(executor);
     }
 
+    @Override 
+    public DependentPromise<T> onCancel(Runnable code) {
+        return (DependentPromise<T>)super.onCancel(code);
+    }
+    
     @Override
     public DependentPromise<T> delay(long timeout, TimeUnit unit) {
         return (DependentPromise<T>)super.delay(timeout, unit);

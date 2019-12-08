@@ -18,6 +18,7 @@ package net.tascalate.concurrent;
 import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
+import static net.tascalate.concurrent.SharedFunctions.updateReference;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -126,6 +128,20 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         return result;
     }
     
+    @Override
+    public DependentPromise<T> onCancel(Runnable code) {
+        return new ConfigurableDependentPromise<T>(this, defaultEnlistOptions, null) {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                if (super.cancel(mayInterruptIfRunning)) {
+                    code.run();
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        };
+    }
     
     // All delay overloads delegate to these methods
     @Override
@@ -376,32 +392,54 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
-        return handleAsync(SharedFunctions.exceptionallyApply(fn), enlistOrigin);
+        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
+        return
+        this.handle((r, ex) -> ex == null ? 
+                    this : 
+                    updateReference(handleAsync((r1, ex1) -> fn.apply(ex1)), onException), enlistOrigin)
+            .thenCompose(Function.identity(), true)
+            .onCancel(() -> onException.get().cancel(true));
     }
     
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
-        return handleAsync(SharedFunctions.exceptionallyApply(fn), executor, enlistOrigin);
+        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
+        return
+        this.handle((r, ex) -> ex == null ? 
+                    this : 
+                    updateReference(handleAsync((r1, ex1) -> fn.apply(ex1), executor), onException), enlistOrigin)
+            .thenCompose(Function.identity(), true)
+            .onCancel(() -> onException.get().cancel(true));
     }
     
     @Override
     public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        return this.handle(SharedFunctions.exceptionallyCompose(fn), enlistOrigin)
+        return this.handle((r, ex) -> ex == null ? this : fn.apply(ex), enlistOrigin)
                    .thenCompose(Function.identity(), true); 
     }
     
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        return this.handleAsync(SharedFunctions.exceptionallyCompose(fn), enlistOrigin)
-                   .thenCompose(Function.identity(), true); 
+        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
+        return this.handle((r, ex) -> ex == null ? 
+                           this : 
+                           updateReference(this.handleAsync((r1, ex1) -> fn.apply(ex1), enlistOrigin)
+                                               .thenCompose(Function.identity(), true), onException))
+                   .thenCompose(Function.identity(), true)
+                   .onCancel(() -> onException.get().cancel(true));
     }
 
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
                                                          Executor executor, 
                                                          boolean enlistOrigin) {
-        return this.handleAsync(SharedFunctions.exceptionallyCompose(fn), executor, enlistOrigin)
-                   .thenCompose(Function.identity(), true); 
+        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
+        return this.handle((r, ex) -> ex == null ? 
+                           this : 
+                           updateReference(this.handleAsync((r1, ex1) -> fn.apply(ex1), executor, enlistOrigin)
+                                               .thenCompose(Function.identity(), true), onException))
+                   .thenCompose(Function.identity(), true)
+                   .onCancel(() -> onException.get().cancel(true));
     }
     
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
@@ -792,8 +830,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     static void cancelPromises(CompletionStage<?>[] promises, boolean mayInterruptIfRunning) {
         if (null != promises) {
             Arrays.stream(promises)
-              .filter(p -> p != null)
-              .forEach(p -> cancelPromise(p, mayInterruptIfRunning));
+                  .filter(p -> p != null)
+                  .forEach(p -> cancelPromise(p, mayInterruptIfRunning));
         }
     }
     

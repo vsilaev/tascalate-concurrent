@@ -78,6 +78,9 @@ public interface DependentPromise<T> extends Promise<T> {
     }
 
     @Override
+    DependentPromise<T> onCancel(Runnable code);
+    
+    @Override
     default DependentPromise<T> defaultAsyncOn(Executor executor) {
         return new ExecutorBoundDependentPromise<>(this, executor);
     }

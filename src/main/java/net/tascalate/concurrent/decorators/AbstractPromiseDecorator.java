@@ -88,6 +88,11 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
         }
     }
 
+    @Override 
+    public Promise<T> onCancel(Runnable code) {
+        return wrap(delegate.onCancel(code));
+    }
+    
     @Override
     public Promise<T> delay(long timeout, TimeUnit unit) {
         return wrap(delegate.delay(timeout, unit));

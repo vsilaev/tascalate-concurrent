@@ -15,14 +15,12 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -77,6 +75,10 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             throw wrapCompletionException(unwrapExecutionException(ex));
         }
     }
+    
+    default Promise<T> onCancel(Runnable code) {
+        return dependent().onCancel(code).raw();
+    }
 
     default Promise<T> delay(long timeout, TimeUnit unit) {
         return delay(timeout, unit, true);
@@ -91,23 +93,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> delay(Duration duration, boolean delayOnError) {
-        if (!delayOnError) {
-            // Fast route
-            return thenCompose(v -> 
-                this.dependent()
-                    .thenCombineAsync(Timeouts.delay(duration), selectFirst(), PromiseOrigin.PARAM_ONLY)
-                    .raw()
-            );
-        }
-        CompletableFuture<Try<? super T>> delayed = new CompletableFuture<>();
-        whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
-        // Use *Async to execute on default "this" executor
-        return 
-        this.dependent()
-            .thenApply(Try::success, false)
-            .exceptionally(Try::failure, true)
-            .thenCombineAsync(delayed, (u, v) -> u.done(), PromiseOrigin.ALL)
-            .raw();
+        return dependent().delay(duration, delayOnError).raw();
     }
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit) {
@@ -123,16 +109,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        Promise<? extends Try<T>> onTimeout = Timeouts.delayed(null, duration);
-        Promise<T> result = 
-        this.dependent()
-            .thenApply(Try::success, false)
-            .exceptionally(Try::failure, true)
-            // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, v -> Try.doneOrTimeout(v, duration), PromiseOrigin.ALL);
-
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result.raw();
+        return dependent().orTimeout(duration, cancelOnTimeout).raw();
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -148,17 +125,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        // timeout converted to supplier
-        Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
-        Promise<T> result = 
-        this.dependent()
-            .thenApply(Try::success, false)
-            .exceptionally(Try::failure, true)
-            // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Try::done, PromiseOrigin.ALL);
-
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result.raw();
+        return dependent().onTimeout(value, duration, cancelOnTimeout).raw();
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
@@ -174,20 +141,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
-        // timeout converted to supplier
-        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.with(supplier), duration);
-        
-        Promise<T> result = 
-        this.dependent()
-            // resolved value converted to supplier of Try
-            .thenApply(Try::success, false)
-            .exceptionally(Try::failure, true)
-            .thenApply(SharedFunctions::supply, true)
-            // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, s -> s.get().done(), PromiseOrigin.ALL);
-        
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result.raw();
+        return dependent().onTimeout(supplier, duration, cancelOnTimeout).raw();
     }
     
     /**
@@ -319,23 +273,23 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     Promise<T> exceptionally(Function<Throwable, ? extends T> fn);
     
     default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
-        return handleAsync(SharedFunctions.exceptionallyApply(fn));
+        return dependent().exceptionallyAsync(fn).raw();
     }
     
     default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
-        return handleAsync(SharedFunctions.exceptionallyApply(fn), executor);
+        return dependent().exceptionallyAsync(fn, executor).raw();
     }
     
     default Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return Promises.flatMap(handle(SharedFunctions.exceptionallyCompose(fn)));
+        return dependent().exceptionallyCompose(fn).raw();
     }
     
     default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return Promises.flatMap(handleAsync(SharedFunctions.exceptionallyCompose(fn)));
+        return dependent().exceptionallyComposeAsync(fn).raw();
     }
 
     default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
-        return Promises.flatMap(handleAsync(SharedFunctions.exceptionallyCompose(fn), executor));
+        return dependent().exceptionallyComposeAsync(fn, executor).raw();
     }
 
     Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
