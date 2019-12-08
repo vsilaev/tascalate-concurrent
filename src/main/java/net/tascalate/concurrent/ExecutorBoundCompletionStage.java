@@ -23,6 +23,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
+
 class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     private final CompletionStage<T> delegate;
     private final Executor defaultExecutor;
@@ -216,11 +218,11 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
     
     public CompletionStage<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
-        return wrap(Promises.exceptionallyApplyAsync(delegate, fn, executor));
+        return wrap(AbstractCompletionStageDecorator.exceptionallyAsync(delegate, fn, executor));
     }
     
     public CompletionStage<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return wrap(Promises.exceptionallyCompose(delegate, fn));
+        return wrap(AbstractCompletionStageDecorator.exceptionallyCompose(delegate, fn));
     }
     
     public CompletionStage<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
@@ -228,7 +230,7 @@ class ExecutorBoundCompletionStage<T> implements CompletionStage<T> {
     }
 
     public CompletionStage<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
-        return wrap(Promises.exceptionallyComposeAsync(delegate, fn, executor));
+        return wrap(AbstractCompletionStageDecorator.exceptionallyComposeAsync(delegate, fn, executor));
     }
 
     public CompletionStage<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {

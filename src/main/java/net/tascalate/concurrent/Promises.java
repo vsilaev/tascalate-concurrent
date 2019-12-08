@@ -477,46 +477,6 @@ public final class Promises {
         }
     }
     
-    public static <T> CompletionStage<T> exceptionallyApplyAsync(CompletionStage<T> delegate, 
-                                                                 Function<Throwable, ? extends T> fn) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.<T>handleAsync((r1, ex1) -> fn.apply(ex1)))
-                       .thenCompose(Function.identity());        
-    }
-    
-    public static <T> CompletionStage<T> exceptionallyApplyAsync(CompletionStage<T> delegate, 
-                                                                 Function<Throwable, ? extends T> fn, Executor executor) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.<T>handleAsync((r1, ex1) -> fn.apply(ex1), executor))
-                       .thenCompose(Function.identity());        
-    }
-    
-    public static <T> CompletionStage<T> exceptionallyCompose(CompletionStage<T> delegate, 
-                                                              Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return delegate.handle((r, ex) -> ex == null ? delegate : fn.apply(ex))
-                       .thenCompose(Function.identity());
-    }
-    
-    public static <T> CompletionStage<T> exceptionallyComposeAsync(CompletionStage<T> delegate, 
-                                                                   Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.handleAsync((r1, ex1) -> fn.apply(ex1))
-                                       .thenCompose(Function.identity()))
-                       .thenCompose(Function.identity());
-    }
-    
-    public static <T> CompletionStage<T> exceptionallyComposeAsync(CompletionStage<T> delegate, 
-                                                                   Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.handleAsync((r1, ex1) -> fn.apply(ex1), executor)
-                                       .thenCompose(Function.identity()))
-                       .thenCompose(Function.identity());
-    }
-    
     public static Promise<Void> retry(Runnable codeBlock, Executor executor, 
                                       RetryPolicy<? super Void> retryPolicy) {
         
