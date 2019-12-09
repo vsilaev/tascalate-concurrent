@@ -77,9 +77,9 @@ import net.tascalate.concurrent.decorators.AbstractPromiseDecorator;
  *   a type of the successfully resolved promise value    
  */
 public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
-    final protected Promise<T> delegate;
-    final protected CompletionStage<?>[] cancellableOrigins;
-    final private Set<PromiseOrigin> defaultEnlistOptions;
+    protected final Promise<T> delegate;
+    protected final CompletionStage<?>[] cancellableOrigins;
+    protected final Set<PromiseOrigin> defaultEnlistOptions;
     
     protected ConfigurableDependentPromise(Promise<T> delegate, 
                                            Set<PromiseOrigin> defaultEnlistOptions, 
@@ -130,17 +130,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> onCancel(Runnable code) {
-        return new ConfigurableDependentPromise<T>(this, defaultEnlistOptions, null) {
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                if (super.cancel(mayInterruptIfRunning)) {
-                    code.run();
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-        };
+        return new ExtraCancellationPromise<>(this, defaultEnlistOptions, code);
     }
     
     // All delay overloads delegate to these methods
@@ -839,7 +829,6 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         return a.containsAll(b) && b.containsAll(a);
     }
     
-    
     static class UndecoratedCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
         private final CompletionStage<?>[] dependent;
         UndecoratedCancellationPromise(Promise<T> original, CompletionStage<?>[] dependent) {
@@ -867,6 +856,34 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         protected <U> Promise<U> wrap(CompletionStage<U> original) {
             // No wrapping by definition
             return (Promise<U>)original;
+        }
+    }
+    
+    static class ExtraCancellationPromise<T> extends ConfigurableDependentPromise<T> {
+        private final Runnable code;
+        public ExtraCancellationPromise(Promise<T> origin, Set<PromiseOrigin> enlistOptions, Runnable code) {
+            super(origin, enlistOptions, null);
+            this.code = code;
+        }
+        
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (super.cancel(mayInterruptIfRunning)) {
+                code.run();
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
+        @Override
+        public Promise<T> raw() {
+            Promise<T> undecorated = super.raw();
+            if (delegate == undecorated) {
+                return this;
+            } else {
+                return new ExtraCancellationPromise<>(undecorated, defaultEnlistOptions, code);
+            }
         }
     }
 }

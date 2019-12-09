@@ -43,7 +43,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     
     @Override
     public DependentPromise<T> dependent() {
-        DependentPromise<T> result = delegate.dependent();
+        DependentPromise<T> result = super.dependent();
         if (result == delegate) {
             return this;
         } else {
@@ -53,7 +53,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
 
     @Override
     public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
-        DependentPromise<T> result = delegate.dependent(defaultEnlistOptions);
+        DependentPromise<T> result = super.dependent(defaultEnlistOptions);
         if (result == delegate) {
             return this;
         } else {

@@ -56,7 +56,7 @@ public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise
         if (executor == defaultExecutor) {
             return this;
         } else {
-            return new ExecutorBoundPromise<>(delegate, executor);
+            return super.defaultAsyncOn(executor);
         }
     }
     

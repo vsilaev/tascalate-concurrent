@@ -40,21 +40,11 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
 
     @Override
-    public DependentPromise<T> dependent() {
-        return new ExecutorBoundDependentPromise<>(super.dependent(), defaultExecutor);
-    }
-    
-    @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
-        return new ExecutorBoundDependentPromise<>(super.dependent(defaultEnlistOptions), defaultExecutor);
-    }
-    
-    @Override
     public DependentPromise<T> defaultAsyncOn(Executor executor) {
         if (executor == defaultExecutor) {
             return this;
         } else {
-            return new ExecutorBoundDependentPromise<>(delegate, executor);
+            return super.defaultAsyncOn(executor);
         }
     }
     

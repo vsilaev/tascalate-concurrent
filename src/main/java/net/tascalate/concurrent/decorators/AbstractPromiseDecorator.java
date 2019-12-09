@@ -70,12 +70,12 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
     
     @Override
     public DependentPromise<T> dependent() {
-        throw new UnsupportedOperationException("Method must be re-implemented");
+        return delegate.dependent();
     }
 
     @Override
     public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
-        throw new UnsupportedOperationException("Method must be re-implemented");
+        return delegate.dependent(defaultEnlistOptions);
     }
     
     @Override
