@@ -173,13 +173,14 @@ public class J8Examples {
         }).thenAccept(System.out::println);
         
         System.out.println("Intermediate result: " + intermidiate.toCompletableFuture().get());
-		
+
         Promise<?> xt = CompletableTask
-            .supplyAsync(() -> "" + awaitAndProduceN(11), executorService)
+            .supplyAsync(() -> "" + awaitAndProduceN(10), executorService)
             .defaultAsyncOn(executorService)
             .onCancel(() -> System.out.println("CANCELLED!!!"))
+            .exceptionallyComposeAsync(e -> CompletableTask.supplyAsync(() -> "<ERROR> " + e.getMessage(), executorService))
             .dependent()
-            .onTimeout("XYZ", Duration.ofMillis(20), true, true)
+            .onTimeout("XYZ", Duration.ofMillis(2000), true, true)
             .thenAccept(v -> System.out.println("Value produced via timeout: " + v))
             ;
         //xt.cancel(true);

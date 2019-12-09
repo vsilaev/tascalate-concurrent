@@ -1,4 +1,4 @@
-[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.8.2/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.2) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.8.3/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.3) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
 
@@ -12,7 +12,7 @@ New name:
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>0.8.2</version>
+    <version>0.8.3</version>
 </dependency>
 ```
 Old Name
@@ -40,7 +40,7 @@ To use a library you have to add a single Maven dependency
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>0.8.2</version>
+    <version>0.8.3</version>
 </dependency>
 ```
 # What is inside?
@@ -538,7 +538,7 @@ Ah, those dreaded `TreadLocal`-s we all hate, love to hate, but, neveretheless, 
 
 Typically, we spawn asynchronous code from some thread with well-known characteristics, like HTTP request thread. Here we can easly access contextual information from thread-local variables. However, using thread-local variables from asynchronous code block is hard while it's impossible to predict what thread from the pool will execute the code. It's necessary to capture the context of the one thread and propagate it to threads executing asynchronous code. 
 
-To solve this issue, there Tascalate Concurrent provides `ContextVar` class, that serves as a proxy over thread-local variable for multi-threaded code. Typical usage scenario is the following:
+To solve this issue, there Tascalate Concurrent provides `ContextVar` class (since version 0.8.1), that serves as a proxy over thread-local variable for multi-threaded code. Typical usage scenario is the following:
 
 1. Define `ContextualPromiseFactory` holding `ContextVar`-s from existing thread-local variables.
 2. Capture a context of the thread that spawns asynchronous operations.
