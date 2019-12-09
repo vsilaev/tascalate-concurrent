@@ -30,7 +30,6 @@ public class J8Examples {
     
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
-        
         @SuppressWarnings("unused")
         Promise<Void>   t1 = Promises.retry(() -> System.out.println("Hello!"), executorService, RetryPolicy.DEFAULT);
         
@@ -64,13 +63,7 @@ public class J8Examples {
         //Promise<Object> k = Promises.failure(new RuntimeException());
         k.dependent().delay(Duration.ofMillis(1), true).whenComplete((r, e) -> System.out.println(Thread.currentThread() + " ==> " + r + ", " + e));
         
-        /*
-        if (System.out != null) {
-            Thread.sleep(1000);
-            executorService.shutdown();
-            return;
-        }
-        */
+
         
         Promise<Object> k1 = CompletableTask.supplyAsync(() -> produceStringSlow("-onTimeout1"), executorService);
         k1.onTimeout("ALTERNATE1", Duration.ofMillis(50))
@@ -142,27 +135,26 @@ public class J8Examples {
                      task2, 
                      (a,b) -> a + b
                  )
-                .thenAcceptAsync(J8Examples::onComplete)
-                .exceptionally(J8Examples::onError)
+                 .thenAcceptAsync(J8Examples::onComplete)
+                 .exceptionally(J8Examples::onError)
                 ;
             if (i == 10) {
                 Thread.sleep(200);
                 task1.cancel(true);
             }
         }
-        
-        
+
         Promise<Integer> intermidiate;
         Promises.atLeast(
-                4, //Change to 5 or 6 to see the difference -- will end up exceptionally
-                executorService.submit(() -> awaitAndProduceN(2)),
-                intermidiate = 
-                executorService.submit(() -> awaitAndProduceN(3)).thenAcceptAsync(J8Examples::multByX).thenApply((v) -> 1234),
-                executorService.submit(() -> awaitAndProduceN(5)),
-                executorService.submit(() -> awaitAndProduceN(6)),
-                executorService.submit(() -> awaitAndProduceN(7)),                
-                executorService.submit(() -> awaitAndProduceN(8)),
-                executorService.submit(() -> awaitAndProduceN(11))
+            4, //Change to 5 or 6 to see the difference -- will end up exceptionally
+            executorService.submit(() -> awaitAndProduceN(2)),
+            intermidiate = 
+            executorService.submit(() -> awaitAndProduceN(3)).thenAcceptAsync(J8Examples::multByX).thenApply((v) -> 1234),
+            executorService.submit(() -> awaitAndProduceN(5)),
+            executorService.submit(() -> awaitAndProduceN(6)),
+            executorService.submit(() -> awaitAndProduceN(7)),                
+            executorService.submit(() -> awaitAndProduceN(8)),
+            executorService.submit(() -> awaitAndProduceN(11))
         )
         .defaultAsyncOn(executorService)
         .thenApplyAsync(
@@ -182,6 +174,16 @@ public class J8Examples {
         
         System.out.println("Intermediate result: " + intermidiate.toCompletableFuture().get());
 		
+        Promise<?> xt = CompletableTask
+            .supplyAsync(() -> "" + awaitAndProduceN(11), executorService)
+            .defaultAsyncOn(executorService)
+            .onCancel(() -> System.out.println("CANCELLED!!!"))
+            .dependent()
+            .onTimeout("XYZ", Duration.ofMillis(20), true, true)
+            .thenAccept(v -> System.out.println("Value produced via timeout: " + v))
+            ;
+        //xt.cancel(true);
+        System.out.println(xt);
 
         // Suicidal task to close gracefully
         executorService.submit(() -> {
