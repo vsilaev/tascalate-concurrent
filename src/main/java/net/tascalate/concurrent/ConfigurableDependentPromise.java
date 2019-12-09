@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.updateReference;
@@ -779,15 +778,24 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         if (!enlistOrigin) {
             return delegate.toCompletableFuture();
         } else {
-            FutureCompletion<T> result = new FutureCompletion<T>().dependsOn(this);
+            CompletablePromise<T> result = new CompletablePromise<T>() {
+                @Override 
+                public boolean cancel(boolean mayInterruptIfRunning) {
+                    if (ConfigurableDependentPromise.this.cancel(mayInterruptIfRunning)) {
+                        return super.cancel(mayInterruptIfRunning);
+                    } else {
+                        return false;
+                    }
+                }
+            };
             whenComplete((r, e) -> {
                if (null != e) {
-                   result.completeExceptionally(e);
+                   result.onFailure(e);
                } else {
-                   result.complete(r);
+                   result.onSuccess(r);
                }
             });
-            return result;
+            return result.toCompletableFuture();
         }
     }
     

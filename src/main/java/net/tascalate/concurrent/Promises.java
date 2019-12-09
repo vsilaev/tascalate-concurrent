@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.LinkedCompletion.StageCompletion;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
@@ -694,15 +693,15 @@ public final class Promises {
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
                                                Function<? super U, ? extends T> resultMapper, 
                                                Function<? super Throwable, ? extends Throwable> errorMapper) {
-        StageCompletion<T> result = new StageCompletion<T>().dependsOn(original);
+        CompletablePromise<T> result = new CompletablePromise<>();
         original.whenComplete((r, e) -> {
            if (null == e) {
-               result.complete( resultMapper.apply(r) );
+               result.onSuccess( resultMapper.apply(r) );
            } else {
-               result.completeExceptionally( errorMapper.apply(e) );
+               result.onFailure( errorMapper.apply(e) );
            }
         });
-        return result.toPromise();
+        return result.onCancel(() -> cancelPromise(original, true));
     }
     
     private static <T> T extractFirstNonNull(Collection<? extends T> collection) {

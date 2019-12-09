@@ -15,8 +15,6 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.LinkedCompletion.FutureCompletion;
-
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -44,11 +42,11 @@ class Timeouts {
      */
     static Promise<Duration> delay(Duration duration) {
         TimeMeasurment tm = new TimeMeasurment(duration);
-        FutureCompletion<Duration> result = new FutureCompletion<>();
+        CompletablePromise<Duration> result = new CompletablePromise<>();
         Future<?> timeout = scheduler.schedule( 
-            () -> result.complete(duration), tm.amount, tm.unit 
+            () -> result.onSuccess(duration), tm.amount, tm.unit 
         );
-        return result.dependsOn(timeout).toPromise();
+        return result.onCancel(() -> timeout.cancel(true));
     }
     
     /**
@@ -81,12 +79,12 @@ class Timeouts {
      */
     static <T> Promise<T> failAfter(Duration duration) {
         TimeMeasurment tm = new TimeMeasurment(duration);
-        FutureCompletion<T> result = new FutureCompletion<>();
+        CompletablePromise<T> result = new CompletablePromise<>();
         Future<?> timeout = scheduler.schedule(
-            () -> result.completeExceptionally(new TimeoutException("Timeout after " + duration)), 
+            () -> result.onFailure(new TimeoutException("Timeout after " + duration)), 
             tm.amount, tm.unit
         );
-        return result.dependsOn(timeout).toPromise();
+        return result.onCancel(() -> timeout.cancel(true));
     }
 
     /**
