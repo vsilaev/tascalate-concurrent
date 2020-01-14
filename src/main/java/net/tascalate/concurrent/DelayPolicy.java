@@ -104,7 +104,7 @@ public interface DelayPolicy<T> {
     }
 
     default DelayPolicy<T> withMinDelay(long minDelay, TimeUnit timeUnit) {
-        return withMaxDelay(Timeouts.toDuration(minDelay, timeUnit));
+        return withMinDelay(Timeouts.toDuration(minDelay, timeUnit));
     }
     
     default DelayPolicy<T> withMinDelay(long minDelayMillis) {
