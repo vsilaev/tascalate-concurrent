@@ -82,7 +82,9 @@ public final class ContextTrampoline {
         return captureAndWrapExecutor(executorService, propagation, ContextualScheduledExecutorService::new);
     }
     
-    private <D extends Executor> D captureAndWrapExecutor(D delegate, ContextVar.Propagation propagation, ContextualExecutorConstructor<D> ctr) {
+    private <D extends Executor> D captureAndWrapExecutor(D delegate, 
+                                                          ContextVar.Propagation propagation, 
+                                                          ContextualExecutorConstructor<D> ctr) {
         if (null == contextVars || contextVars.isEmpty()) {
             return delegate;
         } 

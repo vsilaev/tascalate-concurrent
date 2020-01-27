@@ -534,6 +534,8 @@ But before discussing it, it's necessary to explain a difference in each pair of
 
 ## 8. Context variables & contextual Promises
 
+**WARNING** This part of API will be refactored in the upcoming release 0.9.0.
+
 Ah, those dreaded `TreadLocal`-s we all hate, love to hate, but, neveretheless, use everywhere. It's quite common to store some contextual data (like authenticated user and current locale) inside `ThreadLocal` variables. Sometimes it's a custom code, sometimes the code from third-party library we can't alter. 
 
 Typically, we spawn asynchronous code from some thread with well-known characteristics, like HTTP request thread. Here we can easly access contextual information from thread-local variables. However, using thread-local variables from asynchronous code block is hard while it's impossible to predict what thread from the pool will execute the code. It's necessary to capture the context of the one thread and propagate it to threads executing asynchronous code. 
