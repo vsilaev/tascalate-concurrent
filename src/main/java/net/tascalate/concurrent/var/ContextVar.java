@@ -25,6 +25,36 @@ import java.util.stream.Collectors;
 
 public interface ContextVar<T> {
     
+    /**
+     * Defines a strategy how context variables are propagated to the execution thread
+     * @author vsilaev
+     *
+     */
+    public static enum Propagation {
+        /**
+         * Default propagation option that is optimized for performance
+         * <p>The logic is the following:</p>
+         * <ol>
+         * <li>Apply context variables from the snapshot</li>
+         * <li>Execute code</li>
+         * <li>Reset context variables</li>
+         * </ol>
+         */
+        OPTIMIZED,
+        /**
+         * Pessimistic propagation option for rare cases when thread might have 
+         * its own default values of the context variables and they must be restored. 
+         * <p>The logic is the following:</p>
+         * <ol>
+         * <li>Save context variables from the current thread</li>
+         * <li>Apply context variables from the snapshot</li>
+         * <li>Execute code</li>
+         * <li>Restore context variables saved in the step [1]</li>
+         * </ol>
+         */
+        STRICT;
+    }
+    
     T get();
     
     void set(T value);
@@ -42,7 +72,7 @@ public interface ContextVar<T> {
     }
     
     public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return define(ContextualPromiseFactory.generateVarName(), reader, writer, eraser);
+        return define(ContextTrampoline.generateVarName(), reader, writer, eraser);
     }
     
     public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
@@ -98,30 +128,30 @@ public interface ContextVar<T> {
     }    
     
     
-    public static ContextualPromiseFactory relay(ContextVar<?> contextVar) {
-        return new ContextualPromiseFactory(Collections.singletonList(contextVar));
+    public static ContextTrampoline relay(ContextVar<?> contextVar) {
+        return new ContextTrampoline(Collections.singletonList(contextVar));
     }
     
-    public static ContextualPromiseFactory relay(ThreadLocal<?> threadLocal) {
+    public static ContextTrampoline relay(ThreadLocal<?> threadLocal) {
         return relay(ContextVar.from(threadLocal));
     }
 
-    public static ContextualPromiseFactory relay(ContextVar<?>... contextVars) {
-        return new ContextualPromiseFactory(Arrays.asList(contextVars));
+    public static ContextTrampoline relay(ContextVar<?>... contextVars) {
+        return new ContextTrampoline(Arrays.asList(contextVars));
     }
     
-    public static ContextualPromiseFactory relay(ThreadLocal<?>... threadLocals) {
-        return new ContextualPromiseFactory(Arrays.stream(threadLocals).map(ContextVar::from).collect(Collectors.toList()));
+    public static ContextTrampoline relay(ThreadLocal<?>... threadLocals) {
+        return new ContextTrampoline(Arrays.stream(threadLocals).map(ContextVar::from).collect(Collectors.toList()));
     }
 
-    public static ContextualPromiseFactory relay(List<? extends ContextVar<?>> contextVars) {
-        return new ContextualPromiseFactory(
+    public static ContextTrampoline relay(List<? extends ContextVar<?>> contextVars) {
+        return new ContextTrampoline(
             contextVars == null ? Collections.emptyList() : new ArrayList<>(contextVars)
         );
     }
     
-    public static ContextualPromiseFactory relayThreadLocals(List<? extends ThreadLocal<?>> threadLocals) {
-        return new ContextualPromiseFactory(
+    public static ContextTrampoline relayThreadLocals(List<? extends ThreadLocal<?>> threadLocals) {
+        return new ContextTrampoline(
             threadLocals == null ? Collections.emptyList() : threadLocals
                 .stream()
                 .map(tl -> ContextVar.from((ThreadLocal<?>)tl))
