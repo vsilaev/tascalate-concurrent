@@ -37,55 +37,63 @@ public class ContextualExecutorService<D extends ExecutorService>
         super(delegate, contextVars, propagation, capturedContext);
     }
 
-    public void execute(Runnable command) {
-        delegate.execute(contextualRunnable(command));
-    }
-
+    @Override
     public void shutdown() {
         delegate.shutdown();
     }
 
+    @Override
     public List<Runnable> shutdownNow() {
         return delegate.shutdownNow();
     }
 
+    @Override
     public boolean isShutdown() {
         return delegate.isShutdown();
     }
 
+    @Override
     public boolean isTerminated() {
         return delegate.isTerminated();
     }
 
+    @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return delegate.awaitTermination(timeout, unit);
     }
 
+    @Override
     public <T> Future<T> submit(Callable<T> task) {
         return delegate.submit(contextualCallable(task));
     }
 
+    @Override
     public <T> Future<T> submit(Runnable task, T result) {
         return delegate.submit(contextualRunnable(task), result);
     }
 
+    @Override
     public Future<?> submit(Runnable task) {
         return delegate.submit(contextualRunnable(task));
     }
 
+    @Override
     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
         return delegate.invokeAll(contextualCallables(tasks));
     }
 
+    @Override
     public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
             throws InterruptedException {
         return delegate.invokeAll(contextualCallables(tasks), timeout, unit);
     }
 
+    @Override
     public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
         return delegate.invokeAny(contextualCallables(tasks));
     }
 
+    @Override
     public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit)
             throws InterruptedException, ExecutionException, TimeoutException {
         return delegate.invokeAny(contextualCallables(tasks), timeout, unit);

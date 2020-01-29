@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2019 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2020 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import java.util.function.Function;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.TaskExecutorService;
 import net.tascalate.concurrent.decorators.CustomizableDependentPromiseDecorator;
 import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
@@ -38,11 +39,11 @@ public final class ContextTrampoline {
                                                  Collections.unmodifiableList(contextVars);
     }
     
-    public <T> Function<Promise<T>, Promise<T>> captureSnapshotForPromises() {
-        return captureSnapshotForPromises(ContextVar.Propagation.OPTIMIZED);
+    public <T> Function<Promise<T>, Promise<T>> captureContextForPromises() {
+        return captureContextForPromises(ContextVar.Propagation.OPTIMIZED);
     }
     
-    public <T> Function<Promise<T>, Promise<T>> captureSnapshotForPromises(ContextVar.Propagation propagation) {
+    public <T> Function<Promise<T>, Promise<T>> captureContextForPromises(ContextVar.Propagation propagation) {
         if (null == contextVars || contextVars.isEmpty()) {
             return Function.identity();
         }
@@ -58,27 +59,35 @@ public final class ContextTrampoline {
                 new CustomizablePromiseDecorator<>(p, customizer);
     }
     
-    public Executor captureSnapshotFor(Executor executor) {
-        return captureSnapshotFor(executor, ContextVar.Propagation.OPTIMIZED);
+    public Executor withCapturedContext(Executor executor) {
+        return withCapturedContext(executor, ContextVar.Propagation.OPTIMIZED);
     }
     
-    public Executor captureSnapshotFor(Executor executor, ContextVar.Propagation propagation) {
+    public Executor withCapturedContext(Executor executor, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executor, propagation, ContextualExecutor::new);
     }
     
-    public ExecutorService captureSnapshotFor(ExecutorService executorService) {
-        return captureSnapshotFor(executorService, ContextVar.Propagation.OPTIMIZED);
+    public ExecutorService withCapturedContext(ExecutorService executorService) {
+        return withCapturedContext(executorService, ContextVar.Propagation.OPTIMIZED);
     }
     
-    public ExecutorService captureSnapshotFor(ExecutorService executorService, ContextVar.Propagation propagation) {
+    public ExecutorService withCapturedContext(ExecutorService executorService, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executorService, propagation, ContextualExecutorService::new);
     }
     
-    public ScheduledExecutorService captureSnapshotFor(ScheduledExecutorService executorService) {
-        return captureSnapshotFor(executorService, ContextVar.Propagation.OPTIMIZED);
+    public TaskExecutorService withCapturedContext(TaskExecutorService executorService) {
+        return withCapturedContext(executorService, ContextVar.Propagation.OPTIMIZED);
     }
     
-    public ScheduledExecutorService captureSnapshotFor(ScheduledExecutorService executorService, ContextVar.Propagation propagation) {
+    public TaskExecutorService withCapturedContext(TaskExecutorService executorService, ContextVar.Propagation propagation) {
+        return captureAndWrapExecutor(executorService, propagation, ContextualTaskExecutorService::new);
+    }
+    
+    public ScheduledExecutorService withCapturedContext(ScheduledExecutorService executorService) {
+        return withCapturedContext(executorService, ContextVar.Propagation.OPTIMIZED);
+    }
+    
+    public ScheduledExecutorService withCapturedContext(ScheduledExecutorService executorService, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executorService, propagation, ContextualScheduledExecutorService::new);
     }
     

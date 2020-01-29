@@ -38,7 +38,8 @@ abstract class ContextualObject {
     }
     
     protected final List<Object> applyCapturedContext() {
-        List<Object> originalContext = ContextVar.Propagation.STRICT.equals(propagation) ? captureContextVars(contextVars) : null;
+        List<Object> originalContext = ContextVar.Propagation.STRICT.equals(propagation) ? 
+            captureContextVars(contextVars) : Collections.nCopies(contextVars.size(), null);
         restoreContextVars(capturedContext);
         return originalContext;
     }
@@ -49,7 +50,7 @@ abstract class ContextualObject {
     
     protected final void restoreContextVars(List<Object> contextState) {
         Iterator<? extends ContextVar<?>> vars = contextVars.iterator();
-        Iterator<Object> values = (null == contextState ? emptyCapturedContext() : contextState).iterator();
+        Iterator<Object> values = contextState.iterator();
         while (vars.hasNext() && values.hasNext()) {
             @SuppressWarnings("unchecked")
             ContextVar<Object> contextVar = (ContextVar<Object>)vars.next();
@@ -61,9 +62,5 @@ abstract class ContextualObject {
             }
         }
     }    
-    
-    private <T> List<T> emptyCapturedContext() {
-        return Collections.nCopies(contextVars.size(), null);
-    }
 
 }
