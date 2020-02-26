@@ -121,17 +121,18 @@ CompletableTask
 ```  
 All of `myValueGenerator`, `myConsumer`, `myAction` will be executed using `myExecutor`.
 
-b.	`CompletableTask.complete(T value, Executor executor)`
+b.	`CompletableTask.completed(T value, Executor executor)`
 Same as above, but the starting point is a `Promise` completed with the specified value:
 ```java
 CompletableTask
-   .complete("Hello!", myExecutor)
+   .completed("Hello!", myExecutor)
    .thenApplyAsync(myMapper)
    .thenApplyAsync(myTransformer)   
    .thenAcceptAsync(myConsumer)
    .thenRunAsync(myAction);
 ```  
 All of `myMapper`, `myTransformer`, `myConsumer`, `myAction` will be executed using `myExecutor`.
+**WARNING** Before release 0.9.0 this method was named `CompletableTask.complete(...)`
 
 Crucially, all composed promises support true cancellation (incl. interrupting thread) for the functions supplied as arguments:
 ```java
@@ -277,7 +278,7 @@ Promise<List<String>> resultPromise = CompletableTask
     // Restict only execution time of converterMethod
     // -- start of changes
     .thenCompose( v -> 
-        CompletableTask.complete(v, executor)
+        CompletableTask.completed(v, executor)
                        .thenApplyAsync(vv -> converterMethod(vv))
                        .orTimeout( Duration.ofSeconds(5) )
     )

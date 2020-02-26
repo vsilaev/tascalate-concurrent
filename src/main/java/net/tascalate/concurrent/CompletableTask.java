@@ -83,7 +83,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      * @return
      *   resolved {@link Promise} with a value passed; the promise is bound to the specified executor
      */
-    public static <T> Promise<T> complete(T value, Executor defaultExecutor) {
+    public static <T> Promise<T> completed(T value, Executor defaultExecutor) {
         CompletableTask<T> result = new CompletableTask<T>(defaultExecutor, () -> value);
         SAME_THREAD_EXECUTOR.execute(result);
         return result;
@@ -110,7 +110,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   resolved non-value {@link Promise} bound to the specified executor
      */
     public static Promise<Void> asyncOn(Executor executor) {
-        return complete(null, executor);
+        return completed(null, executor);
     }
     
     /**
@@ -139,7 +139,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   resolved non-value {@link Promise} bound to the specified executor
      */    
     public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync) {
-        Promise<Void> result = complete(null, executor);
+        Promise<Void> result = completed(null, executor);
         if (enforceDefaultAsync) {
             class DefaultAsyncDecorator<T> extends ExecutorBoundPromise<T> {
                 public DefaultAsyncDecorator(Promise<T> delegate) {
@@ -152,9 +152,19 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
                 }
                 
                 @Override
-                public Promise<T> raw() {
-                    // Return self to avoid unrolling further 
+                public Promise<T> unwrap() {
+                    // TODO should we unwrap and re-decorate?
                     return this;
+                }
+                
+                @Override
+                public Promise<T> raw() {
+                    Promise<T> altDelegate = super.raw();
+                    if (altDelegate == delegate) {
+                        return this;
+                    } else {
+                        return wrap(altDelegate); 
+                    }
                 }
             }
             

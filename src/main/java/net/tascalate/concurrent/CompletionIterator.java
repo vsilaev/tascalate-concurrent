@@ -27,7 +27,7 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     private final int chunkSize;
     private final boolean cancelRemaining;
     private final Iterator<? extends CompletionStage<? extends T>> pendingPromises;
-    private final BlockingQueue<Ref<T>> settledResults;
+    private final BlockingQueue<Result<T>> settledResults;
     
     private final AtomicInteger inProgress = new AtomicInteger(0);
     
@@ -141,8 +141,8 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     
     private void enlistResolved(T resolvedValue, Throwable ex) {
         try {
-            settledResults.put(
-                new Ref<>(resolvedValue, ex == null ? null : SharedFunctions.wrapCompletionException(ex))
+            settledResults.put(new Result<>(
+                resolvedValue, ex == null ? null : SharedFunctions.wrapCompletionException(ex))
             );
         } catch (InterruptedException e) {
             throw new RuntimeException(e); // Shouldn't happen for the queue with an unlimited size
@@ -150,11 +150,11 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
         inProgress.decrementAndGet();
     }
     
-    static class Ref<T> {
+    static class Result<T> {
         private final T result;
         private final CompletionException error;
         
-        Ref(T result, CompletionException error) {
+        Result(T result, CompletionException error) {
             this.result = result;
             this.error  = error; 
         }
