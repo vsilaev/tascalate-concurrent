@@ -220,7 +220,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
         return asyncOn(executor)
                .dependent()
                .thenCombine(stage, selectSecond(), enlistParamOrNone(dependentStage))
-               .raw();
+               .unwrap();
     }
     
     public static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor) {
@@ -231,7 +231,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
         return asyncOn(executor)
                .dependent()
                .thenCombineAsync(Timeouts.delay(duration), selectSecond(), enlistParamOrNone(true))
-               .raw();
+               .unwrap();
     }
     
     @Override

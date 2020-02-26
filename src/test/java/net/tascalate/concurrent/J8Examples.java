@@ -22,14 +22,32 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 
 public class J8Examples {
     
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
+        Promise<Long> eleOrigin = Promises.success(10L);
+        Promise<Promise<Number>> eleDone1 = Promises.elevated(eleOrigin);
+        Promise<Promise<Number>> eleDone2 = eleOrigin.as(Promises::elevated);
+        eleDone2.as(Promises::narrowed).whenComplete((v, e) -> {
+           System.out.println("Elevated-then-narrowed: " + v); 
+        });
+        
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
+        IntFunction<Promise<Integer>> makeNewValue = v -> CompletableTask.supplyAsync(() -> awaitAndProduce2(v), executorService);
+        try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 5, true)) {
+            s.filter(v -> v.intValue() % 20 != 0)
+             .limit(5)
+             .forEach(v -> System.out.println("By completion stream:: " + v));
+             
+        }
+        
         @SuppressWarnings("unused")
         Promise<Void>   t1 = Promises.retry(() -> System.out.println("Hello!"), executorService, RetryPolicy.DEFAULT);
         

@@ -754,6 +754,16 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     public T join() throws CancellationException, CompletionException {
         return delegate.join();
     }
+    
+    @Override
+    public Promise<T> unwrap() {
+        if (null == cancellableOrigins || cancellableOrigins.length == 0) {
+            // No state collected, may optimize away own reference
+            return delegate;
+        } else {
+            return cancellablePromiseOf(delegate);
+        }
+    }
 
     @Override
     public Promise<T> raw() {
@@ -855,11 +865,24 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         }
         
         @Override
+        public Promise<T> unwrap() {
+            return unwrap(Promise::unwrap);
+        }
+        
+        @Override
         public Promise<T> raw() {
-            // May not unwrap further
-            return this;
+            return unwrap(Promise::raw);
         }
 
+        private Promise<T> unwrap(Function<Promise<T>, Promise<T>> fn) {
+            Promise<T> unwrapped = fn.apply(delegate);
+            if (unwrapped == delegate) {
+                return this;
+            } else {
+                return new UndecoratedCancellationPromise<>(unwrapped, dependent);
+            }   
+        }
+        
         @Override
         protected <U> Promise<U> wrap(CompletionStage<U> original) {
             // No wrapping by definition

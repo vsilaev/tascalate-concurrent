@@ -23,10 +23,12 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Spliterators;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -36,6 +38,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 
 /**
@@ -106,6 +110,77 @@ public final class Promises {
     
     public static <T> CompletionStage<T> withDefaultExecutor(CompletionStage<T> stage, Executor executor) {
         return new ExecutorBoundCompletionStage<>(stage, executor);
+    }
+    
+    public static <T> Promise<Promise<T>> elevated(CompletionStage<? extends T> promise) {
+        Promise<Promise<T>> result = from(promise).dependent()
+                                                  .thenApply(Promises::success, true);
+        return result.unwrap();
+    }
+    
+    public static <T> Promise<T> narrowed(CompletionStage<? extends CompletionStage<T>> promise) {
+        return from(promise).dependent()
+                            .thenCompose(Promises::from, true)
+                            .unwrap();
+    }
+    
+    public static <T> Promise<Optional<T>> successOptional(CompletionStage<? extends T> promise) {
+        Promise<Optional<T>> result =
+            from(promise).dependent()
+                         .handle((r, e) -> Optional.ofNullable(null == e ? r : null), true);
+        return result.unwrap();
+    }
+    
+    public static <T> Promise<Stream<T>> successStream(CompletionStage<? extends T> promise) {
+        Promise<Stream<T>> result =
+            from(promise).dependent()
+                         .handle((r, e) -> null == e ? Stream.of(r) : Stream.empty(), true);
+        return result.unwrap();
+    }
+    
+    public static <T> Iterator<T> iterateCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                     int chunkSize) {
+        return iterateCompletions(pendingPromises.iterator(), chunkSize);
+    }
+
+    public static <T> Iterator<T> iterateCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                     int chunkSize) {
+        return iterateCompletions(pendingPromises.iterator(), chunkSize);
+    }
+    
+    private static <T> Iterator<T> iterateCompletions(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                      int chunkSize) {
+        return new CompletionIterator<>(pendingPromises, chunkSize);
+    }
+    
+    public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize) {
+        return streamCompletions(pendingPromises, chunkSize, false);
+    }
+    
+    public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize, boolean cancelRemainig) {
+        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelRemainig);
+    }
+
+    public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize) {
+        return streamCompletions(pendingPromises, chunkSize, false);
+    }
+    
+    public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize, boolean cancelRemainig) {
+        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelRemainig);
+    }
+    
+    private static <T> Stream<T> streamCompletions(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                   int chunkSize, boolean cancelRemaining) {
+        return toCompletionStream(new CompletionIterator<>(pendingPromises, chunkSize, cancelRemaining));
+    }
+    
+    private static <T> Stream<T> toCompletionStream(CompletionIterator<T> iterator) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false)
+                            .onClose(iterator::close); 
     }
     
     /**
@@ -685,7 +760,7 @@ public final class Promises {
     private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Verdict verdict) {
         Duration timeout = verdict.timeout();
         if (DelayPolicy.isValid(timeout)) {
-            singleInvocationPromise.dependent().orTimeout( timeout, true, true ).raw();
+            singleInvocationPromise.dependent().orTimeout( timeout, true, true ).unwrap();
         }
         return singleInvocationPromise;        
     }

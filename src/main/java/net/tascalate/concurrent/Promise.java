@@ -77,7 +77,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onCancel(Runnable code) {
-        return dependent().onCancel(code).raw();
+        return dependent().onCancel(code).unwrap();
     }
 
     default Promise<T> delay(long timeout, TimeUnit unit) {
@@ -93,7 +93,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> delay(Duration duration, boolean delayOnError) {
-        return dependent().delay(duration, delayOnError).raw();
+        return dependent().delay(duration, delayOnError).unwrap();
     }
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit) {
@@ -109,7 +109,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        return dependent().orTimeout(duration, cancelOnTimeout).raw();
+        return dependent().orTimeout(duration, cancelOnTimeout).unwrap();
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit) {
@@ -125,7 +125,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        return dependent().onTimeout(value, duration, cancelOnTimeout).raw();
+        return dependent().onTimeout(value, duration, cancelOnTimeout).unwrap();
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
@@ -141,7 +141,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
-        return dependent().onTimeout(supplier, duration, cancelOnTimeout).raw();
+        return dependent().onTimeout(supplier, duration, cancelOnTimeout).unwrap();
     }
     
     /**
@@ -188,11 +188,20 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     default <D> D as(Function<? super Promise<T>, D> decoratorFactory) {
         return decoratorFactory.apply(this);
     }
+
+    /**
+     * Unwraps underlying {@link Promise} if it was decorated
+     * @return
+     *   the underlying un-decorated {@link Promise} or self if not decorated
+     */
+    default Promise<T> unwrap() {
+        return this;
+    }
     
     /**
-     * Unwraps underlying {@link Promise}
+     * Fully unwraps underlying {@link Promise}
      * @return
-     *   the underlying un-decorated {@link Promise}
+     *   the underlying un-decorated {@link Promise} or self if not decorated
      */
     default Promise<T> raw() {
         return this;

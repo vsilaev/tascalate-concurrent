@@ -64,6 +64,11 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
     }
     
     @Override
+    public Promise<T> unwrap() {
+        return delegate;
+    }
+    
+    @Override
     public Promise<T> raw() {
         return delegate.raw();
     }

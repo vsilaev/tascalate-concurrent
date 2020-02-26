@@ -39,11 +39,11 @@ public final class ContextTrampoline {
                                                  Collections.unmodifiableList(contextVars);
     }
     
-    public <T> Function<Promise<T>, Promise<T>> captureContextForPromises() {
-        return captureContextForPromises(ContextVar.Propagation.OPTIMIZED);
+    public <T> Function<Promise<T>, Promise<T>> newContextualPromiseFactory() {
+        return newContextualPromiseFactory(ContextVar.Propagation.OPTIMIZED);
     }
     
-    public <T> Function<Promise<T>, Promise<T>> captureContextForPromises(ContextVar.Propagation propagation) {
+    public <T> Function<Promise<T>, Promise<T>> newContextualPromiseFactory(ContextVar.Propagation propagation) {
         if (null == contextVars || contextVars.isEmpty()) {
             return Function.identity();
         }
@@ -59,35 +59,35 @@ public final class ContextTrampoline {
                 new CustomizablePromiseDecorator<>(p, customizer);
     }
     
-    public Executor withCapturedContext(Executor executor) {
-        return withCapturedContext(executor, ContextVar.Propagation.OPTIMIZED);
+    public Executor withCurrentContext(Executor executor) {
+        return withCurrentContext(executor, ContextVar.Propagation.OPTIMIZED);
     }
     
-    public Executor withCapturedContext(Executor executor, ContextVar.Propagation propagation) {
+    public Executor withCurrentContext(Executor executor, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executor, propagation, ContextualExecutor::new);
     }
     
-    public ExecutorService withCapturedContext(ExecutorService executorService) {
-        return withCapturedContext(executorService, ContextVar.Propagation.OPTIMIZED);
+    public ExecutorService withCurrentContext(ExecutorService executorService) {
+        return withCurrentContext(executorService, ContextVar.Propagation.OPTIMIZED);
     }
     
-    public ExecutorService withCapturedContext(ExecutorService executorService, ContextVar.Propagation propagation) {
+    public ExecutorService withCurrentContext(ExecutorService executorService, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executorService, propagation, ContextualExecutorService::new);
     }
     
-    public TaskExecutorService withCapturedContext(TaskExecutorService executorService) {
-        return withCapturedContext(executorService, ContextVar.Propagation.OPTIMIZED);
+    public TaskExecutorService withCurrentContext(TaskExecutorService executorService) {
+        return withCurrentContext(executorService, ContextVar.Propagation.OPTIMIZED);
     }
     
-    public TaskExecutorService withCapturedContext(TaskExecutorService executorService, ContextVar.Propagation propagation) {
+    public TaskExecutorService withCurrentContext(TaskExecutorService executorService, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executorService, propagation, ContextualTaskExecutorService::new);
     }
     
-    public ScheduledExecutorService withCapturedContext(ScheduledExecutorService executorService) {
-        return withCapturedContext(executorService, ContextVar.Propagation.OPTIMIZED);
+    public ScheduledExecutorService withCurrentContext(ScheduledExecutorService executorService) {
+        return withCurrentContext(executorService, ContextVar.Propagation.OPTIMIZED);
     }
     
-    public ScheduledExecutorService withCapturedContext(ScheduledExecutorService executorService, ContextVar.Propagation propagation) {
+    public ScheduledExecutorService withCurrentContext(ScheduledExecutorService executorService, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executorService, propagation, ContextualScheduledExecutorService::new);
     }
     
