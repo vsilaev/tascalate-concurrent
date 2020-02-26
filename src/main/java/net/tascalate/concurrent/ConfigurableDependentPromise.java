@@ -908,12 +908,21 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         }
         
         @Override
+        public Promise<T> unwrap() {
+            return unwrap(Promise::unwrap);
+        }
+        
+        @Override
         public Promise<T> raw() {
-            Promise<T> undecorated = super.raw();
-            if (delegate == undecorated) {
+            return unwrap(Promise::raw);
+        }
+        
+        private Promise<T> unwrap(Function<Promise<T>, Promise<T>> fn) {
+            Promise<T> unwrapped = fn.apply(delegate);
+            if (delegate == unwrapped && defaultEnlistOptions.isEmpty()) {
                 return this;
             } else {
-                return new ExtraCancellationPromise<>(undecorated, defaultEnlistOptions, code);
+                return new ExtraCancellationPromise<>(unwrapped, PromiseOrigin.NONE, code);
             }
         }
     }
