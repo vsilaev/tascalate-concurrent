@@ -61,15 +61,7 @@ abstract class Try<R> {
     }
     
     static <R> Supplier<Try<R>> with(Supplier<? extends R> supplier) {
-        return () -> of(supplier);
-    }
-    
-    static <R> Try<R> of(Supplier<? extends R> supplier) {
-        try {
-            return success(supplier.get());
-        } catch (Throwable ex) {
-            return failure(ex);
-        }
+        return () -> call(supplier);
     }
     
     static <R> R doneOrTimeout(Try<R> result, Duration duration) {
@@ -81,5 +73,14 @@ abstract class Try<R> {
     static <R> Try<R> nothing() {
         return (Try<R>)NOTHING;
     }
+    
+    private static <R> Try<R> call(Supplier<? extends R> supplier) {
+        try {
+            return success(supplier.get());
+        } catch (Throwable ex) {
+            return failure(ex);
+        }
+    }
+    
     private static final Try<Object> NOTHING = success(null); 
 }

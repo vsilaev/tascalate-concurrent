@@ -37,6 +37,9 @@ import java.util.concurrent.TimeoutException;
  *
  */
 public class TaskExecutors {
+    
+    private TaskExecutors() {}
+    
     /**
      * Creates a thread pool that reuses a fixed number of threads operating off
      * a shared unbounded queue. At any point, at most {@code nThreads} threads

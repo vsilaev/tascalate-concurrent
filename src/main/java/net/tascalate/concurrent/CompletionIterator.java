@@ -42,7 +42,7 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
         this.cancelRemaining = cancelRemaining;
         this.pendingPromises = pendingValues;
         this.settledResults  = chunkSize > 0 ? new LinkedBlockingQueue<>(chunkSize) 
-                                           : new LinkedBlockingQueue<>(); 
+                                             : new LinkedBlockingQueue<>(); 
     }
     
     @Override
