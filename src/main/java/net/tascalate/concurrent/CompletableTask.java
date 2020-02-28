@@ -151,20 +151,20 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
                     return new DefaultAsyncDecorator<>((Promise<U>)original);
                 }
                 
+                // TODO what about dependent() promise here? 
+                
                 @Override
                 public Promise<T> unwrap() {
-                    // TODO should we unwrap and re-decorate?
+                    // We are wrapping always raw promise and
+                    // it's explicitly forbidden to remove own behavior
+                    // via enforceDefaultAsync
                     return this;
                 }
                 
                 @Override
                 public Promise<T> raw() {
-                    Promise<T> altDelegate = super.raw();
-                    if (altDelegate == delegate) {
-                        return this;
-                    } else {
-                        return wrap(altDelegate); 
-                    }
+                    // Same as for unwrap
+                    return this;
                 }
             }
             

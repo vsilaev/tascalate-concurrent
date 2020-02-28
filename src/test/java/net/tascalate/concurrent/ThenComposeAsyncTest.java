@@ -50,7 +50,7 @@ public class ThenComposeAsyncTest {
         AtomicBoolean started = new AtomicBoolean(false);
         AtomicBoolean cancelled = new AtomicBoolean(false);
         
-        Promise<?> p = CompletableTask.complete(10, executor)
+        Promise<?> p = CompletableTask.completed(10, executor)
                 .thenComposeAsync(n -> executor.submit(() -> {
                     started.set(true);
                     try {

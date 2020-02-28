@@ -1,6 +1,5 @@
 package net.tascalate.concurrent;
 
-import java.io.PrintWriter;
 import java.util.Arrays;
 
 public class TestMultitargetExceptionTraces {
@@ -8,7 +7,8 @@ public class TestMultitargetExceptionTraces {
     
     public static void main(String[] argv) {
         Exception e = err();
-        e.printStackTrace(new PrintWriter(System.err, true));
+        //e.printStackTrace(new PrintWriter(System.err, true));
+        e.printStackTrace();
     }
     
     static Exception err() {

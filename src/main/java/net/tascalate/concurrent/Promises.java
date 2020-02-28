@@ -84,6 +84,12 @@ public final class Promises {
         return new CompletableFutureWrapper<>(delegate);
     }
 
+    
+    public static <T> Promise<T> maybe(Optional<T> maybeValue) {
+        return maybeValue.map(Promises::success)
+                         .orElseGet(() -> Promises.failure(new NoSuchElementException()));
+    }
+    
     /**
      * Adapts a stage passed to the {@link Promise} API
      * @param <T>
@@ -111,30 +117,35 @@ public final class Promises {
     public static <T> CompletionStage<T> withDefaultExecutor(CompletionStage<T> stage, Executor executor) {
         return new ExecutorBoundCompletionStage<>(stage, executor);
     }
-    
-    public static <T> Promise<Promise<T>> elevated(CompletionStage<? extends T> promise) {
+
+    // Lifted is somewhat questionable, but here it exists for symmetry with dropped()
+    public static <T> Promise<Promise<T>> lift(CompletionStage<? extends T> promise) {
         Promise<Promise<T>> result = from(promise).dependent()
                                                   .thenApply(Promises::success, true);
         return result.unwrap();
     }
     
-    public static <T> Promise<T> narrowed(CompletionStage<? extends CompletionStage<T>> promise) {
+    public static <T> Promise<T> drop(CompletionStage<? extends CompletionStage<T>> promise) {
         return from(promise).dependent()
                             .thenCompose(Promises::from, true)
                             .unwrap();
     }
-    
-    public static <T> Promise<Optional<T>> successOptional(CompletionStage<? extends T> promise) {
-        Promise<Optional<T>> result =
-            from(promise).dependent()
-                         .handle((r, e) -> Optional.ofNullable(null == e ? r : null), true);
-        return result.unwrap();
-    }
-    
+
+
+    // Not sure if it's usable - it's easy to implement as an operation outside lib
+    /*
     public static <T> Promise<Stream<T>> successStream(CompletionStage<? extends T> promise) {
         Promise<Stream<T>> result =
             from(promise).dependent()
                          .handle((r, e) -> null == e ? Stream.of(r) : Stream.empty(), true);
+        return result.unwrap();
+    }
+    */
+    
+    public static <T> Promise<Optional<T>> optionalCompletion(CompletionStage<? extends T> promise) {
+        Promise<Optional<T>> result =
+            from(promise).dependent()
+                         .handle((r, e) -> Optional.ofNullable(null == e ? r : null), true);
         return result.unwrap();
     }
     
