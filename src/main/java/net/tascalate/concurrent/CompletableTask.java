@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2019 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2020 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,7 +71,8 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   .thenAcceptAsync(myConsumer)
      *   .thenRunAsync(myAction)
      *  </pre>
-     * All of <code>myMapper</code>, <code>myTransformer</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed using <code>myExecutor</code>
+     * All of <code>myMapper</code>, <code>myTransformer</code>, <code>myConsumer</code>, <code>myActtion</code> 
+     * will be executed using <code>myExecutor</code>
      * 
      * @param <T>
      *   a type of the successfully executed task result 
@@ -101,7 +102,8 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   .thenAcceptAsync(myConsumer)
      *   .thenRunAsync(myAction)
      *  </pre>
-     * All of <code>myValueGenerator</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed using <code>myExecutor</code>
+     * All of <code>myValueGenerator</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed 
+     * using <code>myExecutor</code>
      * 
      * @param executor
      *   a default {@link Executor} to run functions passed to async composition methods 
@@ -125,9 +127,11 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   .thenAcceptAsync(myConsumer)
      *   .thenRunAsync(myAction)
      *  </pre>
-     * <p>All of <code>myValueGenerator</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed using <code>myExecutor</code>.
-     * <p>Moreover, if <code>enforceDefaultAsync</code> is true, then default executor will be propagated to dependent promises 
-     * even if corresponding transition was executed on another executor (via composition methods with explicit executor argument).
+     * <p>All of <code>myValueGenerator</code>, <code>myConsumer</code>, <code>myActtion</code> will be executed 
+     * using <code>myExecutor</code>.
+     * <p>Moreover, if <code>enforceDefaultAsync</code> is true, then default executor will be propagated to 
+     * dependent promises even if corresponding transition was executed on another executor (via composition methods 
+     * with explicit executor argument).
      * 
      * @param executor
      *   a default {@link Executor} to run functions passed to async composition methods 

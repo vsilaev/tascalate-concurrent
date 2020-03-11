@@ -6,7 +6,7 @@
  * under the Apache License, Version 2.0. Please see 
  * https://github.com/nurkiewicz/async-retry/blob/master/src/main/java/com/nurkiewicz/asyncretry/backoff/ExponentialDelayBackoff.java 
  * 
- * Modified work: copyright 2015-2019 Valery Silaev (http://vsilaev.com)
+ * Modified work: copyright 2015-2020 Valery Silaev (http://vsilaev.com)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
