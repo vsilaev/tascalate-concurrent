@@ -141,17 +141,18 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
     public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync) {
         Promise<Void> result = completed(null, executor);
         if (enforceDefaultAsync) {
-            class DefaultAsyncDecorator<T> extends ExecutorBoundPromise<T> {
-                public DefaultAsyncDecorator(Promise<T> delegate) {
+            class EnforcedExecutorBoundPromise<T> extends ExecutorBoundPromise<T> {
+                public EnforcedExecutorBoundPromise(Promise<T> delegate) {
                     super(delegate, executor);
                 }
                 
                 @Override
                 protected <U> Promise<U> wrap(CompletionStage<U> original) {
-                    return new DefaultAsyncDecorator<>((Promise<U>)original);
+                    return new EnforcedExecutorBoundPromise<>((Promise<U>)original);
                 }
                 
-                // TODO what about dependent() promise here? 
+                // No need to overwrite dependent(...) results
+                // while underlying delegate is undecorateable promise (this)
                 
                 @Override
                 public Promise<T> unwrap() {
@@ -168,7 +169,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
                 }
             }
             
-            return new DefaultAsyncDecorator<>(result);
+            return new EnforcedExecutorBoundPromise<>(result);
         } else {
             return result;
         }

@@ -16,20 +16,18 @@
 package net.tascalate.concurrent;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.TimeUnit;
 
-/**
- * Specialization of {@link ExecutorService} that uses {@link Promise} as a result of <code>submit(...)</code> methods.
- * 
- * @author vsilaev
- *
- */
-public interface TaskExecutorService extends ExecutorService {
+public interface TaskCompletionService<V> extends CompletionService<V> {
+    
+    Promise<V> submit(Callable<V> task);
+    
+    Promise<V> submit(Runnable task, V result);
 
-    <T> Promise<T> submit(Callable<T> task);
+    Promise<V> take() throws InterruptedException;
 
-    <T> Promise<T> submit(Runnable task, T result);
+    Promise<V> poll();
 
-    Promise<?> submit(Runnable task);
-
+    Promise<V> poll(long timeout, TimeUnit unit) throws InterruptedException;
 }

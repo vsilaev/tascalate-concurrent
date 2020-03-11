@@ -77,7 +77,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onCancel(Runnable code) {
-        return dependent().onCancel(code).unwrap();
+        return new ExtraCancellationPromise<>(this, code);
     }
 
     default Promise<T> delay(long timeout, TimeUnit unit) {

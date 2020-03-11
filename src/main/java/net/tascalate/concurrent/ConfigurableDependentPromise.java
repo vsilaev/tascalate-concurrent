@@ -129,7 +129,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> onCancel(Runnable code) {
-        return new ExtraCancellationPromise<>(this, defaultEnlistOptions, code);
+        return new ExtraCancellationDependentPromise<>(this, code);
     }
     
     // All delay overloads delegate to these methods
@@ -889,41 +889,5 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
             return (Promise<U>)original;
         }
     }
-    
-    static class ExtraCancellationPromise<T> extends ConfigurableDependentPromise<T> {
-        private final Runnable code;
-        public ExtraCancellationPromise(Promise<T> origin, Set<PromiseOrigin> enlistOptions, Runnable code) {
-            super(origin, enlistOptions, null);
-            this.code = code;
-        }
-        
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            if (super.cancel(mayInterruptIfRunning)) {
-                code.run();
-                return true;
-            } else {
-                return false;
-            }
-        }
-        
-        @Override
-        public Promise<T> unwrap() {
-            return unwrap(Promise::unwrap);
-        }
-        
-        @Override
-        public Promise<T> raw() {
-            return unwrap(Promise::raw);
-        }
-        
-        private Promise<T> unwrap(Function<Promise<T>, Promise<T>> fn) {
-            Promise<T> unwrapped = fn.apply(delegate);
-            if (delegate == unwrapped && defaultEnlistOptions.isEmpty()) {
-                return this;
-            } else {
-                return new ExtraCancellationPromise<>(unwrapped, PromiseOrigin.NONE, code);
-            }
-        }
-    }
+
 }
