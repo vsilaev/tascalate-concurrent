@@ -42,7 +42,7 @@ public class J8Examples {
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
         IntFunction<Promise<Integer>> makeNewValue = v -> CompletableTask.supplyAsync(() -> awaitAndProduce2(v), executorService);
         /* MUST be Promises.streamCompletions(..., false) -- while the original stream is generator-base rather than collection based */
-        try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 16, CompletionIterator.Cancel.ENLISTED)) {
+        try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 16, Promises.Cancel.ENLISTED)) {
             s.filter(v -> v.intValue() % 20 != 0)
              .limit(4)
              .forEach(v -> System.out.println("By completion stream:: " + v));

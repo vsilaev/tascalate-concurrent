@@ -29,7 +29,7 @@ import java.util.function.BiConsumer;
 
 public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     
-    public static enum Cancel {
+    protected static enum CancelStrategy {
         NONE {
             @Override
             void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises) {
@@ -42,7 +42,7 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
                 enlistedPromises.forEach(p -> SharedFunctions.cancelPromise(p, true));
             }
         },
-        ANY {
+        ALL {
             @Override
             void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises) {
                 ENLISTED.apply(enlistedPromises, pendingPromises);
@@ -57,7 +57,7 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     }
     
     private final int chunkSize;
-    private final Cancel cancelOption;
+    private final CancelStrategy cancelStrategy;
     private final Iterator<? extends CompletionStage<? extends T>> pendingPromises;
     private final BlockingQueue<Result<T>> settledResults;
     private final Set<CompletionStage<?>> enlistedPromises;
@@ -65,14 +65,14 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     private final AtomicInteger inProgress = new AtomicInteger(0);
     
     CompletionIterator(Iterator<? extends CompletionStage<? extends T>> pendingValues, int chunkSize) {
-        this(pendingValues, chunkSize, Cancel.NONE);
+        this(pendingValues, chunkSize, CancelStrategy.NONE);
     }
     
     protected CompletionIterator(Iterator<? extends CompletionStage<? extends T>> pendingValues, 
                                  int chunkSize, 
-                                 Cancel cancelOption) {
+                                 CancelStrategy cancelStrategy) {
         this.chunkSize        = chunkSize;
-        this.cancelOption     = cancelOption == null ? Cancel.NONE : cancelOption;
+        this.cancelStrategy   = cancelStrategy == null ? CancelStrategy.NONE : cancelStrategy;
         this.pendingPromises  = pendingValues;
         this.settledResults   = chunkSize > 0 ? new LinkedBlockingQueue<>(chunkSize) 
                                               : new LinkedBlockingQueue<>(); 
@@ -144,7 +144,7 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     public void close() {
         inProgress.set(Integer.MIN_VALUE);
         settledResults.clear();
-        cancelOption.apply(enlistedPromises, pendingPromises);
+        cancelStrategy.apply(enlistedPromises, pendingPromises);
     }
     
     private boolean enlistPending() {

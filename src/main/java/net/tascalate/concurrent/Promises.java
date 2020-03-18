@@ -51,6 +51,16 @@ import java.util.stream.StreamSupport;
  *
  */
 public final class Promises {
+    
+    public static enum Cancel {
+        NONE(CompletionIterator.CancelStrategy.NONE),
+        ENLISTED(CompletionIterator.CancelStrategy.ENLISTED),
+        ALL(CompletionIterator.CancelStrategy.ALL),;
+        private final CompletionIterator.CancelStrategy strategy;
+        private Cancel(CompletionIterator.CancelStrategy strategy) {
+            this.strategy = strategy;
+        }
+    }
 
     private Promises() {}
     
@@ -135,27 +145,27 @@ public final class Promises {
     
     public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
                                                   int chunkSize) {
-        return streamCompletions(pendingPromises, chunkSize, CompletionIterator.Cancel.ENLISTED);
+        return streamCompletions(pendingPromises, chunkSize, Cancel.ENLISTED);
     }
     
     public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize, CompletionIterator.Cancel cancelOption) {
+                                                  int chunkSize, Cancel cancelOption) {
         return streamCompletions(pendingPromises.iterator(), chunkSize, cancelOption);
     }
 
     public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
                                                   int chunkSize) {
-        return streamCompletions(pendingPromises, chunkSize, CompletionIterator.Cancel.ENLISTED);
+        return streamCompletions(pendingPromises, chunkSize, Cancel.ENLISTED);
     }
     
     public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize, CompletionIterator.Cancel cancelOption) {
+                                                  int chunkSize, Cancel cancelOption) {
         return streamCompletions(pendingPromises.iterator(), chunkSize, cancelOption);
     }
     
     private static <T> Stream<T> streamCompletions(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                   int chunkSize, CompletionIterator.Cancel cancelOption) {
-        return toCompletionStream(new CompletionIterator<>(pendingPromises, chunkSize, cancelOption));
+                                                   int chunkSize, Cancel cancelOption) {
+        return toCompletionStream(new CompletionIterator<>(pendingPromises, chunkSize, cancelOption.strategy));
     }
     
     private static <T> Stream<T> toCompletionStream(CompletionIterator<T> iterator) {
