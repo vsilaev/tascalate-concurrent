@@ -21,6 +21,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
@@ -51,6 +52,11 @@ public class CustomizableDependentPromiseDecorator<T> extends ExtendedDependentP
     
     @Override
     protected <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
+        return customizer.wrapArgument(original, async);
+    }
+    
+    @Override
+    protected <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
         return customizer.wrapArgument(original, async);
     }
     

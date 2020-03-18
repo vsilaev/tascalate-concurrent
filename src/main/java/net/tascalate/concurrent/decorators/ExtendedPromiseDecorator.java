@@ -24,6 +24,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
@@ -53,6 +54,10 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     }
     
     protected <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
+        return original;
+    }
+    
+    protected <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
         return original;
     }
     
@@ -348,6 +353,36 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
         return super.exceptionallyComposeAsync(wrapArgument(fn, true, true), executor);
     }
 
+    @Override
+    public Promise<T> thenFilter(Predicate<? super T> predicate) {
+        return super.thenFilter(wrapArgument(predicate, false));
+    }
+    
+    @Override
+    public Promise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return super.thenFilter(wrapArgument(predicate, false), wrapArgument(errorSupplier, false));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return super.thenFilterAsync(wrapArgument(predicate, true));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(executor));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), wrapArgument(executor));
+    }
+    
     @Override
     public Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
         return super.whenComplete(wrapArgument(action, false));

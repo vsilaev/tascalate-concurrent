@@ -17,7 +17,7 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
-import static net.tascalate.concurrent.SharedFunctions.updateReference;
+import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -35,6 +35,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.AbstractPromiseDecorator; 
@@ -381,54 +382,69 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
-        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
-        return
-        this.handle((r, ex) -> ex == null ? 
-                    this : 
-                    updateReference(handleAsync((r1, ex1) -> fn.apply(ex1)), onException), enlistOrigin)
-            .thenCompose(Function.identity(), true)
-            .onCancel(() -> onException.get().cancel(true));
+        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        return setupExceptionalHandler(
+            handle((r, ex) -> ex == null ? this : onError.modify( handleAsync((r1, ex1) -> fn.apply(ex1), false) ), 
+                   enlistOrigin),
+            onError);
     }
     
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
-        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
-        return
-        this.handle((r, ex) -> ex == null ? 
-                    this : 
-                    updateReference(handleAsync((r1, ex1) -> fn.apply(ex1), executor), onException), enlistOrigin)
-            .thenCompose(Function.identity(), true)
-            .onCancel(() -> onException.get().cancel(true));
+        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        return setupExceptionalHandler(
+            handle((r, ex) -> ex == null ? this : onError.modify( handleAsync((r1, ex1) -> fn.apply(ex1), executor, false) ), 
+                   enlistOrigin),
+            onError);
     }
     
     @Override
     public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        return this.handle((r, ex) -> ex == null ? this : fn.apply(ex), enlistOrigin)
-                   .thenCompose(Function.identity(), true); 
+        return drop( handle((r, ex) -> ex == null ? this : fn.apply(ex), enlistOrigin) );
     }
     
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
-        return this.handle((r, ex) -> ex == null ? 
-                           this : 
-                           updateReference(this.handleAsync((r1, ex1) -> fn.apply(ex1), enlistOrigin)
-                                               .thenCompose(Function.identity(), true), onException))
-                   .thenCompose(Function.identity(), true)
-                   .onCancel(() -> onException.get().cancel(true));
+        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        return setupExceptionalHandler(
+            handle((r, ex) -> ex == null ? this : onError.modify(drop( handleAsync((r1, ex1) -> fn.apply(ex1), false) )),
+                   enlistOrigin),
+            onError);
     }
 
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
                                                          Executor executor, 
                                                          boolean enlistOrigin) {
-        AtomicReference<Promise<T>> onException = new AtomicReference<>(this);
-        return this.handle((r, ex) -> ex == null ? 
-                           this : 
-                           updateReference(this.handleAsync((r1, ex1) -> fn.apply(ex1), executor, enlistOrigin)
-                                               .thenCompose(Function.identity(), true), onException))
-                   .thenCompose(Function.identity(), true)
-                   .onCancel(() -> onException.get().cancel(true));
+        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        return setupExceptionalHandler(
+            handle((r, ex) -> ex == null ? this : onError.modify(drop( handleAsync((r1, ex1) -> fn.apply(ex1), executor, false) )),
+                   enlistOrigin),
+            onError);
+    }
+    
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, boolean enlistOrigin) {
+        return thenFilter(predicate, NO_SUCH_ELEMENT, enlistOrigin);
+    }
+    
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+        return thenCompose(v -> predicate.test(v) ? this : failure(errorSupplier), enlistOrigin);
+    }
+    
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin) {
+        return thenFilterAsync(predicate, NO_SUCH_ELEMENT, enlistOrigin);
+    }
+    
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier), enlistOrigin); 
+    }
+    
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor, boolean enlistOrigin) {
+        return thenFilterAsync(predicate, NO_SUCH_ELEMENT, executor, enlistOrigin);
+    }
+    
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
+        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier), executor, enlistOrigin);
     }
     
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
@@ -661,6 +677,36 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
 
     @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate) {
+        return thenFilter(predicate, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return thenFilter(predicate, errorSupplier, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return thenFilterAsync(predicate, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return thenFilterAsync(predicate, errorSupplier, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
+        return thenFilterAsync(predicate, executor, defaultEnlistOrigin());
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+        return thenFilterAsync(predicate, errorSupplier, executor, defaultEnlistOrigin());
+    }
+    
+    @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
         return whenComplete(action, defaultEnlistOrigin());
     }
@@ -842,6 +888,23 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
                   .forEach(p -> cancelPromise(p, mayInterruptIfRunning));
         }
     }
+
+    static <T> DependentPromise<T> setupExceptionalHandler(DependentPromise<? extends Promise<T>> origin, 
+                                                             AtomicReference<? extends Promise<?>> onException) {
+        return (DependentPromise<T>)
+            drop(origin).onCancel(() -> onException.get().cancel(true))
+                        .unwrap();
+    }
+    
+    static <T> DependentPromise<T> drop(DependentPromise<? extends CompletionStage<T>> lifted) {
+        return lifted.thenCompose(Function.identity(), true);
+    }
+    
+    static <T> CompletionStage<T> failure(Supplier<Throwable> errorSupplier) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        result.completeExceptionally(errorSupplier.get());
+        return result;
+    }
     
     private static boolean identicalSets(Set<?> a, Set<?> b) {
         return a.containsAll(b) && b.containsAll(a);
@@ -890,4 +953,16 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         }
     }
 
+    static class PromiseHolder<T> extends AtomicReference<Promise<T>> {
+        private static final long serialVersionUID = 1L;
+
+        public PromiseHolder(Promise<T> initial) {
+            super(initial);
+        }
+        
+        Promise<T> modify(Promise<T> newValue) {
+            set(newValue);
+            return newValue;
+        }
+    }
 }

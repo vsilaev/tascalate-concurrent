@@ -45,50 +45,62 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
     
     abstract protected <U> Promise<U> wrap(CompletionStage<U> original);
 
+    @Override
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn) {
         return wrap(delegate.thenApply(fn));
     }
 
+    @Override
     public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn) {
         return wrap(delegate.thenApplyAsync(fn));
     }
 
+    @Override
     public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
         return wrap(delegate.thenApplyAsync(fn, executor));
     }
 
+    @Override
     public Promise<Void> thenAccept(Consumer<? super T> action) {
         return wrap(delegate.thenAccept(action));
     }
 
+    @Override
     public Promise<Void> thenAcceptAsync(Consumer<? super T> action) {
         return wrap(delegate.thenAcceptAsync(action));
     }
 
+    @Override
     public Promise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor) {
         return wrap(delegate.thenAcceptAsync(action, executor));
     }
 
+    @Override
     public Promise<Void> thenRun(Runnable action) {
         return wrap(delegate.thenRun(action));
     }
 
+    @Override
     public Promise<Void> thenRunAsync(Runnable action) {
         return wrap(delegate.thenRunAsync(action));
     }
 
+    @Override
     public Promise<Void> thenRunAsync(Runnable action, Executor executor) {
         return wrap(delegate.thenRunAsync(action, executor));
     }
 
+    @Override
     public <U, V> Promise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
         return wrap(delegate.thenCombine(other, fn));
     }
-
+    
+    @Override
     public <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
         return wrap(delegate.thenCombineAsync(other, fn));
     }
 
+    @Override
     public <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                               BiFunction<? super T, ? super U, ? extends V> fn, 
                                               Executor executor) {
@@ -96,14 +108,17 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
         return wrap(delegate.thenCombineAsync(other, fn, executor));
     }
 
+    @Override
     public <U> Promise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
         return wrap(delegate.thenAcceptBoth(other, action));
     }
 
+    @Override
     public <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
         return wrap(delegate.thenAcceptBothAsync(other, action));
     }
 
+    @Override
     public <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                  BiConsumer<? super T, ? super U> action, 
                                                  Executor executor) {
@@ -111,28 +126,34 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
         return wrap(delegate.thenAcceptBothAsync(other, action, executor));
     }
 
+    @Override
     public Promise<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
         return wrap(delegate.runAfterBoth(other, action));
     }
 
+    @Override
     public Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action) {
         return wrap(delegate.runAfterBothAsync(other, action));
     }
 
+    @Override
     public Promise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                            Runnable action, 
                                            Executor executor) {
         return wrap(delegate.runAfterBothAsync(other, action, executor));
     }
 
+    @Override
     public <U> Promise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn) {
         return wrap(delegate.applyToEither(other, fn));
     }
 
+    @Override
     public <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
         return wrap(delegate.applyToEitherAsync(other, fn));
     }
 
+    @Override
     public <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                              Function<? super T, U> fn,
                                              Executor executor) {
@@ -140,14 +161,17 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
         return wrap(delegate.applyToEitherAsync(other, fn, executor));
     }
 
+    @Override
     public Promise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action) {
         return wrap(delegate.acceptEither(other, action));
     }
 
+    @Override
     public Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action) {
         return wrap(delegate.acceptEitherAsync(other, action));
     }
 
+    @Override
     public Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                            Consumer<? super T> action,
                                            Executor executor) {
@@ -155,80 +179,114 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
         return wrap(delegate.acceptEitherAsync(other, action, executor));
     }
 
+    @Override
     public Promise<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
         return wrap(delegate.runAfterEither(other, action));
     }
 
+    @Override
     public Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
         return wrap(delegate.runAfterEitherAsync(other, action));
     }
 
+    @Override
     public Promise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                              Runnable action, 
                                              Executor executor) {
         return wrap(delegate.runAfterEitherAsync(other, action, executor));
     }
 
+    @Override
     public <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
         return wrap(delegate.thenCompose(fn));
     }
 
+    @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
         return wrap(delegate.thenComposeAsync(fn));
     }
 
+    @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
         return wrap(delegate.thenComposeAsync(fn, executor));
     }
 
+    @Override
     public Promise<T> exceptionally(Function<Throwable, ? extends T> fn) {
         return wrap(delegate.exceptionally(fn));
     }
     
+    /* Since Java 12 */
+    /*
+    @Override
+    */
     public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
         return wrap(exceptionallyAsync(delegate, fn));
     }
     
+    /* Since Java 12 */
+    /*
+    @Override
+    */
     public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
         return wrap(exceptionallyAsync(delegate, fn, executor));
     }
     
+    /* Since Java 12 */
+    /*
+    @Override
+    */
     public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return wrap(exceptionallyCompose(delegate, fn));
     }
     
+    /* Since Java 12 */
+    /*
+    @Override
+    */
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return wrap(exceptionallyComposeAsync(delegate, fn));
     }
 
+    /* Since Java 12 */
+    /*
+    @Override
+    */
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         return wrap(exceptionallyComposeAsync(delegate, fn, executor));
     }
 
+    @Override
     public Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
         return wrap(delegate.whenComplete(action));
     }
 
+    @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action) {
         return wrap(delegate.whenCompleteAsync(action));
     }
 
+    @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
         return wrap(delegate.whenCompleteAsync(action, executor));
     }
 
+    @Override
     public <U> Promise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn) {
         return wrap(delegate.handle(fn));
     }
 
+    @Override
     public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn) {
         return wrap(delegate.handleAsync(fn));
     }
 
+    @Override
     public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
         return wrap(delegate.handleAsync(fn, executor));
     }
 
+    @Override
     public CompletableFuture<T> toCompletableFuture() {
         return delegate.toCompletableFuture();
     }
@@ -273,5 +331,4 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
                                        .thenCompose(Function.identity()))
                        .thenCompose(Function.identity());
     }
-
 }

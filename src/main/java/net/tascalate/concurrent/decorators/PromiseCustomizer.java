@@ -21,6 +21,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public interface PromiseCustomizer {
@@ -38,6 +39,10 @@ public interface PromiseCustomizer {
     }
     
     default <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
+        return original;
+    }
+    
+    default <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
         return original;
     }
     

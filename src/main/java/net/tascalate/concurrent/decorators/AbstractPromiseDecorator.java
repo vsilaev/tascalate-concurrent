@@ -23,6 +23,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
@@ -203,4 +204,34 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
         return wrap(delegate.exceptionallyComposeAsync(fn, executor));
     }
 
+    @Override
+    public Promise<T> thenFilter(Predicate<? super T> predicate) {
+        return wrap(delegate.thenFilter(predicate));
+    }
+    
+    @Override
+    public Promise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return wrap(delegate.thenFilter(predicate, errorSupplier));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return wrap(delegate.thenFilterAsync(predicate));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return wrap(delegate.thenFilterAsync(predicate, errorSupplier));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
+        return wrap(delegate.thenFilterAsync(predicate, executor));
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+        return wrap(delegate.thenFilterAsync(predicate, errorSupplier, executor));
+    }
+    
 }

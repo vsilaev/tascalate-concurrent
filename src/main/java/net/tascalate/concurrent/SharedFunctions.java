@@ -16,13 +16,13 @@
 package net.tascalate.concurrent;
 
 import java.lang.reflect.Method;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -84,12 +84,6 @@ class SharedFunctions {
         }
     }
 
-    static <T> T updateReference(T value, AtomicReference<? super T> ref) {
-        ref.set(value);
-        return value;
-    }
-    
-    
     @SuppressWarnings("unchecked")
     static <U, V> BiFunction<U, V, U> selectFirst() {
         return (BiFunction<U, V, U>)SELECT_FIRST;
@@ -157,6 +151,8 @@ class SharedFunctions {
             }
         };
     }
+
+    static final Supplier<Throwable> NO_SUCH_ELEMENT = NoSuchElementException::new;
     
     private static final BiFunction<Object, Object, Object> SELECT_FIRST  = (u, v) -> u;
     private static final BiFunction<Object, Object, Object> SELECT_SECOND = (u, v) -> v;

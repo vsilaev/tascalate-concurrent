@@ -31,6 +31,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
@@ -282,25 +283,49 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     Promise<T> exceptionally(Function<Throwable, ? extends T> fn);
     
     default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
-        return dependent().exceptionallyAsync(fn).raw();
+        return dependent().exceptionallyAsync(fn).unwrap();
     }
     
     default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
-        return dependent().exceptionallyAsync(fn, executor).raw();
+        return dependent().exceptionallyAsync(fn, executor).unwrap();
     }
     
     default Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return dependent().exceptionallyCompose(fn).raw();
+        return dependent().exceptionallyCompose(fn).unwrap();
     }
     
     default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return dependent().exceptionallyComposeAsync(fn).raw();
+        return dependent().exceptionallyComposeAsync(fn).unwrap();
     }
 
     default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
-        return dependent().exceptionallyComposeAsync(fn, executor).raw();
+        return dependent().exceptionallyComposeAsync(fn, executor).unwrap();
     }
 
+    default Promise<T> thenFilter(Predicate<? super T> predicate) {
+        return dependent().thenFilter(predicate).unwrap();
+    }
+    
+    default Promise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return dependent().thenFilter(predicate, errorSupplier).unwrap();
+    }
+    
+    default Promise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return dependent().thenFilterAsync(predicate).unwrap();
+    }
+    
+    default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return dependent().thenFilterAsync(predicate, errorSupplier).unwrap();
+    }
+    
+    default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
+        return dependent().thenFilterAsync(predicate, executor).unwrap();
+    }
+    
+    default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+        return dependent().thenFilterAsync(predicate, errorSupplier, executor).unwrap();
+    }
+    
     Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
 
     Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action);

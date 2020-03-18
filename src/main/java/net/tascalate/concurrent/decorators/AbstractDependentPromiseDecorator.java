@@ -25,6 +25,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
@@ -412,6 +413,36 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
     
     @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, boolean enlistOrigin) {
+        return wrap(delegate.thenFilter(predicate, enlistOrigin));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+        return wrap(delegate.thenFilter(predicate, errorSupplier, enlistOrigin));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin) {
+        return wrap(delegate.thenFilterAsync(predicate, enlistOrigin));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+        return wrap(delegate.thenFilterAsync(predicate, errorSupplier, enlistOrigin));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor, boolean enlistOrigin) {
+        return wrap(delegate.thenFilterAsync(predicate, executor, enlistOrigin));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
+        return wrap(delegate.thenFilterAsync(predicate, errorSupplier, executor, enlistOrigin));
+    }
+    
+    @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return wrap(delegate.whenComplete(action, enlistOrigin));
     }
@@ -638,6 +669,36 @@ public abstract class AbstractDependentPromiseDecorator<T>
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         return (DependentPromise<T>)super.exceptionallyComposeAsync(fn, executor);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate) {
+        return (DependentPromise<T>)super.thenFilter(predicate);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return (DependentPromise<T>)super.thenFilter(predicate, errorSupplier);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return (DependentPromise<T>)super.thenFilterAsync(predicate);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return (DependentPromise<T>)super.thenFilterAsync(predicate, errorSupplier);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
+        return (DependentPromise<T>)super.thenFilterAsync(predicate, executor);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+        return (DependentPromise<T>)super.thenFilterAsync(predicate, errorSupplier, executor);
     }
     
     @Override

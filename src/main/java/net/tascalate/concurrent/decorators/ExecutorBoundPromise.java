@@ -22,6 +22,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
@@ -118,6 +120,16 @@ public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise
     @Override
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return exceptionallyComposeAsync(fn, defaultExecutor);
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return thenFilterAsync(predicate, defaultExecutor);
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return thenFilterAsync(predicate, errorSupplier, defaultExecutor);
     }
 
     @Override

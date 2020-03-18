@@ -25,6 +25,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.ExecutorBoundDependentPromise;
@@ -317,6 +318,18 @@ public interface DependentPromise<T> extends Promise<T> {
                                                   Executor executor, 
                                                   boolean enlistOrigin);
     
+    DependentPromise<T> thenFilter(Predicate<? super T> predicate, boolean enlistOrigin);
+    
+    DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin);
+    
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin);
+    
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin);
+    
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor, boolean enlistOrigin);
+    
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor, boolean enlistOrigin);
+    
     DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin);
 
     DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin);
@@ -460,6 +473,24 @@ public interface DependentPromise<T> extends Promise<T> {
     @Override
     DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor);
 
+    @Override
+    DependentPromise<T> thenFilter(Predicate<? super T> predicate);
+    
+    @Override
+    DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier);
+    
+    @Override
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate);
+    
+    @Override
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier);
+    
+    @Override
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor);
+    
+    @Override
+    DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor);
+    
     @Override
     DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);
 

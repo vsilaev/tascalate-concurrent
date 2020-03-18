@@ -22,6 +22,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.PromiseOrigin;
@@ -111,6 +113,26 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
     
     @Override
+    public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
+        return exceptionallyAsync(fn, defaultExecutor, enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
+        return exceptionallyComposeAsync(fn, defaultExecutor, enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin) {
+        return thenFilterAsync(predicate, defaultExecutor, enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+        return thenFilterAsync(predicate, errorSupplier, defaultExecutor, enlistOrigin);
+    }
+    
+    @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return whenCompleteAsync(action, defaultExecutor, enlistOrigin);
     }
@@ -180,6 +202,16 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return exceptionallyComposeAsync(fn, defaultExecutor);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return thenFilterAsync(predicate, defaultExecutor);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return thenFilterAsync(predicate, errorSupplier, defaultExecutor);
     }
 
     @Override

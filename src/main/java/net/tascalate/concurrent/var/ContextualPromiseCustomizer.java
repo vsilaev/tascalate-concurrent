@@ -20,6 +20,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
@@ -72,6 +73,18 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             List<Object> originalContext = applyCapturedContext();
             try {
                 return original.get();
+            } finally {
+                restoreContextVars(originalContext);
+            }
+        };
+    }
+    
+    @Override
+    public <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
+        return u -> {
+            List<Object> originalContext = applyCapturedContext();
+            try {
+                return original.test(u);
             } finally {
                 restoreContextVars(originalContext);
             }

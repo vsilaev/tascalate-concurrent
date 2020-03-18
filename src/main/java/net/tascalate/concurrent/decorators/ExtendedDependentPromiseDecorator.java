@@ -24,6 +24,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
@@ -53,6 +54,10 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     protected <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
+        return original;
+    }
+    
+    protected <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
         return original;
     }
     
@@ -375,6 +380,36 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, boolean enlistOrigin) {
+        return super.thenFilter(wrapArgument(predicate, false), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+        return super.thenFilter(wrapArgument(predicate, false), wrapArgument(errorSupplier, false), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor, boolean enlistOrigin) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(executor), enlistOrigin);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), wrapArgument(executor), enlistOrigin);
+    }
+    
+    @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return super.whenComplete(wrapArgument(action, false), enlistOrigin);
     }
@@ -665,6 +700,36 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         return super.exceptionallyComposeAsync(wrapArgument(fn, true, true), executor);
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate) {
+        return super.thenFilter(wrapArgument(predicate, false));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return super.thenFilter(wrapArgument(predicate, false), wrapArgument(errorSupplier, false));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return super.thenFilterAsync(wrapArgument(predicate, true));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(executor));
+    }
+    
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+        return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), wrapArgument(executor));
     }
 
     @Override
