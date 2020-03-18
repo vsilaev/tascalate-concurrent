@@ -152,7 +152,7 @@ class SharedFunctions {
         };
     }
 
-    static final Supplier<Throwable> NO_SUCH_ELEMENT = NoSuchElementException::new;
+    static final Function<Object, Throwable> NO_SUCH_ELEMENT = t -> new NoSuchElementException("Result rejected by filter: " + t);
     
     private static final BiFunction<Object, Object, Object> SELECT_FIRST  = (u, v) -> u;
     private static final BiFunction<Object, Object, Object> SELECT_SECOND = (u, v) -> v;

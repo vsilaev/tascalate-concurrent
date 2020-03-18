@@ -23,7 +23,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.PromiseOrigin;
@@ -128,7 +127,9 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Function<? super T, Throwable> errorSupplier, 
+                                               boolean enlistOrigin) {
         return thenFilterAsync(predicate, errorSupplier, defaultExecutor, enlistOrigin);
     }
     
@@ -210,7 +211,7 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return thenFilterAsync(predicate, errorSupplier, defaultExecutor);
     }
 

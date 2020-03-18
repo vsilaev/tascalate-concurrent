@@ -359,7 +359,7 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     }
     
     @Override
-    public Promise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return super.thenFilter(wrapArgument(predicate, false), wrapArgument(errorSupplier, false));
     }
     
@@ -369,7 +369,7 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     }
     
     @Override
-    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true));
     }
     
@@ -379,7 +379,9 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     }
     
     @Override
-    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                      Function<? super T, Throwable> errorSupplier, 
+                                      Executor executor) {
         return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), wrapArgument(executor));
     }
     

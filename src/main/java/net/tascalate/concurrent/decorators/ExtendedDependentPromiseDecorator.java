@@ -385,7 +385,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, 
+                                          Function<? super T, Throwable> errorSupplier, 
+                                          boolean enlistOrigin) {
         return super.thenFilter(wrapArgument(predicate, false), wrapArgument(errorSupplier, false), enlistOrigin);
     }
     
@@ -395,7 +397,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Function<? super T, Throwable> errorSupplier, 
+                                               boolean enlistOrigin) {
         return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), enlistOrigin);
     }
     
@@ -405,7 +409,10 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Function<? super T, Throwable> errorSupplier, 
+                                               Executor executor, 
+                                               boolean enlistOrigin) {
         return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), wrapArgument(executor), enlistOrigin);
     }
     
@@ -708,7 +715,7 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return super.thenFilter(wrapArgument(predicate, false), wrapArgument(errorSupplier, false));
     }
     
@@ -718,7 +725,7 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true));
     }
     
@@ -728,7 +735,9 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Function<? super T, Throwable> errorSupplier, 
+                                               Executor executor) {
         return super.thenFilterAsync(wrapArgument(predicate, true), wrapArgument(errorSupplier, true), wrapArgument(executor));
     }
 

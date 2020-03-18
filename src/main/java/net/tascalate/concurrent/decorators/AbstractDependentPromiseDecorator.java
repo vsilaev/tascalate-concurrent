@@ -408,7 +408,9 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
 
     @Override
-    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
+                                                         Executor executor, 
+                                                         boolean enlistOrigin) {
         return wrap(delegate.exceptionallyComposeAsync(fn, executor, enlistOrigin));
     }
     
@@ -418,7 +420,9 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
     
     @Override
-    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, 
+                                          Function<? super T, Throwable> errorSupplier, 
+                                          boolean enlistOrigin) {
         return wrap(delegate.thenFilter(predicate, errorSupplier, enlistOrigin));
     }
     
@@ -428,17 +432,24 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Function<? super T, Throwable> errorSupplier, 
+                                               boolean enlistOrigin) {
         return wrap(delegate.thenFilterAsync(predicate, errorSupplier, enlistOrigin));
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Executor executor, 
+                                               boolean enlistOrigin) {
         return wrap(delegate.thenFilterAsync(predicate, executor, enlistOrigin));
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Function<? super T, Throwable> errorSupplier, 
+                                               Executor executor, 
+                                               boolean enlistOrigin) {
         return wrap(delegate.thenFilterAsync(predicate, errorSupplier, executor, enlistOrigin));
     }
     
@@ -677,7 +688,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
     
     @Override
-    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return (DependentPromise<T>)super.thenFilter(predicate, errorSupplier);
     }
     
@@ -687,7 +698,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return (DependentPromise<T>)super.thenFilterAsync(predicate, errorSupplier);
     }
     
@@ -697,7 +708,9 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
+                                               Function<? super T, Throwable> errorSupplier, 
+                                               Executor executor) {
         return (DependentPromise<T>)super.thenFilterAsync(predicate, errorSupplier, executor);
     }
     

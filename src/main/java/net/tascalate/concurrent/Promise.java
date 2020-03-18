@@ -306,7 +306,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         return dependent().thenFilter(predicate).unwrap();
     }
     
-    default Promise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    default Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return dependent().thenFilter(predicate, errorSupplier).unwrap();
     }
     
@@ -314,7 +314,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         return dependent().thenFilterAsync(predicate).unwrap();
     }
     
-    default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return dependent().thenFilterAsync(predicate, errorSupplier).unwrap();
     }
     
@@ -322,7 +322,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         return dependent().thenFilterAsync(predicate, executor).unwrap();
     }
     
-    default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+    default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
         return dependent().thenFilterAsync(predicate, errorSupplier, executor).unwrap();
     }
     

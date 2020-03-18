@@ -423,52 +423,64 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
             onError);
     }
     
+    @Override
     public DependentPromise<T> thenFilter(Predicate<? super T> predicate, boolean enlistOrigin) {
         return thenFilter(predicate, NO_SUCH_ELEMENT, enlistOrigin);
     }
     
-    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
-        return thenCompose(v -> predicate.test(v) ? this : failure(errorSupplier), enlistOrigin);
+    @Override
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, boolean enlistOrigin) {
+        return thenCompose(v -> predicate.test(v) ? this : failure(errorSupplier, v), enlistOrigin);
     }
     
+    @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin) {
         return thenFilterAsync(predicate, NO_SUCH_ELEMENT, enlistOrigin);
     }
     
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, boolean enlistOrigin) {
-        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier), enlistOrigin); 
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, boolean enlistOrigin) {
+        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v), enlistOrigin); 
     }
     
+    @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor, boolean enlistOrigin) {
         return thenFilterAsync(predicate, NO_SUCH_ELEMENT, executor, enlistOrigin);
     }
     
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
-        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier), executor, enlistOrigin);
+    @Override
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
+        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v), executor, enlistOrigin);
     }
     
+    @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return wrap(delegate.whenComplete(action), origin(enlistOrigin));
     }
 
+    @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return wrap(delegate.whenCompleteAsync(action), origin(enlistOrigin));
     }
 
+    @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, 
                                                  Executor executor, 
                                                  boolean enlistOrigin) {
         return wrap(delegate.whenCompleteAsync(action, executor), origin(enlistOrigin));
     }
 
+    @Override
     public <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin) {
         return wrap(delegate.handle(fn), origin(enlistOrigin));
     }
 
+    @Override
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin) {
         return wrap(delegate.handleAsync(fn), origin(enlistOrigin));
     }
 
+    @Override
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, 
                                                Executor executor, 
                                                boolean enlistOrigin) {
@@ -682,7 +694,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
     
     @Override
-    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return thenFilter(predicate, errorSupplier, defaultEnlistOrigin());
     }
     
@@ -692,7 +704,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return thenFilterAsync(predicate, errorSupplier, defaultEnlistOrigin());
     }
     
@@ -702,7 +714,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
     
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Supplier<Throwable> errorSupplier, Executor executor) {
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
         return thenFilterAsync(predicate, errorSupplier, executor, defaultEnlistOrigin());
     }
     
@@ -900,9 +912,9 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         return lifted.thenCompose(Function.identity(), true);
     }
     
-    static <T> CompletionStage<T> failure(Supplier<Throwable> errorSupplier) {
+    static <T> CompletionStage<T> failure(Function<? super T, Throwable> errorSupplier, T value) {
         CompletableFuture<T> result = new CompletableFuture<>();
-        result.completeExceptionally(errorSupplier.get());
+        result.completeExceptionally(errorSupplier.apply(value));
         return result;
     }
     
