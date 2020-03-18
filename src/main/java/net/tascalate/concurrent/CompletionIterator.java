@@ -15,34 +15,69 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
+    
+    public static enum Cancel {
+        NONE {
+            @Override
+            void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises) {
+                
+            }
+        },
+        ENLISTED {
+            @Override
+            void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises) {
+                enlistedPromises.forEach(p -> SharedFunctions.cancelPromise(p, true));
+            }
+        },
+        ANY {
+            @Override
+            void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises) {
+                ENLISTED.apply(enlistedPromises, pendingPromises);
+                while (pendingPromises.hasNext()) {
+                    CompletionStage<?> nextPromise = pendingPromises.next();
+                    SharedFunctions.cancelPromise(nextPromise, true);
+                }
+            }            
+        };
+        
+        abstract void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises);
+    }
+    
     private final int chunkSize;
-    private final boolean cancelRemaining;
+    private final Cancel cancelOption;
     private final Iterator<? extends CompletionStage<? extends T>> pendingPromises;
     private final BlockingQueue<Result<T>> settledResults;
+    private final Set<CompletionStage<?>> enlistedPromises;
     
     private final AtomicInteger inProgress = new AtomicInteger(0);
     
     CompletionIterator(Iterator<? extends CompletionStage<? extends T>> pendingValues, int chunkSize) {
-        this(pendingValues, chunkSize, false);
+        this(pendingValues, chunkSize, Cancel.NONE);
     }
     
     protected CompletionIterator(Iterator<? extends CompletionStage<? extends T>> pendingValues, 
                                  int chunkSize, 
-                                 boolean cancelRemaining) {
-        this.chunkSize       = chunkSize;
-        this.cancelRemaining = cancelRemaining;
-        this.pendingPromises = pendingValues;
-        this.settledResults  = chunkSize > 0 ? new LinkedBlockingQueue<>(chunkSize) 
-                                             : new LinkedBlockingQueue<>(); 
+                                 Cancel cancelOption) {
+        this.chunkSize        = chunkSize;
+        this.cancelOption     = cancelOption == null ? Cancel.NONE : cancelOption;
+        this.pendingPromises  = pendingValues;
+        this.settledResults   = chunkSize > 0 ? new LinkedBlockingQueue<>(chunkSize) 
+                                              : new LinkedBlockingQueue<>(); 
+        
+        this.enlistedPromises = Collections.newSetFromMap(new ConcurrentHashMap<>()); 
     }
     
     @Override
@@ -109,26 +144,24 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     public void close() {
         inProgress.set(Integer.MIN_VALUE);
         settledResults.clear();
-        if (cancelRemaining) {
-            while (pendingPromises.hasNext()) {
-                CompletionStage<?> nextPromise = pendingPromises.next();
-                SharedFunctions.cancelPromise(nextPromise, true);
-            }
-        }
+        cancelOption.apply(enlistedPromises, pendingPromises);
     }
     
     private boolean enlistPending() {
         boolean enlisted = false;
         int i = 0;
         while (pendingPromises.hasNext()) {
-            CompletionStage<? extends T> nextPromise = pendingPromises.next();
-            
             // +1 before setting completion handler -- 
             // while stage may be completed already
             // we should increment step-by-step 
             // instead of setting the value at once
-            inProgress.incrementAndGet(); 
-            nextPromise.whenComplete(this::enlistResolved);
+            int isClosed = inProgress.getAndIncrement(); 
+            if (isClosed < 0) {
+                break;
+            }
+            CompletionStage<? extends T> nextPromise = pendingPromises.next();
+            enlistedPromises.add(nextPromise);
+            nextPromise.whenComplete(enlistResolved(nextPromise));
             enlisted = true;
             
             i++;
@@ -137,6 +170,13 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
             }
         };  
         return enlisted;
+    }
+    
+    private BiConsumer<T, Throwable> enlistResolved(CompletionStage<? extends T> promise) {
+        return (v, ex) -> {
+            enlistedPromises.remove(promise);
+            enlistResolved(v, ex);
+        };
     }
     
     private void enlistResolved(T resolvedValue, Throwable ex) {

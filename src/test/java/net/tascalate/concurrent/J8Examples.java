@@ -33,18 +33,18 @@ public class J8Examples {
     
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         Promise<Long> eleOrigin = Promises.success(10L);
-        Promise<Promise<Number>> eleDone1 = Promises.lift(eleOrigin);
-        Promise<Promise<Number>> eleDone2 = eleOrigin.as(Promises::lift);
-        eleDone2.as(Promises::drop).whenComplete((v, e) -> {
+        Promise<Promise<Number>> eleDone1 = PromiseOperations.lift(eleOrigin);
+        Promise<Promise<Number>> eleDone2 = eleOrigin.as(PromiseOperations::lift);
+        eleDone2.as(PromiseOperations::drop).whenComplete((v, e) -> {
            System.out.println("Elevated-then-narrowed: " + v); 
         });
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
         IntFunction<Promise<Integer>> makeNewValue = v -> CompletableTask.supplyAsync(() -> awaitAndProduce2(v), executorService);
         /* MUST be Promises.streamCompletions(..., false) -- while the original stream is generator-base rather than collection based */
-        try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 5, false)) {
+        try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 16, CompletionIterator.Cancel.ENLISTED)) {
             s.filter(v -> v.intValue() % 20 != 0)
-             .limit(5)
+             .limit(4)
              .forEach(v -> System.out.println("By completion stream:: " + v));
              
         }
@@ -242,6 +242,7 @@ public class J8Examples {
             Thread.sleep(150);
             return i * 10;
         } catch (final InterruptedException ex) {
+            System.out.println("Interrupted awaitAndProduce2 for " + i);
             Thread.currentThread().interrupt();
             return -1;
         }

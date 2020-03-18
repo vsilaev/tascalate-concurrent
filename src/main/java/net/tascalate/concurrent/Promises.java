@@ -117,37 +117,6 @@ public final class Promises {
     public static <T> CompletionStage<T> withDefaultExecutor(CompletionStage<T> stage, Executor executor) {
         return new ExecutorBoundCompletionStage<>(stage, executor);
     }
-
-    // Lifted is somewhat questionable, but here it exists for symmetry with dropped()
-    public static <T> Promise<Promise<T>> lift(CompletionStage<? extends T> promise) {
-        Promise<Promise<T>> result = from(promise).dependent()
-                                                  .thenApply(Promises::success, true);
-        return result.unwrap();
-    }
-    
-    public static <T> Promise<T> drop(CompletionStage<? extends CompletionStage<T>> promise) {
-        return from(promise).dependent()
-                            .thenCompose(Promises::from, true)
-                            .unwrap();
-    }
-
-
-    // Not sure if it's usable - it's easy to implement as an operation outside lib
-    /*
-    public static <T> Promise<Stream<T>> successStream(CompletionStage<? extends T> promise) {
-        Promise<Stream<T>> result =
-            from(promise).dependent()
-                         .handle((r, e) -> null == e ? Stream.of(r) : Stream.empty(), true);
-        return result.unwrap();
-    }
-    */
-    
-    public static <T> Promise<Optional<T>> optionalCompletion(CompletionStage<? extends T> promise) {
-        Promise<Optional<T>> result =
-            from(promise).dependent()
-                         .handle((r, e) -> Optional.ofNullable(null == e ? r : null), true);
-        return result.unwrap();
-    }
     
     public static <T> Iterator<T> iterateCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
                                                      int chunkSize) {
@@ -166,27 +135,27 @@ public final class Promises {
     
     public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
                                                   int chunkSize) {
-        return streamCompletions(pendingPromises, chunkSize, false);
+        return streamCompletions(pendingPromises, chunkSize, CompletionIterator.Cancel.ENLISTED);
     }
     
     public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize, boolean cancelRemainig) {
-        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelRemainig);
+                                                  int chunkSize, CompletionIterator.Cancel cancelOption) {
+        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelOption);
     }
 
     public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
                                                   int chunkSize) {
-        return streamCompletions(pendingPromises, chunkSize, false);
+        return streamCompletions(pendingPromises, chunkSize, CompletionIterator.Cancel.ENLISTED);
     }
     
     public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize, boolean cancelRemainig) {
-        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelRemainig);
+                                                  int chunkSize, CompletionIterator.Cancel cancelOption) {
+        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelOption);
     }
     
     private static <T> Stream<T> streamCompletions(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                   int chunkSize, boolean cancelRemaining) {
-        return toCompletionStream(new CompletionIterator<>(pendingPromises, chunkSize, cancelRemaining));
+                                                   int chunkSize, CompletionIterator.Cancel cancelOption) {
+        return toCompletionStream(new CompletionIterator<>(pendingPromises, chunkSize, cancelOption));
     }
     
     private static <T> Stream<T> toCompletionStream(CompletionIterator<T> iterator) {
