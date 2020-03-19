@@ -40,6 +40,14 @@ public class TaskExecutors {
     
     private TaskExecutors() {}
     
+    public static ThreadFactoryBuilder newThreadFactory() {
+        return new ThreadFactoryBuilder();
+    }
+    
+    public static ThreadGroupBuilder newThreadGroup() {
+        return new ThreadGroupBuilder();
+    }
+    
     /**
      * Creates a thread pool that reuses a fixed number of threads operating off
      * a shared unbounded queue. At any point, at most {@code nThreads} threads

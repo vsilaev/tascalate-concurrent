@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -39,7 +40,18 @@ public class J8Examples {
            System.out.println("Elevated-then-narrowed: " + v); 
         });
         
-        final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6);
+        final ThreadFactory tf = TaskExecutors.newThreadFactory()
+            .withNameFormat("CTX-MY-THREAD-%d-OF-%s")
+            .withThreadGroup(
+                TaskExecutors.newThreadGroup()
+                    .withName("Tascalate-Tasks")
+                    .withMaxPriority(Thread.NORM_PRIORITY)
+                .build()
+            )
+            .withContextClassLoader(J8Examples.class.getClassLoader())
+        .build();
+        
+        final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
         IntFunction<Promise<Integer>> makeNewValue = v -> CompletableTask.supplyAsync(() -> awaitAndProduce2(v), executorService);
         /* MUST be Promises.streamCompletions(..., false) -- while the original stream is generator-base rather than collection based */
         try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 16, Promises.Cancel.ENLISTED)) {
