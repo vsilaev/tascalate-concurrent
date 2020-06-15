@@ -17,9 +17,9 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
-import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -128,6 +130,10 @@ public final class Promises {
         return new ExecutorBoundCompletionStage<>(stage, executor);
     }
     
+    public static Throwable unwrapCompletionException(Throwable ex) {
+        return SharedFunctions.unwrapCompletionException(ex);
+    }
+    
     public static <T> Iterator<T> iterateCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
                                                      int chunkSize) {
         return iterateCompletions(pendingPromises.iterator(), chunkSize);
@@ -172,6 +178,185 @@ public final class Promises {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false)
                             .onClose(iterator::close); 
     }
+
+    public static <T, A, R> Promise<R> partitioned(Iterable<? extends T> values, 
+                                                   int batchSize, 
+                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                   Collector<T, A, R> downstream) {
+        return partitioned1(values.iterator(), batchSize, spawner, downstream);
+    }
+    
+    public static <T, A, R> Promise<R> partitioned(Iterable<? extends T> values, 
+                                                   int batchSize, 
+                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                   Collector<T, A, R> downstream,
+                                                   Executor downstreamExecutor) {
+        return partitioned2(values.iterator(), batchSize, spawner, downstream, downstreamExecutor);
+    }
+    
+    public static <T, A, R> Promise<R> partitioned(Stream<? extends T> values, 
+                                                   int batchSize, 
+                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                   Collector<T, A, R> downstream) {
+        return partitioned1(values.iterator(), batchSize, spawner, downstream);
+    }
+    
+    public static <T, A, R> Promise<R> partitioned(Stream<? extends T> values, 
+                                                   int batchSize, 
+                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                   Collector<T, A, R> downstream,
+                                                   Executor downstreamExecutor) {
+        return partitioned2(values.iterator(), batchSize, spawner, downstream, downstreamExecutor);
+    }
+    
+    
+    private static <T, A, R> Promise<R> partitioned1(Iterator<? extends T> values, 
+                                                    int batchSize, 
+                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                    Collector<T, A, R> downstream) {
+        return
+            parallelStep1(values, 0, batchSize, null, spawner, downstream)
+            .dependent()
+            .thenApply(downstream.finisher(), true)
+            .as(onCloseSource(values))
+            .unwrap();
+    }
+    
+
+    private static <T, A, R> Promise<R> partitioned2(Iterator<? extends T> values, 
+                                                    int batchSize, 
+                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                    Collector<T, A, R> downstream,
+                                                    Executor downstreamExecutor) {
+        return 
+            parallelStep2(values, 0, batchSize, null, spawner, downstream, downstreamExecutor)
+            .dependent()
+            .thenApplyAsync(downstream.finisher(), downstreamExecutor, true)
+            .as(onCloseSource(values))
+            .unwrap();
+    }
+    
+    private static <T> Function<Promise<T>, Promise<T>> onCloseSource(Object source) {
+        if (source instanceof AutoCloseable) {
+            return p -> p.dependent().whenComplete((r, e) -> {
+                try (AutoCloseable o = (AutoCloseable)source) {
+                    
+                } catch (Exception ex) {
+                    SharedFunctions.sneakyThrow(ex);
+                }
+            }, true);
+        } else {
+            return Function.identity();
+        }
+    }
+    
+    private static <T, A, R> Promise<A> parallelStep1(Iterator<? extends T> values, 
+                                                     int step, 
+                                                     int batchSize,
+                                                     A current,
+                                                     Function<? super T, CompletionStage<? extends T>> spawner,                                                        
+                                                     Collector<T, A, R> downstream) {
+        
+        List<T> valuesBatch = drainBatch(values, batchSize);
+        if (valuesBatch.isEmpty()) {
+            // Over
+            return Promises.success(step == 0 ? downstream.supplier().get() : current)
+                           .dependent();
+        } else {
+            List<CompletionStage<? extends T>> promisesBatch = 
+                valuesBatch.stream()
+                           .map(spawner)
+                           .collect(Collectors.toList());
+           
+            // This tricky thing (from first promise, then combine with all, then compose) 
+            // will propagate all decorators to the resulting promise.
+            // Promise.all doesn't inherit decorators
+            DependentPromise<? extends T> first = Promises.from(promisesBatch.get(0))
+                                                          .dependent(); 
+            AtomicBoolean isRecursive = new AtomicBoolean(true);
+            Thread invokerThread = Thread.currentThread();
+            try {
+                return first.thenCombine(Promises.all(promisesBatch), SharedFunctions.selectSecond(), PromiseOrigin.ALL)
+                            .thenCompose(vals -> {
+                                
+                    boolean callLater = isRecursive.get() && Thread.currentThread() == invokerThread;
+                    if (callLater) {
+                        return 
+                        first
+                        .thenCombine(Timeouts.delay(MINIMAL_DELAY), selectFirst(), PromiseOrigin.PARAM_ONLY)
+                        // yep, default async -- the least evil, while we have to jump off from the timeout thread
+                        .thenComposeAsync(__ -> 
+                            parallelStep1(values, step + 1, batchSize, 
+                                         accumulate(vals, step, current, downstream), 
+                                         spawner, downstream), 
+                            true);
+                    } else {
+                        return parallelStep1(values, step + 1, batchSize, 
+                                            accumulate(vals, step, current, downstream), 
+                                            spawner, downstream);
+                    }
+                }, true);
+            } finally {
+                isRecursive.set(false);
+            }
+        }
+    }
+
+    private static <T, A, R> Promise<A> parallelStep2(Iterator<? extends T> values, 
+                                                     int step, 
+                                                     int batchSize,
+                                                     A current,
+                                                     Function<? super T, CompletionStage<? extends T>> spawner,                                                        
+                                                     Collector<T, A, R> downstream,
+                                                     Executor downstreamExecutor) {
+        
+        List<T> valuesBatch = drainBatch(values, batchSize);
+        if (valuesBatch.isEmpty()) {
+            // Over
+            Promise<A> result;
+            if (step == 0) {
+                result = CompletableTask.supplyAsync(downstream.supplier(), downstreamExecutor);
+            } else {
+                result = Promises.success(current);
+            }
+            return result.dependent();
+        } else {
+            List<CompletionStage<? extends T>> promisesBatch = 
+                valuesBatch.stream()
+                           .map(spawner)
+                           .collect(Collectors.toList());
+           
+            // This tricky thing (from first promise, then combine with all, then compose) 
+            // will propagate all decorators to the resulting promise.
+            // Promise.all doesn't inherit decorators
+            return 
+                Promises.from(promisesBatch.get(0))
+                       .dependent()
+                       .thenCombine(Promises.all(promisesBatch), SharedFunctions.selectSecond(), PromiseOrigin.ALL)
+                       .thenComposeAsync(vals -> parallelStep2(
+                               values, step + 1, batchSize, 
+                               accumulate(vals, step, current, downstream), 
+                               spawner, downstream, downstreamExecutor
+                               ), downstreamExecutor, true);
+        }
+    }
+    
+    private static <T> List<T> drainBatch(Iterator<? extends T> values, int batchSize) {
+        List<T> valuesBatch = new ArrayList<>(batchSize);
+        for (int count = 0; values.hasNext() && count < batchSize; count++) {
+            valuesBatch.add(values.next());
+        }        
+        return valuesBatch;
+    }
+    
+    private static <T, A, R> A accumulate(List<T> vals, int step, A current, Collector<T, A, R> downstream) {
+        A insertion = downstream.supplier().get();
+        vals.stream()
+            .forEach(v -> downstream.accumulator().accept(insertion, v));
+        
+        return step == 0 ? insertion : downstream.combiner().apply(current, insertion);
+    }
+
     
     /**
      * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters
@@ -710,13 +895,13 @@ public final class Promises {
                     } else {
                         long finishTime = System.nanoTime();
                         RetryContext<C> nextCtx = ctx.nextRetry(
-                            duration(startTime, finishTime), unwrapCompletionException(ex)
+                            duration(startTime, finishTime), SharedFunctions.unwrapCompletionException(ex)
                         );
                         boolean callLater = isRecursive.get() && Thread.currentThread() == invokerThread;
                         if (callLater) {
                             // Call after minimal possible delay
                             callLater(
-                                p, Duration.ofNanos(1), cancellation, 
+                                p, MINIMAL_DELAY, cancellation, 
                                 () -> tryFutureOnce(futureFactory, nextCtx, result, cancellation, p)
                             );
                         } else {
@@ -746,7 +931,7 @@ public final class Promises {
             .whenCompleteAsync((r, e) -> code.run(), true);
         cancellation.accept(later);
     }
-    
+
     private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Verdict verdict) {
         Duration timeout = verdict.timeout();
         if (DelayPolicy.isValid(timeout)) {
@@ -774,7 +959,7 @@ public final class Promises {
     }
     
     private static <E extends Throwable> Throwable unwrapMultitargetException(E exception) {
-        Throwable targetException = unwrapCompletionException(exception);
+        Throwable targetException = SharedFunctions.unwrapCompletionException(exception);
         if (targetException instanceof MultitargetException) {
             return ((MultitargetException)targetException).getFirstException().get();
         } else {
@@ -815,4 +1000,5 @@ public final class Promises {
         abstract void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation);
     }
 
+    private static final Duration MINIMAL_DELAY = Duration.ofNanos(1L);
 }

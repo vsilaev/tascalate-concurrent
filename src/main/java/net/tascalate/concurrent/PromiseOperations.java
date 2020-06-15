@@ -1,4 +1,3 @@
-
 /**
  * Copyright 2015-2020 Valery Silaev (http://vsilaev.com)
  *
@@ -18,6 +17,9 @@ package net.tascalate.concurrent;
 
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.function.Function;
+import java.util.stream.Collector;
 import java.util.stream.Stream;
 
 public class PromiseOperations {
@@ -62,5 +64,51 @@ public class PromiseOperations {
         return promise.dependent()
                       .handle((r, e) -> Optional.<T>ofNullable(null == e ? r : null), true)
                       .unwrap();
+    }
+    
+    public static <T, A, R> Function<? super Promise<Iterable<? extends T>>, Promise<R>> partitionedItems(
+            int batchSize, 
+            Function<? super T, CompletionStage<? extends T>> spawner, 
+            Collector<T, A, R> downstream) {
+        
+        return p -> p.dependent()
+                     .thenCompose(values -> 
+                         Promises.partitioned(values, batchSize, spawner, downstream), true)
+                     .unwrap();
+    }
+    
+    public static <T, A, R> Function<? super Promise<Iterable<? extends T>>, Promise<R>> partitionedItems(
+            int batchSize, 
+            Function<? super T, CompletionStage<? extends T>> spawner, 
+            Collector<T, A, R> downstream,
+            Executor downstreamExecutor) {
+        
+        return p -> p.dependent()
+                     .thenCompose(values -> 
+                         Promises.partitioned(values, batchSize, spawner, downstream, downstreamExecutor), true)
+                     .unwrap();
+    }
+    
+    public static <T, A, R> Function<? super Promise<Stream<? extends T>>, Promise<R>> partitionedStream( 
+            int batchSize, 
+            Function<? super T, CompletionStage<? extends T>> spawner, 
+            Collector<T, A, R> downstream) {
+        
+         return p -> p.dependent()
+                      .thenCompose(values -> 
+                          Promises.partitioned(values, batchSize, spawner, downstream), true)
+                      .unwrap();
+     }
+    
+    public static <T, A, R> Function<? super Promise<Stream<? extends T>>, Promise<R>> partitionedStream( 
+           int batchSize, 
+           Function<? super T, CompletionStage<? extends T>> spawner, 
+           Collector<T, A, R> downstream,
+           Executor downstreamExecutor) {
+        
+        return p -> p.dependent()
+                     .thenCompose(values -> 
+                         Promises.partitioned(values, batchSize, spawner, downstream, downstreamExecutor), true)
+                     .unwrap();
     }
 }

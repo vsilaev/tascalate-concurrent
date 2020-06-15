@@ -18,6 +18,7 @@ package net.tascalate.concurrent;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -29,6 +30,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
+import static net.tascalate.concurrent.PromiseOperations.partitionedItems;
+import static net.tascalate.concurrent.PromiseOperations.partitionedStream;
 
 public class J8Examples {
     
@@ -52,6 +55,18 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
+        
+        Promises.all(IntStream.range(1, 5)
+                              .mapToObj(i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 100), executorService))
+                              .collect(Collectors.toList()) 
+                      )
+                .thenApply(Collection::stream)
+                .as(partitionedStream(2, i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 1000), executorService), Collectors.toList()))
+                .whenComplete((r, e) -> {
+                    System.out.println("PARTITIONED: " + r + " ON " + Thread.currentThread());
+                    System.exit(0);
+                });
+        
         IntFunction<Promise<Integer>> makeNewValue = v -> CompletableTask.supplyAsync(() -> awaitAndProduce2(v), executorService);
         /* MUST be Promises.streamCompletions(..., false) -- while the original stream is generator-base rather than collection based */
         try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 16, Promises.Cancel.ENLISTED)) {
