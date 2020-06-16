@@ -25,7 +25,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-public final class ThreadFactoryBuilder {
+public class ThreadFactoryBuilder {
     private static final AtomicInteger POOL_COUNTER = new AtomicInteger();
     private static final String DEFAULT_NAME_FORMAT = "pool-%3$d-thread-%1$d";
 
@@ -37,7 +37,7 @@ public final class ThreadFactoryBuilder {
     private Integer priority = null;
     private UncaughtExceptionHandler uncaughtExceptionHandler = null;
 
-    ThreadFactoryBuilder() {}
+    protected ThreadFactoryBuilder() {}
     
     public ThreadFactoryBuilder withNameFormat(String nameFormat) {
         this.nameFormat = nameFormat == null || nameFormat.isEmpty() ? DEFAULT_NAME_FORMAT : nameFormat;
@@ -104,7 +104,11 @@ public final class ThreadFactoryBuilder {
             );
     }
     
-    private static ThreadFactory makeDefault(int poolCounter, String nameFormat, ThreadGroup threadGroup) {
+    protected Thread createThreadInstance(ThreadGroup threadGroup, Runnable runnable, String name) {
+        return new Thread(threadGroup, runnable, name);
+    }
+    
+    protected ThreadFactory makeDefault(int poolCounter, String nameFormat, ThreadGroup threadGroup) {
         ThreadGroup actualThreadGroup;
         if (null == threadGroup) {
             SecurityManager sm = System.getSecurityManager();
@@ -117,13 +121,13 @@ public final class ThreadFactoryBuilder {
             actualThreadGroup = threadGroup;
         }
         AtomicInteger threadCounter = new AtomicInteger(0);
-        return r -> new Thread(
-            actualThreadGroup, r, 
+        return r -> createThreadInstance(
+            actualThreadGroup, r,
             String.format(Locale.getDefault(), nameFormat, threadCounter.getAndIncrement(), actualThreadGroup.getName(), poolCounter)
         );
     }
     
-    private static ThreadFactory makePriviledged(ThreadFactory origin, boolean isPriviledged, ClassLoader contextClassLoader) {
+    protected ThreadFactory makePriviledged(ThreadFactory origin, boolean isPriviledged, ClassLoader contextClassLoader) {
         if (isPriviledged) {
             ClassLoader actualClassLoader;
             if (null == contextClassLoader) {
@@ -151,13 +155,13 @@ public final class ThreadFactoryBuilder {
         }
     }
     
-    private static ThreadFactory makeContextual(ThreadFactory origin, ClassLoader contextClassLoader) {
+    private ThreadFactory makeContextual(ThreadFactory origin, ClassLoader contextClassLoader) {
         return makeContextual(origin, contextClassLoader, Function.identity());
     }
     
-    private static ThreadFactory makeContextual(ThreadFactory origin, 
-                                                ClassLoader contextClassLoader, 
-                                                Function<? super Runnable, ? extends Runnable> wrapper) {
+    protected ThreadFactory makeContextual(ThreadFactory origin, 
+                                           ClassLoader contextClassLoader, 
+                                           Function<? super Runnable, ? extends Runnable> wrapper) {
         
         if (null == contextClassLoader) {
             return origin;
@@ -177,10 +181,10 @@ public final class ThreadFactoryBuilder {
         }
     }
     
-    private static ThreadFactory makeConfigured(ThreadFactory origin, 
-                                                Boolean isDaemon, 
-                                                Integer priority, 
-                                                UncaughtExceptionHandler uncaughtExceptionHandler) {
+    protected ThreadFactory makeConfigured(ThreadFactory origin, 
+                                           Boolean isDaemon, 
+                                           Integer priority, 
+                                           UncaughtExceptionHandler uncaughtExceptionHandler) {
         
         if (null != isDaemon && null == priority && null == uncaughtExceptionHandler) {
             return origin;
