@@ -66,7 +66,7 @@ public class PromiseOperations {
                       .unwrap();
     }
     
-    public static <T, A, R> Function<? super Promise<Iterable<? extends T>>, Promise<R>> partitionedItems(
+    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> partitionedItems(
             int batchSize, 
             Function<? super T, CompletionStage<? extends T>> spawner, 
             Collector<T, A, R> downstream) {
@@ -77,7 +77,7 @@ public class PromiseOperations {
                      .unwrap();
     }
     
-    public static <T, A, R> Function<? super Promise<Iterable<? extends T>>, Promise<R>> partitionedItems(
+    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> partitionedItems(
             int batchSize, 
             Function<? super T, CompletionStage<? extends T>> spawner, 
             Collector<T, A, R> downstream,
@@ -89,7 +89,7 @@ public class PromiseOperations {
                      .unwrap();
     }
     
-    public static <T, A, R> Function<? super Promise<Stream<? extends T>>, Promise<R>> partitionedStream( 
+    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> partitionedStream( 
             int batchSize, 
             Function<? super T, CompletionStage<? extends T>> spawner, 
             Collector<T, A, R> downstream) {
@@ -100,7 +100,7 @@ public class PromiseOperations {
                       .unwrap();
      }
     
-    public static <T, A, R> Function<? super Promise<Stream<? extends T>>, Promise<R>> partitionedStream( 
+    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> partitionedStream( 
            int batchSize, 
            Function<? super T, CompletionStage<? extends T>> spawner, 
            Collector<T, A, R> downstream,

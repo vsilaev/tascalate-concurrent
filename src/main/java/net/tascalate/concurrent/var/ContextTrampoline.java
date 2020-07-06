@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent.var;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -22,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
@@ -34,7 +37,7 @@ public final class ContextTrampoline {
 
     private final List<ContextVar<?>> contextVars;
     
-    ContextTrampoline(List<? extends ContextVar<?>> contextVars) {
+    private ContextTrampoline(List<? extends ContextVar<?>> contextVars) {
         this.contextVars = contextVars == null ? Collections.emptyList() : 
                                                  Collections.unmodifiableList(contextVars);
     }
@@ -89,6 +92,37 @@ public final class ContextTrampoline {
     
     public ScheduledExecutorService withCurrentContext(ScheduledExecutorService executorService, ContextVar.Propagation propagation) {
         return captureAndWrapExecutor(executorService, propagation, ContextualScheduledExecutorService::new);
+    }
+    
+    public static ContextTrampoline relay(ContextVar<?> contextVar) {
+        return new ContextTrampoline(Collections.singletonList(contextVar));
+    }
+    
+    public static ContextTrampoline relay(ThreadLocal<?> threadLocal) {
+        return relay(ContextVar.from(threadLocal));
+    }
+
+    public static ContextTrampoline relay(ContextVar<?>... contextVars) {
+        return new ContextTrampoline(Arrays.asList(contextVars));
+    }
+    
+    public static ContextTrampoline relay(ThreadLocal<?>... threadLocals) {
+        return new ContextTrampoline(Arrays.stream(threadLocals).map(ContextVar::from).collect(Collectors.toList()));
+    }
+
+    public static ContextTrampoline relay(List<? extends ContextVar<?>> contextVars) {
+        return new ContextTrampoline(
+            contextVars == null ? Collections.emptyList() : new ArrayList<>(contextVars)
+        );
+    }
+    
+    public static ContextTrampoline relayThreadLocals(List<? extends ThreadLocal<?>> threadLocals) {
+        return new ContextTrampoline(
+            threadLocals == null ? Collections.emptyList() : threadLocals
+                .stream()
+                .map(tl -> ContextVar.from((ThreadLocal<?>)tl))
+                .collect(Collectors.toList())
+        );
     }
     
     private <D extends Executor> D captureAndWrapExecutor(D delegate, 
