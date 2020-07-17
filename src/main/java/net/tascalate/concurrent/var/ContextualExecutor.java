@@ -23,7 +23,7 @@ public class ContextualExecutor<D extends Executor> extends ContextualObject imp
     
     protected ContextualExecutor(D delegate, 
                                  List<ContextVar<?>> contextVars, 
-                                 ContextVar.Propagation propagation, 
+                                 ContextSnapshot.Propagation propagation, 
                                  List<Object> capturedContext) {
         
         super(contextVars, propagation, capturedContext);
@@ -41,7 +41,7 @@ public class ContextualExecutor<D extends Executor> extends ContextualObject imp
             try {
                 original.run();
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }            
         };
     }

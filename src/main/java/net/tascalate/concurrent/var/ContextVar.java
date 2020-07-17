@@ -20,36 +20,6 @@ import java.util.function.Supplier;
 
 public interface ContextVar<T> {
     
-    /**
-     * Defines a strategy how context variables are propagated to the execution thread
-     * @author vsilaev
-     *
-     */
-    public static enum Propagation {
-        /**
-         * Default propagation option that is optimized for performance
-         * <p>The logic is the following:</p>
-         * <ol>
-         * <li>Apply context variables from the snapshot</li>
-         * <li>Execute code</li>
-         * <li>Reset context variables</li>
-         * </ol>
-         */
-        OPTIMIZED,
-        /**
-         * Pessimistic propagation option for rare cases when thread might have 
-         * its own default values of the context variables and they must be restored. 
-         * <p>The logic is the following:</p>
-         * <ol>
-         * <li>Save context variables from the current thread</li>
-         * <li>Apply context variables from the snapshot</li>
-         * <li>Execute code</li>
-         * <li>Restore context variables saved in the step [1]</li>
-         * </ol>
-         */
-        STRICT;
-    }
-    
     T get();
     
     void set(T value);
@@ -67,7 +37,7 @@ public interface ContextVar<T> {
     }
     
     public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return define(ContextTrampoline.generateVarName(), reader, writer, eraser);
+        return define(ContextSnapshot.generateVarName(), reader, writer, eraser);
     }
     
     public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {

@@ -31,7 +31,7 @@ public class ContextualExecutorService<D extends ExecutorService>
     
     protected ContextualExecutorService(D delegate, 
                                         List<ContextVar<?>> contextVars, 
-                                        ContextVar.Propagation propagation, 
+                                        ContextSnapshot.Propagation propagation, 
                                         List<Object> capturedContext) {
         
         super(delegate, contextVars, propagation, capturedContext);
@@ -109,7 +109,7 @@ public class ContextualExecutorService<D extends ExecutorService>
             try {
                 return original.call();
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
     }

@@ -26,7 +26,9 @@ import java.util.function.Supplier;
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
 class ContextualPromiseCustomizer extends ContextualObject implements PromiseCustomizer {
-    ContextualPromiseCustomizer(List<ContextVar<?>> contextVars, ContextVar.Propagation propagation, List<Object> capturedContext) {
+    ContextualPromiseCustomizer(List<ContextVar<?>> contextVars, 
+                                ContextSnapshot.Propagation propagation, 
+                                List<Object> capturedContext) {
         super(contextVars, propagation, capturedContext);
     }
     
@@ -37,7 +39,7 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             try {
                 original.run();
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
 
@@ -50,7 +52,7 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             try {
                 return original.apply(u);
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
     }
@@ -62,7 +64,7 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             try {
                 original.accept(u);
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
     }
@@ -74,7 +76,7 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             try {
                 return original.get();
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
     }
@@ -86,7 +88,7 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             try {
                 return original.test(u);
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
     }
@@ -98,7 +100,7 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             try {
                 return original.apply(u, v);
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
     }
@@ -110,7 +112,7 @@ class ContextualPromiseCustomizer extends ContextualObject implements PromiseCus
             try {
                 original.accept(u, v);
             } finally {
-                restoreContextVars(originalContext);
+                restoreContext(originalContext);
             }
         };
     }

@@ -18,19 +18,21 @@ package net.tascalate.concurrent.var;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 abstract class ContextualObject {
     private final List<ContextVar<?>> contextVars;
-    private final ContextVar.Propagation propagation;
+    private final ContextSnapshot.Propagation propagation;
     private final List<Object> capturedContext;
     
-    protected ContextualObject(List<ContextVar<?>> contextVars, ContextVar.Propagation propagation, List<Object> capturedContext) {
+    protected ContextualObject(List<ContextVar<?>> contextVars, 
+                               ContextSnapshot.Propagation propagation, 
+                               List<Object> capturedContext) {
+        
         this.contextVars = null == contextVars ? 
             Collections.emptyList() : 
             Collections.unmodifiableList(contextVars);
             
-        this.propagation = propagation == null ? ContextVar.Propagation.OPTIMIZED : propagation;
+        this.propagation = propagation == null ? ContextSnapshot.Propagation.OPTIMIZED : propagation;
         
         this.capturedContext = null == capturedContext ?
             Collections.emptyList() : 
@@ -38,17 +40,13 @@ abstract class ContextualObject {
     }
     
     protected final List<Object> applyCapturedContext() {
-        List<Object> originalContext = ContextVar.Propagation.STRICT.equals(propagation) ? 
-            captureContextVars(contextVars) : Collections.nCopies(contextVars.size(), null);
-        restoreContextVars(capturedContext);
+        List<Object> originalContext = ContextSnapshot.Propagation.STRICT.equals(propagation) ? 
+            ContextSnapshot.captureContext(contextVars) : Collections.nCopies(contextVars.size(), null);
+        restoreContext(capturedContext);
         return originalContext;
     }
     
-    static List<Object> captureContextVars(List<? extends ContextVar<?>> contextVars) {
-        return contextVars.stream().map(v -> v.get()).collect(Collectors.toList());
-    }
-    
-    protected final void restoreContextVars(List<Object> contextState) {
+    protected final void restoreContext(List<Object> contextState) {
         Iterator<? extends ContextVar<?>> vars = contextVars.iterator();
         Iterator<Object> values = contextState.iterator();
         while (vars.hasNext() && values.hasNext()) {
