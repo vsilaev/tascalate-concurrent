@@ -37,7 +37,7 @@ public interface ContextVar<T> {
     }
     
     public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return define(ContextSnapshot.generateVarName(), reader, writer, eraser);
+        return define(ContextTrampoline.generateVarName(), reader, writer, eraser);
     }
     
     public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {

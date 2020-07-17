@@ -23,7 +23,7 @@ public class ContextualExecutor<D extends Executor> extends ContextualObject imp
     
     protected ContextualExecutor(D delegate, 
                                  List<ContextVar<?>> contextVars, 
-                                 ContextSnapshot.Propagation propagation, 
+                                 ContextTrampoline.Propagation propagation, 
                                  List<Object> capturedContext) {
         
         super(contextVars, propagation, capturedContext);

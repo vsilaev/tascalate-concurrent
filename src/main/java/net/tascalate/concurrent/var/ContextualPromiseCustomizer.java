@@ -27,7 +27,7 @@ import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
 class ContextualPromiseCustomizer extends ContextualObject implements PromiseCustomizer {
     ContextualPromiseCustomizer(List<ContextVar<?>> contextVars, 
-                                ContextSnapshot.Propagation propagation, 
+                                ContextTrampoline.Propagation propagation, 
                                 List<Object> capturedContext) {
         super(contextVars, propagation, capturedContext);
     }

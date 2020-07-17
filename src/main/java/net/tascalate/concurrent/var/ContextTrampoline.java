@@ -33,7 +33,7 @@ import net.tascalate.concurrent.decorators.CustomizableDependentPromiseDecorator
 import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
-public class ContextSnapshot {
+public class ContextTrampoline {
 
     /**
      * Defines a strategy how context variables are propagated to the execution thread
@@ -67,7 +67,7 @@ public class ContextSnapshot {
     
     private final List<ContextVar<?>> contextVars;
     
-    private ContextSnapshot(List<? extends ContextVar<?>> contextVars) {
+    private ContextTrampoline(List<? extends ContextVar<?>> contextVars) {
         this.contextVars = contextVars == null ? Collections.emptyList() : 
                                                  Collections.unmodifiableList(contextVars);
     }
@@ -119,35 +119,35 @@ public class ContextSnapshot {
         return bindExecutor(executorService, propagation, ContextualScheduledExecutorService::new);
     }
     
-    public static ContextSnapshot create(ContextVar<?> contextVar) {
-        return new ContextSnapshot(Collections.singletonList(contextVar));
+    public static ContextTrampoline relay(ContextVar<?> contextVar) {
+        return new ContextTrampoline(Collections.singletonList(contextVar));
     }
     
-    public static ContextSnapshot create(ThreadLocal<?> threadLocal) {
-        return create(ContextVar.from(threadLocal));
+    public static ContextTrampoline relay(ThreadLocal<?> threadLocal) {
+        return relay(ContextVar.from(threadLocal));
     }
 
-    public static ContextSnapshot create(ContextVar<?>... contextVars) {
-        return new ContextSnapshot(Arrays.asList(contextVars));
+    public static ContextTrampoline relay(ContextVar<?>... contextVars) {
+        return new ContextTrampoline(Arrays.asList(contextVars));
     }
     
-    public static ContextSnapshot create(ThreadLocal<?>... threadLocals) {
-        return new ContextSnapshot(Arrays.stream(threadLocals).map(ContextVar::from).collect(Collectors.toList()));
+    public static ContextTrampoline relay(ThreadLocal<?>... threadLocals) {
+        return new ContextTrampoline(Arrays.stream(threadLocals).map(ContextVar::from).collect(Collectors.toList()));
     }
 
-    public static ContextSnapshot create(List<? extends ContextVar<?>> contextVars) {
+    public static ContextTrampoline relay(List<? extends ContextVar<?>> contextVars) {
         if (null == contextVars || contextVars.isEmpty()) {
-            return EMPTY_SNAPSHOT;
+            return NOP;
         } else {
-            return new ContextSnapshot(new ArrayList<>(contextVars));
+            return new ContextTrampoline(new ArrayList<>(contextVars));
         }
     }
     
-    public static ContextSnapshot createBy(List<? extends ThreadLocal<?>> threadLocals) {
+    public static ContextTrampoline relayThreadLocals(List<? extends ThreadLocal<?>> threadLocals) {
         if (null == threadLocals || threadLocals.isEmpty()) {
-            return EMPTY_SNAPSHOT;
+            return NOP;
         } else {
-            return create(
+            return relay(
                 threadLocals.stream()
                             .map(tl -> ContextVar.from((ThreadLocal<?>)tl))
                             .collect(Collectors.toList())
@@ -175,7 +175,7 @@ public class ContextSnapshot {
     
     private static final AtomicLong COUNTER = new AtomicLong();
     
-    private static final ContextSnapshot EMPTY_SNAPSHOT = new ContextSnapshot(null) {
+    private static final ContextTrampoline NOP = new ContextTrampoline(null) {
 
         @Override
         public <T> Function<Promise<T>, Promise<T>> boundPromises() {

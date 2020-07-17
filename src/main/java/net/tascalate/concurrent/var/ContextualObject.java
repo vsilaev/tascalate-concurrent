@@ -21,18 +21,18 @@ import java.util.List;
 
 abstract class ContextualObject {
     private final List<ContextVar<?>> contextVars;
-    private final ContextSnapshot.Propagation propagation;
+    private final ContextTrampoline.Propagation propagation;
     private final List<Object> capturedContext;
     
     protected ContextualObject(List<ContextVar<?>> contextVars, 
-                               ContextSnapshot.Propagation propagation, 
+                               ContextTrampoline.Propagation propagation, 
                                List<Object> capturedContext) {
         
         this.contextVars = null == contextVars ? 
             Collections.emptyList() : 
             Collections.unmodifiableList(contextVars);
             
-        this.propagation = propagation == null ? ContextSnapshot.Propagation.OPTIMIZED : propagation;
+        this.propagation = propagation == null ? ContextTrampoline.Propagation.OPTIMIZED : propagation;
         
         this.capturedContext = null == capturedContext ?
             Collections.emptyList() : 
@@ -40,8 +40,8 @@ abstract class ContextualObject {
     }
     
     protected final List<Object> applyCapturedContext() {
-        List<Object> originalContext = ContextSnapshot.Propagation.STRICT.equals(propagation) ? 
-            ContextSnapshot.captureContext(contextVars) : Collections.nCopies(contextVars.size(), null);
+        List<Object> originalContext = ContextTrampoline.Propagation.STRICT.equals(propagation) ? 
+            ContextTrampoline.captureContext(contextVars) : Collections.nCopies(contextVars.size(), null);
         restoreContext(capturedContext);
         return originalContext;
     }

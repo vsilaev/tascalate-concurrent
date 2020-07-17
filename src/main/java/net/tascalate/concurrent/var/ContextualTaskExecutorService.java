@@ -26,7 +26,7 @@ public class ContextualTaskExecutorService<D extends TaskExecutorService>
     implements TaskExecutorService {
     protected ContextualTaskExecutorService(D delegate, 
                                             List<ContextVar<?>> contextVars, 
-                                            ContextSnapshot.Propagation propagation, 
+                                            ContextTrampoline.Propagation propagation, 
                                             List<Object> capturedContext) {
         super(delegate, contextVars, propagation, capturedContext);
     }

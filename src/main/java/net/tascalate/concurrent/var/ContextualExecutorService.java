@@ -31,7 +31,7 @@ public class ContextualExecutorService<D extends ExecutorService>
     
     protected ContextualExecutorService(D delegate, 
                                         List<ContextVar<?>> contextVars, 
-                                        ContextSnapshot.Propagation propagation, 
+                                        ContextTrampoline.Propagation propagation, 
                                         List<Object> capturedContext) {
         
         super(delegate, contextVars, propagation, capturedContext);

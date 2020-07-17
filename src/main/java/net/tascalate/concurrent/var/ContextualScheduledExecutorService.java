@@ -27,7 +27,7 @@ public class ContextualScheduledExecutorService<D extends ScheduledExecutorServi
     
     protected ContextualScheduledExecutorService(D delegate, 
                                                  List<ContextVar<?>> contextVars, 
-                                                 ContextSnapshot.Propagation propagation, 
+                                                 ContextTrampoline.Propagation propagation, 
                                                  List<Object> capturedContext) {
         
         super(delegate, contextVars, propagation, capturedContext);
