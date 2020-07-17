@@ -214,7 +214,7 @@ public class ContextTrampoline {
 
         @Override
         public TaskExecutorService bind(TaskExecutorService executorService, Propagation propagation) {
-            return super.bind(executorService, propagation);
+            return executorService;
         }
 
         @Override
