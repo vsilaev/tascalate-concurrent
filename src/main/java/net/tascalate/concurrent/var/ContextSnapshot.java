@@ -175,7 +175,7 @@ public class ContextSnapshot {
     
     private static final AtomicLong COUNTER = new AtomicLong();
     
-    private static ContextSnapshot EMPTY_SNAPSHOT = new ContextSnapshot(null) {
+    private static final ContextSnapshot EMPTY_SNAPSHOT = new ContextSnapshot(null) {
 
         @Override
         public <T> Function<Promise<T>, Promise<T>> boundPromises() {

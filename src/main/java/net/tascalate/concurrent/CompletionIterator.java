@@ -20,14 +20,13 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
-public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
+final class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     
     protected static enum CancelStrategy {
         NONE {
@@ -59,7 +58,7 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     private final int chunkSize;
     private final CancelStrategy cancelStrategy;
     private final Iterator<? extends CompletionStage<? extends T>> pendingPromises;
-    private final BlockingQueue<Result<T>> settledResults;
+    private final BlockingQueue<Try<T>> settledResults;
     private final Set<CompletionStage<?>> enlistedPromises;
     
     private final AtomicInteger inProgress = new AtomicInteger(0);
@@ -112,12 +111,12 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
             } else {
                 if (!settledResults.isEmpty()) {
                     // There are some resolved results available
-                    return settledResults.poll().get(); 
+                    return settledResults.poll().done(); 
                 } else {
                     if (unprocessed > 0) {
                         // If we are still producing then await for any result...  
                         try {
-                            return settledResults.take().get();
+                            return settledResults.take().done();
                         } catch (InterruptedException ex) {
                             throw new NoSuchElementException(ex.getMessage());
                         }
@@ -181,29 +180,14 @@ public class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     
     private void enlistResolved(T resolvedValue, Throwable ex) {
         try {
-            settledResults.put(new Result<>(
-                resolvedValue, ex == null ? null : SharedFunctions.wrapCompletionException(ex))
-            );
+            if (ex == null) {
+                settledResults.put(Try.success(resolvedValue));
+            } else {
+                settledResults.put(Try.failure(SharedFunctions.wrapCompletionException(ex)));
+            }
         } catch (InterruptedException e) {
             throw new RuntimeException(e); // Shouldn't happen for the queue with an unlimited size
         }
         inProgress.decrementAndGet();
-    }
-    
-    static class Result<T> {
-        private final T result;
-        private final CompletionException error;
-        
-        Result(T result, CompletionException error) {
-            this.result = result;
-            this.error  = error; 
-        }
-        
-        T get() {
-            if (null != error) {
-                throw error;
-            }
-            return result;
-        }
     }
 }

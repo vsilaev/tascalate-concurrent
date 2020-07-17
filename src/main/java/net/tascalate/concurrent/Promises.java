@@ -331,13 +331,14 @@ public final class Promises {
             // Promise.all doesn't inherit decorators
             return 
                 Promises.from(promisesBatch.get(0))
-                       .dependent()
-                       .thenCombine(Promises.all(promisesBatch), SharedFunctions.selectSecond(), PromiseOrigin.ALL)
-                       .thenComposeAsync(vals -> parallelStep2(
-                               values, step + 1, batchSize, 
-                               accumulate(vals, step, current, downstream), 
-                               spawner, downstream, downstreamExecutor
-                               ), downstreamExecutor, true);
+                        .dependent()
+                        .thenCombine(Promises.all(promisesBatch), SharedFunctions.selectSecond(), PromiseOrigin.ALL)
+                        .thenComposeAsync(
+                            vals -> parallelStep2(
+                                values, step + 1, batchSize, 
+                                accumulate(vals, step, current, downstream), 
+                                spawner, downstream, downstreamExecutor), 
+                            downstreamExecutor, true);
         }
     }
     
