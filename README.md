@@ -1,4 +1,4 @@
-[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.8.4/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.4) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.9.0/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.0) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
 
@@ -12,7 +12,7 @@ New name:
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>0.8.4</version>
+    <version>0.9.0</version> <!-- Any version above 0.8.0, the latest one is recommended -->
 </dependency>
 ```
 Old Name
@@ -40,7 +40,7 @@ To use a library you have to add a single Maven dependency
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>0.8.4</version>
+    <version>0.9.0</version>
 </dependency>
 ```
 # What is inside?
@@ -59,6 +59,25 @@ T join() throws CancellationException, CompletionException;
 ```
 So it should be pretty straightforward to use the `Promise` as a drop-in replacement for the `CompletableFuture` in many cases.
 
+Although the library is compatible with JDK 1.8 there are methods in `Promise` interface that makes it "upfront compatible" with the higher JDK versions (available since version [0.8.2](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.2)):
+```java
+Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn);
+Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor);
+Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn);
+Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn);
+Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor);
+```
+
+Plus, there are several overloads of the filtering operator that complements canonical `map/flatMap` (or `thenApply/thenCompose` in terms of the `CompletionStage` API), available since version [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.0):
+```java
+Promise<T> thenFilter(Predicate<? super T> predicate);
+Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier);
+Promise<T> thenFilterAsync(Predicate<? super T> predicate);
+Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier);
+Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor);
+Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor);
+```
+
 Besides this, there are numerous operators in the `Promise` API to work with timeouts and delays, to override default asynchronous executor and similar. All of them will be discussed later.
 
 When discussing `Promise` interface, it's mandatory to mention the accompanying class `Promises` that provides several useful methods to adapt third-party `CompletionStage` (including the standard `CompletableFuture`) to the `Promise` API. First, there are two unit operations to create successfully/faulty settled `Promise`-es: 
@@ -66,6 +85,12 @@ When discussing `Promise` interface, it's mandatory to mention the accompanying 
 static <T> Promise<T> success(T value)
 static <T> Promise<T> failure(Throwable exception)
 ```
+Actually, release [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.0) adds the third unit operation:
+```java
+static <T> Promise<T> maybe(Optional<T> maybeValue)
+```
+It converts the `Optional` supplied either to the successfully settled `Promise` or to the faulty settled one with [NoSuchElementException](https://docs.oracle.com/javase/8/docs/api/java/util//NoSuchElementException.html).
+
 Second, there is an adapter method `from`:
 ```java
 static <T> Promise<T> from(CompletionStage<T> stage)
@@ -132,7 +157,7 @@ CompletableTask
    .thenRunAsync(myAction);
 ```  
 All of `myMapper`, `myTransformer`, `myConsumer`, `myAction` will be executed using `myExecutor`.
-**WARNING** Before release 0.9.0 this method was named `CompletableTask.complete(...)`
+**WARNING** Before release [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.0) this method was named `CompletableTask.complete(...)`
 
 Crucially, all composed promises support true cancellation (incl. interrupting thread) for the functions supplied as arguments:
 ```java
