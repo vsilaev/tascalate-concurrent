@@ -55,7 +55,6 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
-        
         Promises.all(IntStream.range(1, 5)
                               .mapToObj(i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 100), executorService))
                               .collect(Collectors.toList()) 
@@ -64,12 +63,12 @@ public class J8Examples {
                 .as(partitionedStream(2, i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 1000), executorService), Collectors.toList()))
                 .whenComplete((r, e) -> {
                     System.out.println("PARTITIONED: " + r + " ON " + Thread.currentThread());
-                    System.exit(0);
+                    //System.exit(0);
                 });
         
         IntFunction<Promise<Integer>> makeNewValue = v -> CompletableTask.supplyAsync(() -> awaitAndProduce2(v), executorService);
-        /* MUST be Promises.streamCompletions(..., false) -- while the original stream is generator-base rather than collection based */
-        try (Stream<Number> s = Promises.streamCompletions(IntStream.range(0, 100).mapToObj(makeNewValue), 16, Promises.Cancel.ENLISTED)) {
+        // MUST be Promises.streamCompletions(..., false) -- while the original stream is generator-base rather than collection based 
+        try (Stream<Number> s = AsyncCompletions.stream(IntStream.range(0, 100).mapToObj(makeNewValue), 16, AsyncCompletions.Cancel.ENLISTED)) {
             s.filter(v -> v.intValue() % 20 != 0)
              .limit(4)
              .forEach(v -> System.out.println("By completion stream:: " + v));
@@ -235,7 +234,7 @@ public class J8Examples {
         // Suicidal task to close gracefully
         executorService.submit(() -> {
             try {
-                Thread.sleep(5000);
+                Thread.sleep(15000);
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
             }

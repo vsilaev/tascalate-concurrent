@@ -25,13 +25,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Spliterators;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,7 +43,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 
 /**
@@ -53,16 +54,6 @@ import java.util.stream.StreamSupport;
  *
  */
 public final class Promises {
-    
-    public static enum Cancel {
-        NONE(CompletionIterator.CancelStrategy.NONE),
-        ENLISTED(CompletionIterator.CancelStrategy.ENLISTED),
-        ALL(CompletionIterator.CancelStrategy.ALL),;
-        private final CompletionIterator.CancelStrategy strategy;
-        private Cancel(CompletionIterator.CancelStrategy strategy) {
-            this.strategy = strategy;
-        }
-    }
 
     private Promises() {}
     
@@ -134,51 +125,163 @@ public final class Promises {
         return SharedFunctions.unwrapCompletionException(ex);
     }
     
-    public static <T> Iterator<T> iterateCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                     int chunkSize) {
-        return iterateCompletions(pendingPromises.iterator(), chunkSize);
+    public static <T, R extends AutoCloseable> Promise<T> tryApply(CompletionStage<R> resourcePromise,
+                                                                   Function<? super R, ? extends T> fn) {
+        return tryApply(from(resourcePromise), fn);
+    }
+    
+    public static <T, R extends AutoCloseable> Promise<T> tryApply(Promise<R> resourcePromise,
+                                                                   Function<? super R, ? extends T> fn) {
+        return 
+        resourcePromise.dependent()
+                       .thenApply(r -> {
+                            try (R resource = r) {
+                                return (T)fn.apply(resource);
+                            } catch (RuntimeException | Error rte) {
+                                throw rte;
+                            } catch (Throwable ex) {
+                                throw new CompletionException(ex);
+                            }
+                        }, true)
+                       .unwrap();
+    }
+    
+
+    public static <T, R extends AsyncCloseable> Promise<T> tryApplyEx(CompletionStage<R> resourcePromise,
+                                                                      Function<? super R, ? extends T> fn) {
+        return tryApplyEx(from(resourcePromise), fn);
+    }
+    
+    public static <T, R extends AsyncCloseable> Promise<T> tryApplyEx(Promise<R> resourcePromise,
+                                                                      Function<? super R, ? extends T> fn) {
+        return 
+        resourcePromise.dependent()
+                       .thenCompose(resource -> {
+                           T result;
+                           try {
+                               result = fn.apply(resource);
+                           } catch (Throwable actionException) {
+                               try {
+                                   // Use dependent here?
+                                   return resource.close().thenCompose(__ -> failure(actionException));
+                               } catch (Throwable onClose) {
+                                   actionException.addSuppressed(onClose);
+                                   return failure(onClose);
+                               }
+                           }
+                           
+                           try {
+                               // Use dependent here?
+                               return resource.close().thenApply(__ -> result);
+                           } catch (Throwable onClose) {
+                               return failure(onClose);
+                           }
+
+                       }, true)
+                       .unwrap();
+    }
+    
+    public static <T, R extends AutoCloseable> Promise<T> tryCompose(CompletionStage<R> resourcePromise,
+                                                                     Function<? super R, ? extends CompletionStage<T>> fn) {
+        return tryCompose(from(resourcePromise), fn);
     }
 
-    public static <T> Iterator<T> iterateCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                     int chunkSize) {
-        return iterateCompletions(pendingPromises.iterator(), chunkSize);
-    }
-    
-    private static <T> Iterator<T> iterateCompletions(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                      int chunkSize) {
-        return new CompletionIterator<>(pendingPromises, chunkSize);
-    }
-    
-    public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize) {
-        return streamCompletions(pendingPromises, chunkSize, Cancel.ENLISTED);
-    }
-    
-    public static <T> Stream<T> streamCompletions(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize, Cancel cancelOption) {
-        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelOption);
-    }
+    public static <T, R extends AutoCloseable> Promise<T> tryCompose(Promise<R> resourcePromise,
+                                                                     Function<? super R, ? extends CompletionStage<T>> fn) {
+        return
+        resourcePromise.dependent()
+                       .thenCompose(resource -> {
+                           CompletionStage<T> action;
+                           try {
+                               action = fn.apply(resource);
+                           } catch (Throwable composeException) {
+                               try {
+                                   resource.close();
+                               } catch (Exception onClose) {
+                                   composeException.addSuppressed(onClose);
+                               }
+                               return failure(composeException);
+                           }
 
-    public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize) {
-        return streamCompletions(pendingPromises, chunkSize, Cancel.ENLISTED);
+                           CompletablePromise<T> result = new CompletablePromise<>();
+                           action.whenComplete((actionResult, actionException) -> {
+                               try {
+                                   resource.close();
+                               } catch (Throwable onClose) {
+                                   if (null != actionException) {
+                                       actionException.addSuppressed(onClose);
+                                       result.onFailure(actionException);
+                                   } else {
+                                       result.onFailure(onClose);
+                                   }
+                                   // DONE WITH ERROR ON CLOSE
+                                   return;
+                               }
+                               // CLOSE OK
+                               if (null == actionException) {
+                                   result.onSuccess(actionResult);
+                               } else {
+                                   result.onFailure(actionException);
+                               }
+                           });
+                           return result.onCancel(() -> SharedFunctions.cancelPromise(action, true));
+                       }, true)
+                       .unwrap();        
     }
     
-    public static <T> Stream<T> streamCompletions(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                  int chunkSize, Cancel cancelOption) {
-        return streamCompletions(pendingPromises.iterator(), chunkSize, cancelOption);
-    }
     
-    private static <T> Stream<T> streamCompletions(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
-                                                   int chunkSize, Cancel cancelOption) {
-        return toCompletionStream(new CompletionIterator<>(pendingPromises, chunkSize, cancelOption.strategy));
-    }
-    
-    private static <T> Stream<T> toCompletionStream(CompletionIterator<T> iterator) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false)
-                            .onClose(iterator::close); 
-    }
+    public static <T, R extends AsyncCloseable> Promise<T> tryComposeEx(Promise<R> resourcePromise,
+                                                                      Function<? super R, ? extends CompletionStage<T>> fn) {
+        return
+        resourcePromise.dependent()
+                       .thenCompose(resource -> {
+                           CompletionStage<T> action;
+                           try {
+                               action = fn.apply(resource);
+                           } catch (Throwable composeException) {
+                               try {
+                                   // Use dependent here?
+                                   return resource.close().thenCompose(__ -> failure(composeException));
+                               } catch (Throwable onClose) {
+                                   composeException.addSuppressed(onClose);
+                                   return failure(onClose);
+                               }                               
+                           }
 
+                           CompletablePromise<T> result = new CompletablePromise<>();
+                           action.whenComplete((actionResult, actionException) -> {
+                               CompletionStage<?> afterClose;
+                               try {
+                                   afterClose = resource.close();
+                               } catch (Throwable onClose) {
+                                   if (null != actionException) {
+                                       actionException.addSuppressed(onClose);
+                                       result.onFailure(actionException);
+                                   } else {
+                                       result.onFailure(onClose);
+                                   }
+                                   // DONE WITH ERROR ON ASYNC CLOSE
+                                   return;
+                               }
+                               // ASYNC CLOSE INVOKE OK
+                               afterClose.whenComplete((__, onClose) -> {
+                                   if (null != actionException) {
+                                       if (null != onClose) {
+                                           actionException.addSuppressed(onClose);
+                                       }
+                                       result.onFailure(actionException);
+                                   } else if (null != onClose) {
+                                       result.onFailure(onClose);
+                                   } else {
+                                       result.onSuccess(actionResult);
+                                   }
+                               });
+                           });
+                           return result.onCancel(() -> SharedFunctions.cancelPromise(action, true));
+                       }, true)
+                       .unwrap();
+    }
+    
     public static <T, A, R> Promise<R> partitioned(Iterable<? extends T> values, 
                                                    int batchSize, 
                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
@@ -215,7 +318,7 @@ public final class Promises {
                                                     Function<? super T, CompletionStage<? extends T>> spawner, 
                                                     Collector<T, A, R> downstream) {
         return
-            parallelStep1(values, 0, batchSize, null, spawner, downstream)
+            parallelStep1(values, batchSize, spawner, downstream)
             .dependent()
             .thenApply(downstream.finisher(), true)
             .as(onCloseSource(values))
@@ -229,7 +332,7 @@ public final class Promises {
                                                     Collector<T, A, R> downstream,
                                                     Executor downstreamExecutor) {
         return 
-            parallelStep2(values, 0, batchSize, null, spawner, downstream, downstreamExecutor)
+            parallelStep2(values, batchSize, spawner, downstream, downstreamExecutor)
             .dependent()
             .thenApplyAsync(downstream.finisher(), downstreamExecutor, true)
             .as(onCloseSource(values))
@@ -241,8 +344,18 @@ public final class Promises {
             return p -> p.dependent().whenComplete((r, e) -> {
                 try (AutoCloseable o = (AutoCloseable)source) {
                     
+                } catch (RuntimeException | Error ex) {
+                    if (null != e) {
+                        e.addSuppressed(ex);
+                    } else {
+                        throw ex;
+                    }
                 } catch (Exception ex) {
-                    SharedFunctions.sneakyThrow(ex);
+                    if (null != e) {
+                        e.addSuppressed(ex);
+                    } else {
+                        throw new CompletionException(ex);
+                    }
                 }
             }, true);
         } else {
@@ -251,95 +364,63 @@ public final class Promises {
     }
     
     private static <T, A, R> Promise<A> parallelStep1(Iterator<? extends T> values, 
-                                                     int step, 
                                                      int batchSize,
-                                                     A current,
                                                      Function<? super T, CompletionStage<? extends T>> spawner,                                                        
                                                      Collector<T, A, R> downstream) {
-        
-        List<T> valuesBatch = drainBatch(values, batchSize);
-        if (valuesBatch.isEmpty()) {
-            // Over
-            return Promises.success(step == 0 ? downstream.supplier().get() : current)
-                           .dependent();
-        } else {
-            List<CompletionStage<? extends T>> promisesBatch = 
-                valuesBatch.stream()
-                           .map(spawner)
-                           .collect(Collectors.toList());
-           
-            // This tricky thing (from first promise, then combine with all, then compose) 
-            // will propagate all decorators to the resulting promise.
-            // Promise.all doesn't inherit decorators
-            DependentPromise<? extends T> first = Promises.from(promisesBatch.get(0))
-                                                          .dependent(); 
-            AtomicBoolean isRecursive = new AtomicBoolean(true);
-            Thread invokerThread = Thread.currentThread();
-            try {
-                return first.thenCombine(Promises.all(promisesBatch), SharedFunctions.selectSecond(), PromiseOrigin.ALL)
-                            .thenCompose(vals -> {
-                                
-                    boolean callLater = isRecursive.get() && Thread.currentThread() == invokerThread;
-                    if (callLater) {
-                        return 
-                        first
-                        .thenCombine(Timeouts.delay(MINIMAL_DELAY), selectFirst(), PromiseOrigin.PARAM_ONLY)
-                        // yep, default async -- the least evil, while we have to jump off from the timeout thread
-                        .thenComposeAsync(__ -> 
-                            parallelStep1(values, step + 1, batchSize, 
-                                         accumulate(vals, step, current, downstream), 
-                                         spawner, downstream), 
-                            true);
-                    } else {
-                        return parallelStep1(values, step + 1, batchSize, 
-                                            accumulate(vals, step, current, downstream), 
-                                            spawner, downstream);
-                    }
-                }, true);
-            } finally {
-                isRecursive.set(false);
+
+        int[] step = {0};
+        return AsyncLoop.run(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+            List<T> valuesBatch = drainBatch(values, batchSize);
+            if (valuesBatch.isEmpty()) {
+                // Over
+                return Promises.success(step[0] == 0 ? downstream.supplier().get() : current);
+            } else {
+                List<CompletionStage<? extends T>> promisesBatch = 
+                    valuesBatch.stream()
+                               .map(spawner)
+                               .collect(Collectors.toList());
+               
+                boolean initial = step[0] == 0;
+                step[0]++;
+                return 
+                Promises.all(promisesBatch)
+                        .dependent()
+                        .thenApply(vals -> accumulate(vals, initial, current, downstream), true);
             }
-        }
+        });
     }
 
     private static <T, A, R> Promise<A> parallelStep2(Iterator<? extends T> values, 
-                                                     int step, 
                                                      int batchSize,
-                                                     A current,
                                                      Function<? super T, CompletionStage<? extends T>> spawner,                                                        
                                                      Collector<T, A, R> downstream,
                                                      Executor downstreamExecutor) {
-        
-        List<T> valuesBatch = drainBatch(values, batchSize);
-        if (valuesBatch.isEmpty()) {
-            // Over
-            Promise<A> result;
-            if (step == 0) {
-                result = CompletableTask.supplyAsync(downstream.supplier(), downstreamExecutor);
+
+        int[] step = {0};
+        return AsyncLoop.run(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+            List<T> valuesBatch = drainBatch(values, batchSize);
+            if (valuesBatch.isEmpty()) {
+                // Over
+                Promise<A> result;
+                if (step[0] == 0) {
+                    result = CompletableTask.supplyAsync(downstream.supplier(), downstreamExecutor);
+                } else {
+                    result = Promises.success(current);
+                }
+                return result;
             } else {
-                result = Promises.success(current);
-            }
-            return result.dependent();
-        } else {
-            List<CompletionStage<? extends T>> promisesBatch = 
-                valuesBatch.stream()
-                           .map(spawner)
-                           .collect(Collectors.toList());
-           
-            // This tricky thing (from first promise, then combine with all, then compose) 
-            // will propagate all decorators to the resulting promise.
-            // Promise.all doesn't inherit decorators
-            return 
-                Promises.from(promisesBatch.get(0))
+                List<CompletionStage<? extends T>> promisesBatch = 
+                        valuesBatch.stream()
+                                   .map(spawner)
+                                   .collect(Collectors.toList());
+                boolean initial = step[0] == 0;
+                step[0]++;
+                return 
+                Promises.all(promisesBatch)
                         .dependent()
-                        .thenCombine(Promises.all(promisesBatch), SharedFunctions.selectSecond(), PromiseOrigin.ALL)
-                        .thenComposeAsync(
-                            vals -> parallelStep2(
-                                values, step + 1, batchSize, 
-                                accumulate(vals, step, current, downstream), 
-                                spawner, downstream, downstreamExecutor), 
-                            downstreamExecutor, true);
-        }
+                        .thenApplyAsync(vals -> accumulate(vals, initial, current, downstream), downstreamExecutor, true);                
+            }
+        });
     }
     
     private static <T> List<T> drainBatch(Iterator<? extends T> values, int batchSize) {
@@ -350,12 +431,12 @@ public final class Promises {
         return valuesBatch;
     }
     
-    private static <T, A, R> A accumulate(List<T> vals, int step, A current, Collector<T, A, R> downstream) {
+    private static <T, A, R> A accumulate(List<T> vals, boolean initial, A current, Collector<T, A, R> downstream) {
         A insertion = downstream.supplier().get();
         vals.stream()
             .forEach(v -> downstream.accumulator().accept(insertion, v));
         
-        return step == 0 ? insertion : downstream.combiner().apply(current, insertion);
+        return initial ? insertion : downstream.combiner().apply(current, insertion);
     }
 
     
@@ -408,6 +489,21 @@ public final class Promises {
     public static <T> Promise<List<T>> all(boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(null != promises ? promises.size() : 0, 0, cancelRemaining, promises);
     }
+    
+    public static <K, T> Promise<Map<K, T>> all(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return all(true, promises);
+    }
+    
+    public static <K, T> Promise<Map<K, T>> all(boolean cancelRemaining, 
+                                                Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        Map<K, T> result = new ConcurrentHashMap<>();
+        return 
+        all(cancelRemaining, groupToMap(result, promises)) 
+        .dependent()
+        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .unwrap();
+    }
+
     /**
      * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters
      * is completed normally (race is possible); if all promises completed exceptionally, then resulting promise
@@ -470,6 +566,20 @@ public final class Promises {
                     Promises::extractFirstNonNull, Function.identity() /* DO NOT unwrap multitarget exception */
                 );
         }
+    }
+    
+    public static <K, T> Promise<Map<K, T>> any(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return any(true, promises);
+    }
+    
+    public static <K, T> Promise<Map<K, T>> any(boolean cancelRemaining, 
+                                                Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        Map<K, T> result = new ConcurrentHashMap<>();
+        return 
+        any(cancelRemaining, groupToMap(result, promises)) 
+        .dependent()
+        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .unwrap();
     }
     
     /**
@@ -541,6 +651,20 @@ public final class Promises {
         }
     }
     
+    public static <K, T> Promise<Map<K, T>> anyStrict(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return anyStrict(true, promises);
+    }
+    
+    public static <K, T> Promise<Map<K, T>> anyStrict(boolean cancelRemaining, 
+                                                      Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        Map<K, T> result = new ConcurrentHashMap<>();
+        return 
+        anyStrict(cancelRemaining, groupToMap(result, promises)) 
+        .dependent()
+        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .unwrap();
+    }
+    
     /**
      * <p>Generalization of the {@link Promises#any(CompletionStage...)} method.</p>
      * <p>Returns a promise that is resolved successfully when at least <code>minResultCount</code> of 
@@ -600,9 +724,23 @@ public final class Promises {
     }
     
     public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining,
-            
                                                List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, (promises == null ? 0 : promises.size()) - minResultsCount, cancelRemaining, promises);
+    }
+    
+    public static <K, T> Promise<Map<K, T>> atLeast(int minResultsCount, 
+                                                    Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return atLeast(minResultsCount, true, promises);
+    }
+    
+    public static <K, T> Promise<Map<K, T>> atLeast(int minResultsCount, boolean cancelRemaining, 
+                                                    Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        Map<K, T> result = new ConcurrentHashMap<>();
+        return 
+        atLeast(minResultsCount, cancelRemaining, groupToMap(result, promises)) 
+        .dependent()
+        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .unwrap();
     }
     
     /**
@@ -672,6 +810,21 @@ public final class Promises {
         return atLeast(minResultsCount, 0, cancelRemaining, promises);
     }
     
+    public static <K, T> Promise<Map<K, T>> atLeastStrict(int minResultsCount, 
+                                                          Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return atLeastStrict(minResultsCount, true, promises);
+    }
+    
+    public static <K, T> Promise<Map<K, T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, 
+                                                          Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        Map<K, T> result = new ConcurrentHashMap<>();
+        return 
+        atLeastStrict(minResultsCount, cancelRemaining, groupToMap(result, promises)) 
+        .dependent()
+        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .unwrap();
+    }
+    
     /**
      * <p>General method to combine several {@link CompletionStage}-s passed as arguments into single promise.</p>
      * <p>The resulting promise is resolved successfully when at least <code>minResultCount</code> of 
@@ -726,6 +879,16 @@ public final class Promises {
             return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
         }
     }
+    
+    public static <K, T> Promise<Map<K, T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
+                                                    Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        Map<K, T> result = new ConcurrentHashMap<>();
+        return 
+        atLeast(minResultsCount, maxErrorsCount, cancelRemaining, groupToMap(result, promises)) 
+        .dependent()
+        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .unwrap();
+    }    
     
     public static Promise<Void> retry(Runnable codeBlock, Executor executor, 
                                       RetryPolicy<? super Void> retryPolicy) {
@@ -890,26 +1053,30 @@ public final class Promises {
                 Thread invokerThread = Thread.currentThread();
 
                 Promise<? extends T> p = target;
-                p.whenComplete((value, ex) -> {
-                    if (null == ex && ctx.isValidResult(value)) {
-                        result.complete(value);
-                    } else {
-                        long finishTime = System.nanoTime();
-                        RetryContext<C> nextCtx = ctx.nextRetry(
-                            duration(startTime, finishTime), SharedFunctions.unwrapCompletionException(ex)
-                        );
-                        boolean callLater = isRecursive.get() && Thread.currentThread() == invokerThread;
-                        if (callLater) {
-                            // Call after minimal possible delay
-                            callLater(
-                                p, MINIMAL_DELAY, cancellation, 
-                                () -> tryFutureOnce(futureFactory, nextCtx, result, cancellation, p)
-                            );
+                try {
+                    p.whenComplete((value, ex) -> {
+                        if (null == ex && ctx.isValidResult(value)) {
+                            result.complete(value);
                         } else {
-                            tryFutureOnce(futureFactory, nextCtx, result, cancellation, p);
+                            long finishTime = System.nanoTime();
+                            RetryContext<C> nextCtx = ctx.nextRetry(
+                                duration(startTime, finishTime), SharedFunctions.unwrapCompletionException(ex)
+                            );
+                            boolean callLater = Thread.currentThread() == invokerThread && isRecursive.get();
+                            if (callLater) {
+                                // Call after minimal possible delay
+                                callLater(
+                                    p, MINIMAL_DELAY, cancellation, 
+                                    () -> tryFutureOnce(futureFactory, nextCtx, result, cancellation, p)
+                                );
+                            } else {
+                                tryFutureOnce(futureFactory, nextCtx, result, cancellation, p);
+                            }
                         }
-                    }
-                });
+                    });
+                } finally {
+                    isRecursive.set(false);
+                }
                 isRecursive.set(false);
                 return applyExecutionTimeout(p, verdict);
             };
@@ -987,6 +1154,22 @@ public final class Promises {
         /*
         throw new IllegalArgumentException(message);        
         */
+    }
+    
+    private static <K, T> List<? extends CompletionStage<? extends T>> groupToMap(Map<K, T> result, Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return 
+        promises.entrySet()
+                .stream()
+                .map(e -> {
+                    CompletionStage<? extends T> promise = e.getValue();
+                    return from(promise).dependent()
+                                        .thenApply(value -> {
+                                            result.put(e.getKey(), value);
+                                            return value;
+                                        }, true);
+                })
+                .collect(Collectors.toList())
+        ;        
     }
     
     private static <V, T> RetryCallable<V, T> toRetryCallable(Callable<? extends V> callable) {

@@ -19,16 +19,19 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
-final class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
+public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     
-    protected static enum CancelStrategy {
+    public static enum Cancel {
         NONE {
             @Override
             void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises) {
@@ -56,22 +59,22 @@ final class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
     }
     
     private final int chunkSize;
-    private final CancelStrategy cancelStrategy;
+    private final Cancel cancelStrategy;
     private final Iterator<? extends CompletionStage<? extends T>> pendingPromises;
     private final BlockingQueue<Try<T>> settledResults;
     private final Set<CompletionStage<?>> enlistedPromises;
     
     private final AtomicInteger inProgress = new AtomicInteger(0);
     
-    CompletionIterator(Iterator<? extends CompletionStage<? extends T>> pendingValues, int chunkSize) {
-        this(pendingValues, chunkSize, CancelStrategy.NONE);
+    AsyncCompletions(Iterator<? extends CompletionStage<? extends T>> pendingValues, int chunkSize) {
+        this(pendingValues, chunkSize, Cancel.NONE);
     }
     
-    protected CompletionIterator(Iterator<? extends CompletionStage<? extends T>> pendingValues, 
+    protected AsyncCompletions(Iterator<? extends CompletionStage<? extends T>> pendingValues, 
                                  int chunkSize, 
-                                 CancelStrategy cancelStrategy) {
+                                 Cancel cancelStrategy) {
         this.chunkSize        = chunkSize;
-        this.cancelStrategy   = cancelStrategy == null ? CancelStrategy.NONE : cancelStrategy;
+        this.cancelStrategy   = cancelStrategy == null ? Cancel.NONE : cancelStrategy;
         this.pendingPromises  = pendingValues;
         this.settledResults   = chunkSize > 0 ? new LinkedBlockingQueue<>(chunkSize) 
                                               : new LinkedBlockingQueue<>(); 
@@ -146,6 +149,52 @@ final class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
         cancelStrategy.apply(enlistedPromises, pendingPromises);
     }
     
+    
+    public static <T> Iterator<T> iterate(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                     int chunkSize) {
+        return iterate(pendingPromises.iterator(), chunkSize);
+    }
+
+    public static <T> Iterator<T> iterate(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                     int chunkSize) {
+        return iterate(pendingPromises.iterator(), chunkSize);
+    }
+    
+    private static <T> Iterator<T> iterate(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                      int chunkSize) {
+        return new AsyncCompletions<>(pendingPromises, chunkSize);
+    }
+    
+    public static <T> Stream<T> stream(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize) {
+        return stream(pendingPromises, chunkSize, Cancel.ENLISTED);
+    }
+    
+    public static <T> Stream<T> stream(Stream<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize, Cancel cancelOption) {
+        return stream(pendingPromises.iterator(), chunkSize, cancelOption);
+    }
+
+    public static <T> Stream<T> stream(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize) {
+        return stream(pendingPromises, chunkSize, Cancel.ENLISTED);
+    }
+    
+    public static <T> Stream<T> stream(Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                  int chunkSize, Cancel cancelOption) {
+        return stream(pendingPromises.iterator(), chunkSize, cancelOption);
+    }
+    
+    private static <T> Stream<T> stream(Iterator<? extends CompletionStage<? extends T>> pendingPromises, 
+                                                   int chunkSize, Cancel cancelOption) {
+        return toStream(new AsyncCompletions<>(pendingPromises, chunkSize, cancelOption));
+    }
+    
+    private static <T> Stream<T> toStream(AsyncCompletions<T> iterator) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false)
+                            .onClose(iterator::close); 
+    }
+    
     private boolean enlistPending() {
         boolean enlisted = false;
         int i = 0;
@@ -190,4 +239,5 @@ final class CompletionIterator<T> implements Iterator<T>, AutoCloseable {
         }
         inProgress.decrementAndGet();
     }
+
 }

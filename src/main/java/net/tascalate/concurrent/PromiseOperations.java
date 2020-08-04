@@ -66,6 +66,26 @@ public class PromiseOperations {
                       .unwrap();
     }
     
+    public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
+        tryApply(Function<? super R, ? extends T> fn) {
+        return resourcePromise -> Promises.tryApply(resourcePromise, fn);
+    }
+    
+    public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
+        tryApplyEx(Function<? super R, ? extends T> fn) {
+        return resourcePromise -> Promises.tryApplyEx(resourcePromise, fn);
+    }
+    
+    public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
+        tryCompose(Function<? super R, ? extends CompletionStage<T>> fn) {
+        return resourcePromise -> Promises.tryCompose(resourcePromise, fn);
+    }
+
+    public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
+        tryComposeEx(Function<? super R, ? extends CompletionStage<T>> fn) {
+        return resourcePromise -> Promises.tryComposeEx(resourcePromise, fn);
+    }
+    
     public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> partitionedItems(
             int batchSize, 
             Function<? super T, CompletionStage<? extends T>> spawner, 
