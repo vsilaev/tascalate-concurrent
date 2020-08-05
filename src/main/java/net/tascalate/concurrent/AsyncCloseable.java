@@ -30,8 +30,8 @@ import java.util.function.Function;
  * resources are relinquished. 
  *
  * <p>
- * May be used with the methods {@link Promises#tryApply(CompletionStage, Function)},
- * {@link Promises#tryCompose(AsyncCloseable, Function)} to emulate the behavior of a try
+ * May be used with the methods {@link Promises#tryApplyEx(CompletionStage, Function)},
+ * {@link Promises#tryComposeEx(Promise, Function)} to emulate the behavior of a try
  * with resources block.
  * 
  */

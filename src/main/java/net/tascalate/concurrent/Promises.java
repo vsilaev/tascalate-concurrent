@@ -504,7 +504,7 @@ public final class Promises {
                                                 Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         Map<K, T> result = new ConcurrentHashMap<>();
         return 
-        all(cancelRemaining, groupToMap(result, promises)) 
+        all(cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
         .thenApply(__ -> Collections.unmodifiableMap(result), true)
         .unwrap();
@@ -582,7 +582,7 @@ public final class Promises {
                                                 Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         Map<K, T> result = new ConcurrentHashMap<>();
         return 
-        any(cancelRemaining, groupToMap(result, promises)) 
+        any(cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
         .thenApply(__ -> Collections.unmodifiableMap(result), true)
         .unwrap();
@@ -665,7 +665,7 @@ public final class Promises {
                                                       Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         Map<K, T> result = new ConcurrentHashMap<>();
         return 
-        anyStrict(cancelRemaining, groupToMap(result, promises)) 
+        anyStrict(cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
         .thenApply(__ -> Collections.unmodifiableMap(result), true)
         .unwrap();
@@ -743,7 +743,7 @@ public final class Promises {
                                                     Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         Map<K, T> result = new ConcurrentHashMap<>();
         return 
-        atLeast(minResultsCount, cancelRemaining, groupToMap(result, promises)) 
+        atLeast(minResultsCount, cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
         .thenApply(__ -> Collections.unmodifiableMap(result), true)
         .unwrap();
@@ -825,7 +825,7 @@ public final class Promises {
                                                           Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         Map<K, T> result = new ConcurrentHashMap<>();
         return 
-        atLeastStrict(minResultsCount, cancelRemaining, groupToMap(result, promises)) 
+        atLeastStrict(minResultsCount, cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
         .thenApply(__ -> Collections.unmodifiableMap(result), true)
         .unwrap();
@@ -890,7 +890,7 @@ public final class Promises {
                                                     Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         Map<K, T> result = new ConcurrentHashMap<>();
         return 
-        atLeast(minResultsCount, maxErrorsCount, cancelRemaining, groupToMap(result, promises)) 
+        atLeast(minResultsCount, maxErrorsCount, cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
         .thenApply(__ -> Collections.unmodifiableMap(result), true)
         .unwrap();
@@ -916,7 +916,14 @@ public final class Promises {
 
     public static <T extends C, C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
                                                     RetryPolicy<? super C> retryPolicy) {
-        return tryValueOnce(codeBlock, executor, RetryContext.initial(retryPolicy));
+        // 
+        return retryImpl((RetryContext<C> ctx) -> {
+                try {
+                    return CompletableTask.submit(() -> codeBlock.call(ctx), executor);
+                } catch (Throwable ex) {
+                    return failure(ex);
+                }
+            }, RetryContext.initial(retryPolicy), true);
     }
     
     public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
@@ -940,61 +947,23 @@ public final class Promises {
     
     public static <T extends C, C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
                                                           RetryPolicy<? super C> retryPolicy) {
-        return tryFutureOnce(futureFactory, RetryContext.initial(retryPolicy));
-    }
-    
-
-    private static <T extends C, C> Promise<T> tryValueOnce(RetryCallable<T, C> codeBlock, 
-                                                           Executor executor, 
-                                                           RetryContext<C> initialCtx) {
-        
-        @SuppressWarnings("unchecked")
-        RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
-        return loop(null, v -> null == v || !v.isSuccess(), (Try<T> v) -> {
-            RetryContext<C> ctx = ctxRef[0];
-            RetryPolicy.Verdict verdict = ctx.shouldContinue();
-            if (!verdict.shouldExecute()) {
-                return failure(ctx.asFailure());
+        return retryImpl((RetryContext<C> ctx) -> {
+            try {
+                // Not sure how many time futureFactory.call will take
+                return from(futureFactory.call(ctx));
+            } catch (Throwable ex) {
+                return failure(ex);
             }
-            
-            // Use Try<T> to avoid stop on exception in loop
-            Supplier<Promise<Try<T>>> callSupplier = () -> {
-                long startTime = System.nanoTime();
-                // Call should be done via CompletableTask to let it be interruptible
-                Promise<T> p = CompletableTask.submit(() -> codeBlock.call(ctx), executor);
-                return handleTryResult(p, ctxRef, verdict, startTime);
-            };
-            
-            Duration backoffDelay = verdict.backoffDelay();
-            if (DelayPolicy.isValid(backoffDelay)) {
-                // Invocation after timeout, change cancellation target
-                DependentPromise<?> p = Timeouts.delay(backoffDelay).dependent();
-                p.whenComplete((__, ex) -> {
-                    // Update ctx if timeout or cancel during back-off
-                    // It doesn't conflict with ctx modifications in actual call
-                    // while actual call is never happens in case of error
-                    if (null != ex) {
-                        ctxRef[0] = ctx.nextRetry(
-                            duration(0, 0), unwrapCompletionException(ex)
-                        );
-                    }
-                });
-                return p.thenCompose(__ -> callSupplier.get(), true);
-            } else {
-                return callSupplier.get();
-            } 
-        })
-        .dependent()
-        .thenApply(Try::done, true);
-        // Don't unwrap - internal use only
+        }, RetryContext.initial(retryPolicy), true);
     }
-    
-    private static <T extends C, C> Promise<T> tryFutureOnce(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
-                                                             RetryContext<C> initialCtx) {
+
+    private static <T extends C, C> Promise<T> retryImpl(Function<? super RetryContext<C>, ? extends Promise<T>> futureFactory, 
+                                                         RetryContext<C> initialCtx,
+                                                         boolean usePrevAsync) {
 
         @SuppressWarnings("unchecked")
         RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
-        DependentPromise<?>[] prev = new DependentPromise[1];
+        DependentPromise<?>[] prevRef = usePrevAsync ? new DependentPromise[1] : null;
         
         return loop(null, v -> null == v || !v.isSuccess() , (Try<T> v) -> {
             RetryContext<C> ctx = ctxRef[0];
@@ -1005,74 +974,54 @@ public final class Promises {
 
             Supplier<Promise<Try<T>>> callSupplier = () -> {
                 long startTime = System.nanoTime();
+                Promise<T> target = futureFactory.apply(ctx);
+
+                DependentPromise<T> withTimeout = target.dependent();
                 
-                Promise<T> target;
-                try {
-                    // Not sure how many time futureFactory.call will take
-                    target = Promises.from(futureFactory.call(ctx));
-                } catch (Exception ex) {
-                    target = Promises.failure(ex);
+                Duration timeout = verdict.timeout();
+                if (DelayPolicy.isValid(timeout)) {
+                    withTimeout = withTimeout.orTimeout(timeout, true, true);
                 }
                 
-                DependentPromise<Try<T>> p = handleTryResult(target, ctxRef, verdict, startTime);
-                prev[0] = p;
-                return p;
-            };
-            Duration backoffDelay = verdict.backoffDelay();
-            if (null != prev[0] && DelayPolicy.isValid(backoffDelay)) {
-                DependentPromise<?> p = prev[0].delay(backoffDelay, /* Delay on error */ true, true); 
-                p.whenComplete((__, ex) -> {
-                    // Update ctx if timeout or cancel during back-off
-                    // It doesn't conflict with ctx modifications in actual call
-                    // while actual call is never happens in case of error
-                    if (null != ex) {
+                DependentPromise<Try<T>> result = withTimeout.handle((value, ex) -> {
+                    if (null == ex && ctx.isValidResult(value)) {
+                        return Try.success(value);
+                    } else {
+                        long finishTime = System.nanoTime();
                         ctxRef[0] = ctx.nextRetry(
-                            duration(0, 0), unwrapCompletionException(ex)
+                            duration(startTime, finishTime), unwrapCompletionException(ex)
                         );
-                    }
-                });
-                // async due to unknown performance characteristics of futureFactory.call
-                // - so switch to default executor of prev promise
-                return p.thenComposeAsync(__ -> callSupplier.get(), true);
+                        return Try.failure(ex != null ? ex : new IllegalAccessException("Result not accepted by policy"));
+                    }                  
+                }, true);
+                
+                if (null != prevRef) {
+                    prevRef[0] = result;
+                }
+                
+                return result;
+            };
+            
+            Duration backoffDelay = verdict.backoffDelay();
+            if (DelayPolicy.isValid(backoffDelay)) {
+                DependentPromise<?> delay = prevRef == null || prevRef[0] == null ?
+                    Timeouts.delay(backoffDelay).dependent()
+                    :
+                    prevRef[0].delay(backoffDelay, true, false);
+                return delay.thenCompose(__ -> callSupplier.get(), true)
+                            .exceptionally(ex -> {
+                                // May be thrown when backoff delay is interrupted (canceled)
+                                ctxRef[0] = ctxRef[0].nextRetry(duration(0, 0), ex);
+                                return Try.failure(ex);
+                            }, true);
             } else {
-                // Immediately send to executor
-                return callSupplier.get(); 
-            } 
+                return callSupplier.get();
+            }
         })
         .dependent()
         .thenApply(Try::done, true);
         // Don't unwrap - internal use only
     }    
-
-    private static <T extends C, C> DependentPromise<Try<T>> handleTryResult(Promise<T> origin, 
-                                                                             RetryContext<C>[] ctxRef, 
-                                                                             RetryPolicy.Verdict verdict, long startTime) {
-        DependentPromise<T> p;
-        Duration timeout = verdict.timeout();
-        if (DelayPolicy.isValid(timeout)) {
-            p = origin.dependent()
-                      .orTimeout(timeout, true, true);
-        } else {
-            p = origin.dependent();
-        }
-        
-        return p.handle((value, ex) -> {
-            RetryContext<C> ctx = ctxRef[0];
-            if (null == ex && ctx.isValidResult(value)) {
-                return Try.success(value);
-            } else {
-                long finishTime = System.nanoTime();
-                ctxRef[0] = ctx.nextRetry(
-                    duration(startTime, finishTime), unwrapCompletionException(ex)
-                );
-                return Try.failure(
-                    ex != null ? ex :
-                    new IllegalAccessException("Result not accepted by policy")
-                );
-            }                  
-        }, true);
-    }
-
     
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
                                                Function<? super U, ? extends T> resultMapper, 
@@ -1122,7 +1071,9 @@ public final class Promises {
         */
     }
     
-    private static <K, T> List<? extends CompletionStage<? extends T>> groupToMap(Map<K, T> result, Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+    private static <K, T> List<? extends CompletionStage<? extends T>> 
+    collectKeyedResults(Map<K, T> result, Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        
         return 
         promises.entrySet()
                 .stream()
