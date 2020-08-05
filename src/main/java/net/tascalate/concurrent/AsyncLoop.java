@@ -22,13 +22,31 @@ import java.util.function.Predicate;
 class AsyncLoop<T> extends CompletablePromise<T> {
     private final Predicate<? super T> loopCondition;
     private final Function<? super T, ? extends CompletionStage<T>> loopBody;
+    private volatile CompletionStage<T> currentStage;
     
     AsyncLoop(Predicate<? super T> loopCondition, Function<? super T, ? extends CompletionStage<T>> loopBody) {
         this.loopCondition = loopCondition;
         this.loopBody      = loopBody;
     }
     
-    void run(T resolvedValue, Thread initialThread, AsyncLoop.IterationState<T> initialState) {
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+        if (super.cancel(mayInterruptIfRunning)) {
+            CompletionStage<?> dependent = currentStage;
+            if (null != dependent) {
+                SharedFunctions.cancelPromise(dependent, mayInterruptIfRunning);
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    void run(T initialValue) {
+        run(initialValue, null, null);
+    }
+    
+    private void run(T resolvedValue, Thread initialThread, AsyncLoop.IterationState<T> initialState) {
         Thread currentThread = Thread.currentThread();
         if (currentThread.equals(initialThread) && initialState.running) {
             initialState.put(resolvedValue);
@@ -42,7 +60,7 @@ class AsyncLoop<T> extends CompletablePromise<T> {
                     if (isDone()) {
                         break;
                     } else if (loopCondition.test(currentValue)) {
-                        loopBody.apply(currentValue).whenComplete((next, ex) -> {
+                        (currentStage = loopBody.apply(currentValue)).whenComplete((next, ex) -> {
                             if (ex != null) {
                                 onFailure(ex);
                             } else {

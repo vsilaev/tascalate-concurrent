@@ -22,6 +22,7 @@ import java.util.function.Supplier;
 abstract class Try<R> {
 
     abstract R done();
+    abstract boolean isSuccess();
     
     static final class Success<R> extends Try<R> {
         
@@ -34,6 +35,11 @@ abstract class Try<R> {
         @Override
         R done() {
             return result;
+        }
+        
+        @Override
+        boolean isSuccess() {
+            return true;
         }
     }
     
@@ -49,7 +55,11 @@ abstract class Try<R> {
         R done() {
             return SharedFunctions.sneakyThrow(error);
         }
-        
+
+        @Override
+        boolean isSuccess() {
+            return false;
+        }
     }
     
     static <R> Try<R> success(R result) {

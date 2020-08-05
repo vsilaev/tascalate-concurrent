@@ -16,7 +16,6 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
-import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -35,9 +34,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -130,7 +126,7 @@ public final class Promises {
                                       Predicate<? super T> loopCondition,
                                       Function<? super T, ? extends CompletionStage<T>> loopBody) {
         AsyncLoop<T> asyncLoop = new AsyncLoop<>(loopCondition, loopBody);
-        asyncLoop.run(initialValue, null, null);
+        asyncLoop.run(initialValue);
         return asyncLoop;
     }
 
@@ -234,7 +230,7 @@ public final class Promises {
                                    result.onFailure(actionException);
                                }
                            });
-                           return result.onCancel(() -> SharedFunctions.cancelPromise(action, true));
+                           return result.onCancel(() -> cancelPromise(action, true));
                        }, true)
                        .unwrap();        
     }
@@ -287,7 +283,7 @@ public final class Promises {
                                    }
                                });
                            });
-                           return result.onCancel(() -> SharedFunctions.cancelPromise(action, true));
+                           return result.onCancel(() -> cancelPromise(action, true));
                        }, true)
                        .unwrap();
     }
@@ -920,13 +916,7 @@ public final class Promises {
 
     public static <T extends C, C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
                                                     RetryPolicy<? super C> retryPolicy) {
-        
-        return startRetry(retryPolicy, new RetryInitiator<T, C>() {
-            @Override
-            public void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation) {
-                tryValueOnce(codeBlock, executor, ctx, result, cancellation);
-            }
-        }).defaultAsyncOn(executor);        
+        return tryValueOnce(codeBlock, executor, RetryContext.initial(retryPolicy));
     }
     
     public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
@@ -950,165 +940,125 @@ public final class Promises {
     
     public static <T extends C, C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
                                                           RetryPolicy<? super C> retryPolicy) {
-        
-        return startRetry(retryPolicy, new RetryInitiator<T, C>() {
-            @Override
-            public void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation) {
-                tryFutureOnce(futureFactory, ctx, result, cancellation, null);
-            }
-        });
+        return tryFutureOnce(futureFactory, RetryContext.initial(retryPolicy));
     }
     
-    private static <T extends C, C> Promise<T> startRetry(RetryPolicy<? super C> retryPolicy, RetryInitiator<T, C> initiator) {
+
+    private static <T extends C, C> Promise<T> tryValueOnce(RetryCallable<T, C> codeBlock, 
+                                                           Executor executor, 
+                                                           RetryContext<C> initialCtx) {
         
-        final CompletableFuture<T> result = new CompletableFuture<>();
-        final AtomicReference<Promise<?>> callPromiseRef = new AtomicReference<>();
-        // Cleanup latest timeout on completion;
-        result.whenComplete(
-            (r, e) -> 
-                Optional
-                .of(callPromiseRef)
-                .map(AtomicReference::get)
-                .ifPresent( p -> p.cancel(true) )
-        );
-        Consumer<Promise<?>> cancellation = p -> {
-            // If result promise is cancelled after callPromise was set need to stop;               
-            callPromiseRef.set( p );    
-            if (result.isDone()) {
-                p.cancel(true);
+        @SuppressWarnings("unchecked")
+        RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
+        return loop(null, v -> null == v || !v.isSuccess(), v -> {
+            RetryContext<C> ctx = ctxRef[0];
+            RetryPolicy.Verdict verdict = ctx.shouldContinue();
+            if (!verdict.shouldExecute()) {
+                return failure(ctx.asFailure());
             }
-        };
-        
-        RetryContext<C> ctx = RetryContext.initial(retryPolicy);     
-        initiator.run(ctx, result, cancellation);
-        return new CompletableFutureWrapper<>(result);
-    }
-    
-    private static <T extends C, C> void tryValueOnce(RetryCallable<T, C> codeBlock, 
-                                                      Executor executor, 
-                                                      RetryContext<C> ctx, 
-                                                      CompletableFuture<T> result, 
-                                                      Consumer<Promise<?>> cancellation) {
-        
-        // Promise may be cancelled outside of polling
-        if (result.isDone()) {
-            return;
-        }
-        
-        RetryPolicy.Verdict verdict = ctx.shouldContinue();
-        if (verdict.shouldExecute()) {
-            Supplier<Promise<?>> callSupplier = () -> {
-                long startTime = System.nanoTime();                
-                Runnable call = () -> {
+            
+            // Use Try<T> to avoid stop on exception in loop
+            Supplier<Promise<Try<T>>> callSupplier = () -> {
+                long startTime = System.nanoTime();
+                // Call should be done via CompletableTask to let it be interruptible
+                Promise<Try<T>> p = CompletableTask.supplyAsync(() -> {
                     try {
                         T value = codeBlock.call(ctx);
                         if (ctx.isValidResult(value)) {
-                            result.complete(value);
+                            return Try.success(value);
                         } else {
                             long finishTime = System.nanoTime();
-                            RetryContext<C> nextCtx = ctx.nextRetry(duration(startTime, finishTime), value);
-                            tryValueOnce(codeBlock, executor, nextCtx, result, cancellation);
+                            ctxRef[0] = ctx.nextRetry(duration(startTime, finishTime), value);
+                            return Try.failure(new IllegalAccessException("Result not accepted by policy"));
                         }
                     } catch (Exception ex) {
                         long finishTime = System.nanoTime();
-                        RetryContext<C> nextCtx = ctx.nextRetry(duration(startTime, finishTime), ex);
-                        tryValueOnce(codeBlock, executor, nextCtx, result, cancellation);
+                        ctxRef[0] = ctx.nextRetry(duration(startTime, finishTime), ex);
+                        return Try.failure(ex);
                     }
-                };
-                
-                // Call should be done via CompletableTask to let it be interruptible               
-            	Promise<?> p = CompletableTask.runAsync(call, executor);
-            	return applyExecutionTimeout(p, verdict);
+                }, executor);
+                return applyExecutionTimeout(p, verdict);
             };
+            
             Duration backoffDelay = verdict.backoffDelay();
             if (DelayPolicy.isValid(backoffDelay)) {
                 // Invocation after timeout, change cancellation target
-                Promise<?> later = Timeouts
+                return Timeouts
                     .delay(backoffDelay)
                     .dependent()
-                    .thenRun(() -> cancellation.accept( callSupplier.get() ), true);
-                cancellation.accept( later );
+                    .thenCompose(__ -> callSupplier.get(), true);
             } else {
-                // Immediately send to executor
-                cancellation.accept( callSupplier.get() ); 
+                return callSupplier.get();
             } 
-        } else {
-            result.completeExceptionally(ctx.asFailure());
-        }
+        })
+        .dependent()
+        .thenApply(Try::done, true)
+        .unwrap();
+
     }
-    
-    private static <T extends C, C> void tryFutureOnce(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
-                                                       RetryContext<C> ctx, 
-                                                       CompletableFuture<T> result,
-                                                       Consumer<Promise<?>> cancellation,
-                                                       Promise<?> prev) {
-        // Promise may be cancelled outside of polling
-        if (result.isDone()) {
-            return;
-        }
+
+    private static <T extends C, C> Promise<T> tryFutureOnce(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
+                                                             RetryContext<C> initialCtx) {
+
+        @SuppressWarnings("unchecked")
+        RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
+        Promise<?>[] prev = new Promise[1];
         
-        RetryPolicy.Verdict verdict = ctx.shouldContinue();
-        if (verdict.shouldExecute()) {
-            Supplier<Promise<?>> callSupplier = () -> {
+        return loop(null, v -> null == v || !v.isSuccess() , v -> {
+            RetryContext<C> ctx = ctxRef[0];
+            RetryPolicy.Verdict verdict = ctx.shouldContinue();
+            if (!verdict.shouldExecute()) {
+                return failure(ctx.asFailure());
+            }
+
+            Supplier<Promise<Try<T>>> callSupplier = () -> {
                 long startTime = System.nanoTime();
                 
-                Promise<? extends T> target;
+                Promise<T> target;
                 try {
+                    // Not sure how many time futureFactory.call will take
                     target = Promises.from(futureFactory.call(ctx));
                 } catch (Exception ex) {
                     target = Promises.failure(ex);
                 }
+                
+                prev[0] = target;
 
-                AtomicBoolean isRecursive = new AtomicBoolean(true);
-                Thread invokerThread = Thread.currentThread();
-
-                Promise<? extends T> p = target;
-                try {
-                    p.whenComplete((value, ex) -> {
-                        if (null == ex && ctx.isValidResult(value)) {
-                            result.complete(value);
-                        } else {
-                            long finishTime = System.nanoTime();
-                            RetryContext<C> nextCtx = ctx.nextRetry(
-                                duration(startTime, finishTime), SharedFunctions.unwrapCompletionException(ex)
-                            );
-                            boolean callLater = Thread.currentThread() == invokerThread && isRecursive.get();
-                            if (callLater) {
-                                // Call after minimal possible delay
-                                callLater(
-                                    p, MINIMAL_DELAY, cancellation, 
-                                    () -> tryFutureOnce(futureFactory, nextCtx, result, cancellation, p)
-                                );
-                            } else {
-                                tryFutureOnce(futureFactory, nextCtx, result, cancellation, p);
-                            }
-                        }
-                    });
-                } finally {
-                    isRecursive.set(false);
-                }
-                isRecursive.set(false);
+                Promise<Try<T>> p = 
+                target
+                .dependent()
+                .handle((value, ex) -> {
+                    if (null == ex && ctx.isValidResult(value)) {
+                        return Try.success(value);
+                    } else {
+                        long finishTime = System.nanoTime();
+                        ctxRef[0] = ctx.nextRetry(
+                            duration(startTime, finishTime), SharedFunctions.unwrapCompletionException(ex)
+                        );
+                        return Try.failure(
+                            ex != null ? ex :
+                            new IllegalAccessException("Result not accepted by policy")
+                        );
+                    }
+                }, true);
                 return applyExecutionTimeout(p, verdict);
             };
             Duration backoffDelay = verdict.backoffDelay();
-            if (null != prev && DelayPolicy.isValid(backoffDelay)) {
-                callLater(prev, backoffDelay, cancellation, () -> cancellation.accept( callSupplier.get() ));
+            if (null != prev[0] && DelayPolicy.isValid(backoffDelay)) {
+                return prev[0].delay(backoffDelay, /* Delay on error */ true) 
+                              .dependent()
+                              // async due to unknown performance characteristics of futureFactory.call
+                              // - so switch to default executor of prev promise
+                              .thenComposeAsync(__ -> callSupplier.get(), true);
             } else {
                 // Immediately send to executor
-                cancellation.accept( callSupplier.get() ); 
-            }  
-        } else {
-            result.completeExceptionally(ctx.asFailure());
-        }        
-    }
-    
-    private static <T> void callLater(Promise<T> completedPromise, Duration delay, Consumer<Promise<?>> cancellation, Runnable code) {
-        Promise<?> later = completedPromise
-            .dependent()
-            .thenCombine(Timeouts.delay(delay), selectFirst(), PromiseOrigin.PARAM_ONLY)
-            .whenCompleteAsync((r, e) -> code.run(), true);
-        cancellation.accept(later);
-    }
+                return callSupplier.get(); 
+            }             
+        })
+        .dependent()
+        .thenApply(Try::done, true)
+        .unwrap();
+    }    
 
     private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Verdict verdict) {
         Duration timeout = verdict.timeout();
@@ -1189,10 +1139,4 @@ public final class Promises {
     private static Duration duration(long startTime, long finishTime) {
         return Duration.ofNanos(finishTime - startTime);
     }
-    
-    private static abstract class RetryInitiator<T extends C, C> {
-        abstract void run(RetryContext<C> ctx, CompletableFuture<T> result, Consumer<Promise<?>> cancellation);
-    }
-
-    private static final Duration MINIMAL_DELAY = Duration.ofNanos(1L);
 }
