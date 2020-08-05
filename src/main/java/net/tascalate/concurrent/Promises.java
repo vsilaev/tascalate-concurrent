@@ -950,7 +950,7 @@ public final class Promises {
         
         @SuppressWarnings("unchecked")
         RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
-        return loop(null, v -> null == v || !v.isSuccess(), v -> {
+        return loop(null, v -> null == v || !v.isSuccess(), (Try<T> v) -> {
             RetryContext<C> ctx = ctxRef[0];
             RetryPolicy.Verdict verdict = ctx.shouldContinue();
             if (!verdict.shouldExecute()) {
@@ -961,50 +961,42 @@ public final class Promises {
             Supplier<Promise<Try<T>>> callSupplier = () -> {
                 long startTime = System.nanoTime();
                 // Call should be done via CompletableTask to let it be interruptible
-                Promise<Try<T>> p = CompletableTask.supplyAsync(() -> {
-                    try {
-                        T value = codeBlock.call(ctx);
-                        if (ctx.isValidResult(value)) {
-                            return Try.success(value);
-                        } else {
-                            long finishTime = System.nanoTime();
-                            ctxRef[0] = ctx.nextRetry(duration(startTime, finishTime), value);
-                            return Try.failure(new IllegalAccessException("Result not accepted by policy"));
-                        }
-                    } catch (Exception ex) {
-                        long finishTime = System.nanoTime();
-                        ctxRef[0] = ctx.nextRetry(duration(startTime, finishTime), ex);
-                        return Try.failure(ex);
-                    }
-                }, executor);
-                return applyExecutionTimeout(p, verdict);
+                Promise<T> p = CompletableTask.submit(() -> codeBlock.call(ctx), executor);
+                return handleTryResult(p, ctxRef, verdict, startTime);
             };
             
             Duration backoffDelay = verdict.backoffDelay();
             if (DelayPolicy.isValid(backoffDelay)) {
                 // Invocation after timeout, change cancellation target
-                return Timeouts
-                    .delay(backoffDelay)
-                    .dependent()
-                    .thenCompose(__ -> callSupplier.get(), true);
+                DependentPromise<?> p = Timeouts.delay(backoffDelay).dependent();
+                p.whenComplete((__, ex) -> {
+                    // Update ctx if timeout or cancel during back-off
+                    // It doesn't conflict with ctx modifications in actual call
+                    // while actual call is never happens in case of error
+                    if (null != ex) {
+                        ctxRef[0] = ctx.nextRetry(
+                            duration(0, 0), unwrapCompletionException(ex)
+                        );
+                    }
+                });
+                return p.thenCompose(__ -> callSupplier.get(), true);
             } else {
                 return callSupplier.get();
             } 
         })
         .dependent()
-        .thenApply(Try::done, true)
-        .unwrap();
-
+        .thenApply(Try::done, true);
+        // Don't unwrap - internal use only
     }
-
+    
     private static <T extends C, C> Promise<T> tryFutureOnce(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
                                                              RetryContext<C> initialCtx) {
 
         @SuppressWarnings("unchecked")
         RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
-        Promise<?>[] prev = new Promise[1];
+        DependentPromise<?>[] prev = new DependentPromise[1];
         
-        return loop(null, v -> null == v || !v.isSuccess() , v -> {
+        return loop(null, v -> null == v || !v.isSuccess() , (Try<T> v) -> {
             RetryContext<C> ctx = ctxRef[0];
             RetryPolicy.Verdict verdict = ctx.shouldContinue();
             if (!verdict.shouldExecute()) {
@@ -1022,51 +1014,65 @@ public final class Promises {
                     target = Promises.failure(ex);
                 }
                 
-                prev[0] = target;
-
-                Promise<Try<T>> p = 
-                target
-                .dependent()
-                .handle((value, ex) -> {
-                    if (null == ex && ctx.isValidResult(value)) {
-                        return Try.success(value);
-                    } else {
-                        long finishTime = System.nanoTime();
-                        ctxRef[0] = ctx.nextRetry(
-                            duration(startTime, finishTime), SharedFunctions.unwrapCompletionException(ex)
-                        );
-                        return Try.failure(
-                            ex != null ? ex :
-                            new IllegalAccessException("Result not accepted by policy")
-                        );
-                    }
-                }, true);
-                return applyExecutionTimeout(p, verdict);
+                DependentPromise<Try<T>> p = handleTryResult(target, ctxRef, verdict, startTime);
+                prev[0] = p;
+                return p;
             };
             Duration backoffDelay = verdict.backoffDelay();
             if (null != prev[0] && DelayPolicy.isValid(backoffDelay)) {
-                return prev[0].delay(backoffDelay, /* Delay on error */ true) 
-                              .dependent()
-                              // async due to unknown performance characteristics of futureFactory.call
-                              // - so switch to default executor of prev promise
-                              .thenComposeAsync(__ -> callSupplier.get(), true);
+                DependentPromise<?> p = prev[0].delay(backoffDelay, /* Delay on error */ true, true); 
+                p.whenComplete((__, ex) -> {
+                    // Update ctx if timeout or cancel during back-off
+                    // It doesn't conflict with ctx modifications in actual call
+                    // while actual call is never happens in case of error
+                    if (null != ex) {
+                        ctxRef[0] = ctx.nextRetry(
+                            duration(0, 0), unwrapCompletionException(ex)
+                        );
+                    }
+                });
+                // async due to unknown performance characteristics of futureFactory.call
+                // - so switch to default executor of prev promise
+                return p.thenComposeAsync(__ -> callSupplier.get(), true);
             } else {
                 // Immediately send to executor
                 return callSupplier.get(); 
-            }             
+            } 
         })
         .dependent()
-        .thenApply(Try::done, true)
-        .unwrap();
+        .thenApply(Try::done, true);
+        // Don't unwrap - internal use only
     }    
 
-    private static <T> Promise<T> applyExecutionTimeout(Promise<T> singleInvocationPromise, RetryPolicy.Verdict verdict) {
+    private static <T extends C, C> DependentPromise<Try<T>> handleTryResult(Promise<T> origin, 
+                                                                             RetryContext<C>[] ctxRef, 
+                                                                             RetryPolicy.Verdict verdict, long startTime) {
+        DependentPromise<T> p;
         Duration timeout = verdict.timeout();
         if (DelayPolicy.isValid(timeout)) {
-            singleInvocationPromise.dependent().orTimeout( timeout, true, true ).unwrap();
+            p = origin.dependent()
+                      .orTimeout(timeout, true, true);
+        } else {
+            p = origin.dependent();
         }
-        return singleInvocationPromise;        
+        
+        return p.handle((value, ex) -> {
+            RetryContext<C> ctx = ctxRef[0];
+            if (null == ex && ctx.isValidResult(value)) {
+                return Try.success(value);
+            } else {
+                long finishTime = System.nanoTime();
+                ctxRef[0] = ctx.nextRetry(
+                    duration(startTime, finishTime), unwrapCompletionException(ex)
+                );
+                return Try.failure(
+                    ex != null ? ex :
+                    new IllegalAccessException("Result not accepted by policy")
+                );
+            }                  
+        }, true);
     }
+
     
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
                                                Function<? super U, ? extends T> resultMapper, 
@@ -1087,7 +1093,7 @@ public final class Promises {
     }
     
     private static <E extends Throwable> Throwable unwrapMultitargetException(E exception) {
-        Throwable targetException = SharedFunctions.unwrapCompletionException(exception);
+        Throwable targetException = unwrapCompletionException(exception);
         if (targetException instanceof MultitargetException) {
             return ((MultitargetException)targetException).getFirstException().get();
         } else {

@@ -301,7 +301,7 @@ public class J8Examples {
     }
     
     private static String pollingMethod(RetryContext<String> ctx) throws InterruptedException {
-        System.out.println("Polling method, #" + ctx.getRetryCount());
+        System.out.println("Enter Polling method #" + ctx.getRetryCount());
         try {
             if (ctx.getRetryCount() < 5) {
                 Thread.sleep((5 - ctx.getRetryCount()) * 1000);
