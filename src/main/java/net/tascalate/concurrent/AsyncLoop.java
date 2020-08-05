@@ -19,71 +19,51 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-final public class AsyncLoop {
+class AsyncLoop<T> extends CompletablePromise<T> {
+    private final Predicate<? super T> loopCondition;
+    private final Function<? super T, ? extends CompletionStage<T>> loopBody;
     
-    private AsyncLoop() {}
-    
-    public static <T> Promise<T> run(T initialValue, 
-                                     Predicate<? super T> loopCondition,
-                                     Function<? super T, ? extends CompletionStage<T>> loopBody) {
-        return runLoop(initialValue, loopCondition, loopBody);
+    AsyncLoop(Predicate<? super T> loopCondition, Function<? super T, ? extends CompletionStage<T>> loopBody) {
+        this.loopCondition = loopCondition;
+        this.loopBody      = loopBody;
     }
     
-    
-    private static <T> Promise<T> runLoop(T initialValue,
-                                          Predicate<? super T> loopCondition,
-                                          Function<? super T, ? extends CompletionStage<T>> loopBody) {
-          Iteration<T> iteration = new Iteration<>(loopCondition, loopBody);
-          iteration.run(initialValue, null, null);
-          return iteration;
-    }
-    
-    static final class Iteration<T> extends CompletablePromise<T> {
-        private final Predicate<? super T> loopCondition;
-        private final Function<? super T, ? extends CompletionStage<T>> loopBody;
-        
-        private Iteration(Predicate<? super T> loopCondition, Function<? super T, ? extends CompletionStage<T>> loopBody) {
-            this.loopCondition = loopCondition;
-            this.loopBody      = loopBody;
+    void run(T resolvedValue, Thread initialThread, AsyncLoop.IterationState<T> initialState) {
+        Thread currentThread = Thread.currentThread();
+        if (currentThread.equals(initialThread) && initialState.running) {
+            initialState.put(resolvedValue);
+            return;
         }
-        
-        void run(T resolvedValue, Thread initialThread, IterationState<T> initialState) {
-            Thread currentThread = Thread.currentThread();
-            if (currentThread.equals(initialThread) && initialState.running) {
-                initialState.put(resolvedValue);
-                return;
-            }
-            IterationState<T> currentState = new IterationState<>();
-            T currentValue = resolvedValue;
-            try {
-                do {
-                    try {
-                        if (isDone()) {
-                            break;
-                        } else if (loopCondition.test(currentValue)) {
-                            loopBody.apply(currentValue).whenComplete((next, ex) -> {
-                                if (ex != null) {
-                                    onFailure(ex);
-                                } else {
-                                    run(next, currentThread, currentState);
-                                }
-                            });
-                        } else {
-                            onSuccess(currentValue);
-                            break;
-                        }
-                    } catch (final Throwable ex) {
-                        onFailure(ex);
+        AsyncLoop.IterationState<T> currentState = new AsyncLoop.IterationState<>();
+        T currentValue = resolvedValue;
+        try {
+            do {
+                try {
+                    if (isDone()) {
+                        break;
+                    } else if (loopCondition.test(currentValue)) {
+                        loopBody.apply(currentValue).whenComplete((next, ex) -> {
+                            if (ex != null) {
+                                onFailure(ex);
+                            } else {
+                                run(next, currentThread, currentState);
+                            }
+                        });
+                    } else {
+                        onSuccess(currentValue);
                         break;
                     }
-                } while ((currentValue = currentState.take()) != IterationState.END);
-            } finally {
-                currentState.running = false;
-            }
+                } catch (final Throwable ex) {
+                    onFailure(ex);
+                    break;
+                }
+            } while ((currentValue = currentState.take()) != IterationState.END);
+        } finally {
+            currentState.running = false;
         }
     }
     
-    static final class IterationState<T> {
+    private static final class IterationState<T> {
         static final Object END = new Object();
         
         boolean running = true;
@@ -102,5 +82,4 @@ final public class AsyncLoop {
             this.value = value;
         }
     }
-
 }

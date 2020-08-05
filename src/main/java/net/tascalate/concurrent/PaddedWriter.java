@@ -18,7 +18,7 @@ package net.tascalate.concurrent;
 import java.io.IOException;
 import java.io.Writer;
 
-public class PaddedWriter extends Writer {
+class PaddedWriter extends Writer {
     private final Writer delegate;
     private final char[] padding;
     

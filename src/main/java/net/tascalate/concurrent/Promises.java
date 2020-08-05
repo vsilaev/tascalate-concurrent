@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -124,6 +125,15 @@ public final class Promises {
     public static Throwable unwrapCompletionException(Throwable ex) {
         return SharedFunctions.unwrapCompletionException(ex);
     }
+    
+    public static <T> Promise<T> loop(T initialValue, 
+                                      Predicate<? super T> loopCondition,
+                                      Function<? super T, ? extends CompletionStage<T>> loopBody) {
+        AsyncLoop<T> asyncLoop = new AsyncLoop<>(loopCondition, loopBody);
+        asyncLoop.run(initialValue, null, null);
+        return asyncLoop;
+    }
+
     
     public static <T, R extends AutoCloseable> Promise<T> tryApply(CompletionStage<R> resourcePromise,
                                                                    Function<? super R, ? extends T> fn) {
@@ -369,7 +379,7 @@ public final class Promises {
                                                      Collector<T, A, R> downstream) {
 
         int[] step = {0};
-        return AsyncLoop.run(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
             if (valuesBatch.isEmpty()) {
                 // Over
@@ -397,7 +407,7 @@ public final class Promises {
                                                      Executor downstreamExecutor) {
 
         int[] step = {0};
-        return AsyncLoop.run(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
             if (valuesBatch.isEmpty()) {
                 // Over
