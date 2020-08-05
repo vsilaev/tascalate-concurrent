@@ -1004,7 +1004,7 @@ public final class Promises {
             
             Duration backoffDelay = verdict.backoffDelay();
             if (DelayPolicy.isValid(backoffDelay)) {
-                DependentPromise<?> delay = prevRef == null || prevRef[0] == null ?
+                DependentPromise<?> delay = prevRef[0] == null ?
                     Timeouts.delay(backoffDelay).dependent()
                     :
                     prevRef[0].delay(backoffDelay, true, false);
