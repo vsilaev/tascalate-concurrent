@@ -963,7 +963,7 @@ public final class Promises {
 
         @SuppressWarnings("unchecked")
         RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
-        DependentPromise<?>[] prevRef = usePrevAsync ? new DependentPromise[1] : null;
+        DependentPromise<?>[] prevRef = new DependentPromise[1];
         
         return loop(null, v -> null == v || !v.isSuccess() , (Try<T> v) -> {
             RetryContext<C> ctx = ctxRef[0];
@@ -995,7 +995,7 @@ public final class Promises {
                     }                  
                 }, true);
                 
-                if (null != prevRef) {
+                if (usePrevAsync) {
                     prevRef[0] = result;
                 }
                 
