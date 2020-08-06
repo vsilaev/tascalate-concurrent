@@ -151,8 +151,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         // Use *Async to execute on default "this" executor
         return 
-        this.thenApply(Try::success, enlistOrigin)
-            .exceptionally(Try::failure, true)
+        this.handle(Try.liftResult(), enlistOrigin)
             .thenCombineAsync(delayed, (u, v) -> u.done(), PromiseOrigin.ALL);
     }
 
@@ -166,8 +165,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Promise<? extends Try<T>> onTimeout = Timeouts.delayed(null, duration);
         DependentPromise<T> result = 
-        this.thenApply(Try::success, enlistOrigin)
-            .exceptionally(Try::failure, true)
+        this.handle(Try.liftResult(), enlistOrigin)
             // Use *Async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, v -> Try.doneOrTimeout(v, duration), PromiseOrigin.ALL);
         
@@ -184,8 +182,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
         DependentPromise<T> result = 
-        this.thenApply(Try::success, enlistOrigin)
-            .exceptionally(Try::failure, true)
+        this.handle(Try.liftResult(), enlistOrigin)
             // Use *Async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, Try::done, PromiseOrigin.ALL);
 
@@ -205,8 +202,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.with(supplier), duration);
         
         DependentPromise<T> result = 
-        this.thenApply(Try::success, enlistOrigin)
-            .exceptionally(Try::failure, true)
+        this.handle(Try.liftResult(), enlistOrigin)
             .thenApply(SharedFunctions::supply, true)
             // Use *Async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, s -> s.get().done(),  PromiseOrigin.ALL);

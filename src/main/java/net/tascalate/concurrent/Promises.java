@@ -584,7 +584,7 @@ public final class Promises {
         return 
         any(cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
-        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .thenApply(__ -> firstEntryOnly(result), true)
         .unwrap();
     }
     
@@ -667,7 +667,7 @@ public final class Promises {
         return 
         anyStrict(cancelRemaining, collectKeyedResults(result, promises)) 
         .dependent()
-        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .thenApply(__ -> firstEntryOnly(result), true)
         .unwrap();
     }
     
@@ -1087,6 +1087,14 @@ public final class Promises {
                 })
                 .collect(Collectors.toList())
         ;        
+    }
+    
+    private static <K, V> Map<K, V> firstEntryOnly(Map<K, V> map) {
+        return map.entrySet()
+                  .stream()
+                  .findFirst()
+                  .map(e -> Collections.singletonMap(e.getKey(), e.getValue()))
+                  .orElse(Collections.emptyMap());
     }
     
     private static <V, T> RetryCallable<V, T> toRetryCallable(Callable<? extends V> callable) {

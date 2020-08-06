@@ -55,6 +55,21 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
+        
+        /*
+        Promise<?> timeout = CompletableTask.submit(() -> pollingMethod(
+            RetryContext.initial(RetryPolicy.DEFAULT.withMaxRetries(1))
+        ), executorService)
+        .orTimeout(Duration.ofMillis(1000));
+        timeout.whenComplete((r, e) -> {
+            System.out.println(r);
+            System.out.println(e);
+        });
+        Thread.sleep(7000);
+        //timeout.cancel(true);
+        System.exit(0);
+        */
+        
         Promises.all(IntStream.range(1, 5)
                               .mapToObj(i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 100), executorService))
                               .collect(Collectors.toList()) 

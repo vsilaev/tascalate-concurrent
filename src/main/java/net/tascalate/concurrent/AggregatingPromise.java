@@ -27,22 +27,22 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 
 class AggregatingPromise<T> extends CompletableFutureWrapper<List<T>> {
 
-    final private List<T> results;
-    final private List<Throwable> errors;
-    final private AtomicIntegerArray completions;
+    private final List<T> results;
+    private final List<Throwable> errors;
+    private final AtomicIntegerArray completions;
 
-    final private AtomicInteger resultsCount = new AtomicInteger(0);
-    final private AtomicInteger errorsCount = new AtomicInteger(0);
+    private final AtomicInteger resultsCount = new AtomicInteger(0);
+    private final AtomicInteger errorsCount = new AtomicInteger(0);
 
-    final private AtomicBoolean done = new AtomicBoolean(false);
+    private final AtomicBoolean done = new AtomicBoolean(false);
 
-    final private int minResultsCount;
-    final private int maxErrorsCount;
-    final private boolean cancelRemaining;
-    final private List<? extends CompletionStage<? extends T>> promises;
+    private final int minResultsCount;
+    private final int maxErrorsCount;
+    private final boolean cancelRemaining;
+    private final List<? extends CompletionStage<? extends T>> promises;
 
-    AggregatingPromise(final int minResultsCount, final int maxErrorsCount, final boolean cancelRemaining,
-                       final List<? extends CompletionStage<? extends T>> promises) {
+    AggregatingPromise(int minResultsCount, int maxErrorsCount, boolean cancelRemaining,
+                       List<? extends CompletionStage<? extends T>> promises) {
 
         if (null == promises || promises.isEmpty()) {
             throw new IllegalArgumentException("There are should be at least one promise specified");
@@ -143,11 +143,7 @@ class AggregatingPromise<T> extends CompletableFutureWrapper<List<T>> {
     }
 
     private static <T> List<T> newList(int length) {
-        final ArrayList<T> result = new ArrayList<>(length);
-        for (int i = length - 1; i >= 0; i--) {
-            result.add(null);
-        }
-        return result;
+        return new ArrayList<>(Collections.nCopies(length, null));
     }
 
     private static final int PENDING = 0;
