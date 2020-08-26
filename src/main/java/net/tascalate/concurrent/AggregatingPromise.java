@@ -57,7 +57,6 @@ class AggregatingPromise<T> extends CompletableFutureWrapper<List<T>> {
         results = newList(size);
         errors = newList(size);
         completions = new AtomicIntegerArray(size);
-        setupCompletionHandlers();
     }
 
     @Override
@@ -124,7 +123,7 @@ class AggregatingPromise<T> extends CompletableFutureWrapper<List<T>> {
         }
     }
 
-    private void setupCompletionHandlers() {
+    void start() {
         int i = 0;
         for (CompletionStage<? extends T> promise : promises) {
             final int idx = i++;

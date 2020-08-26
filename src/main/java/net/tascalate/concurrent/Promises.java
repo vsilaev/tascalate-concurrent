@@ -882,7 +882,9 @@ public final class Promises {
             CompletionStage<? extends T> stage = promises.get(0);
             return transform(stage, Collections::singletonList, Promises::wrapMultitargetException);
         } else {
-            return new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
+            AggregatingPromise<T> result = new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
+            result.start();
+            return result;
         }
     }
     
@@ -1074,6 +1076,9 @@ public final class Promises {
     private static <K, T> List<? extends CompletionStage<? extends T>> 
     collectKeyedResults(Map<K, T> result, Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         
+        if (null == promises || promises.isEmpty()) {
+            return Collections.emptyList();
+        }
         return 
         promises.entrySet()
                 .stream()
