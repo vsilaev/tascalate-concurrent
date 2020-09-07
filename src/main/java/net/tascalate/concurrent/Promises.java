@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -470,6 +471,10 @@ public final class Promises {
     public static <T> Promise<List<T>> all(List<? extends CompletionStage<? extends T>> promises) {
         return all(true, promises);        
     }
+    
+    public static <K, T> Promise<Map<K, T>> all(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return all(true, promises);
+    }
     /**
      * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters
      * are completed normally; if any promise completed exceptionally, then resulting promise is resolved faulty
@@ -496,18 +501,9 @@ public final class Promises {
         return atLeast(null != promises ? promises.size() : 0, 0, cancelRemaining, promises);
     }
     
-    public static <K, T> Promise<Map<K, T>> all(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        return all(true, promises);
-    }
-    
     public static <K, T> Promise<Map<K, T>> all(boolean cancelRemaining, 
                                                 Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        Map<K, T> result = new ConcurrentHashMap<>();
-        return 
-        all(cancelRemaining, collectKeyedResults(result, promises)) 
-        .dependent()
-        .thenApply(__ -> Collections.unmodifiableMap(result), true)
-        .unwrap();
+        return atLeast(null == promises ? 0 : promises.size(), 0, cancelRemaining, promises);
     }
 
     /**
@@ -532,6 +528,21 @@ public final class Promises {
     }
 
     public static <T> Promise<T> any(List<? extends CompletionStage<? extends T>> promises) {
+        return any(true, promises);
+    }
+    
+    /*
+    @SafeVarargs
+    public static <T> Promise<List<T>> anyOrdered(CompletionStage<? extends T>... promises) {
+        return anyOrdered(Arrays.asList(promises));
+    }
+    
+    public static <T> Promise<List<T>> anyOrdered(List<? extends CompletionStage<? extends T>> promises) {
+        return anyOrdered(true, promises);
+    }
+    */
+    
+    public static <K, T> Promise<Map<K, T>> any(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         return any(true, promises);
     }
     /**
@@ -574,18 +585,20 @@ public final class Promises {
         }
     }
     
-    public static <K, T> Promise<Map<K, T>> any(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        return any(true, promises);
-    }
+    /*
+    @SafeVarargs
+    public static <T> Promise<List<T>> anyOrdered(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return anyOrdered(cancelRemaining, Arrays.asList(promises));
+    }    
+    
+    public static <T> Promise<List<T>> anyOrdered(boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
+        return atLeastOrdered(1, cancelRemaining, promises); 
+    } 
+    */   
     
     public static <K, T> Promise<Map<K, T>> any(boolean cancelRemaining, 
                                                 Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        Map<K, T> result = new ConcurrentHashMap<>();
-        return 
-        any(cancelRemaining, collectKeyedResults(result, promises)) 
-        .dependent()
-        .thenApply(__ -> firstEntryOnly(result), true)
-        .unwrap();
+        return atLeast(1, maxAllowedErrors(promises, 1), cancelRemaining, promises);
     }
     
     /**
@@ -614,6 +627,21 @@ public final class Promises {
     public static <T> Promise<T> anyStrict(List<? extends CompletionStage<? extends T>> promises) {
         return anyStrict(true, promises);        
     }
+    
+    /*
+    @SafeVarargs
+    public static <T> Promise<List<T>> anyOrderedStrict(CompletionStage<? extends T>... promises) {
+        return anyOrderedStrict(Arrays.asList(promises)); 
+    }
+    
+    public static <T> Promise<List<T>> anyOrderedStrict(List<? extends CompletionStage<? extends T>> promises) {
+        return anyOrderedStrict(true, promises);        
+    }
+    */
+    
+    public static <K, T> Promise<Map<K, T>> anyStrict(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return anyStrict(true, promises);
+    }    
 
     /**
      * <p>Returns a promise that is resolved successfully when any {@link CompletionStage} passed as parameters
@@ -657,18 +685,20 @@ public final class Promises {
         }
     }
     
-    public static <K, T> Promise<Map<K, T>> anyStrict(Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        return anyStrict(true, promises);
+    /*
+    @SafeVarargs
+    public static <T> Promise<List<T>> anyOrderedStrict(boolean cancelRemaining, CompletionStage<? extends T>... promises) {
+        return anyOrderedStrict(cancelRemaining, Arrays.asList(promises));
     }
+    
+    public static <T> Promise<List<T>> anyOrderedStrict(boolean cancelRemaining, List<? extends CompletionStage<? extends T>> promises) {
+        return atLeastOrdered(1, 0, cancelRemaining, promises);
+    }
+    */
     
     public static <K, T> Promise<Map<K, T>> anyStrict(boolean cancelRemaining, 
                                                       Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        Map<K, T> result = new ConcurrentHashMap<>();
-        return 
-        anyStrict(cancelRemaining, collectKeyedResults(result, promises)) 
-        .dependent()
-        .thenApply(__ -> firstEntryOnly(result), true)
-        .unwrap();
+        return atLeast(1, 0, cancelRemaining, promises);
     }
     
     /**
@@ -699,6 +729,20 @@ public final class Promises {
     public static <T> Promise<List<T>> atLeast(int minResultsCount, List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(minResultsCount, true, promises);
     }
+    
+    @SafeVarargs
+    public static <T> Promise<List<Optional<T>>> atLeastOrdered(int minResultsCount, CompletionStage<? extends T>... promises) {
+        return atLeastOrdered(minResultsCount, Arrays.asList(promises));
+    }    
+    
+    public static <T> Promise<List<Optional<T>>> atLeastOrdered(int minResultsCount, List<? extends CompletionStage<? extends T>> promises) {
+        return atLeastOrdered(minResultsCount, true, promises);
+    }    
+    
+    public static <K, T> Promise<Map<K, T>> atLeast(int minResultsCount, 
+                                                    Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return atLeast(minResultsCount, true, promises);
+    }    
 
     /**
      * <p>Generalization of the {@link Promises#any(CompletionStage...)} method.</p>
@@ -731,22 +775,35 @@ public final class Promises {
     
     public static <T> Promise<List<T>> atLeast(int minResultsCount, boolean cancelRemaining,
                                                List<? extends CompletionStage<? extends T>> promises) {
-        return atLeast(minResultsCount, (promises == null ? 0 : promises.size()) - minResultsCount, cancelRemaining, promises);
+        return atLeast(minResultsCount, maxAllowedErrors(promises, minResultsCount), cancelRemaining, promises);
     }
     
-    public static <K, T> Promise<Map<K, T>> atLeast(int minResultsCount, 
-                                                    Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        return atLeast(minResultsCount, true, promises);
+    @SafeVarargs
+    public static <T> Promise<List<Optional<T>>> atLeastOrdered(int minResultsCount, boolean cancelRemaining, 
+                                                                CompletionStage<? extends T>... promises) {
+        
+        return atLeastOrdered(minResultsCount, cancelRemaining, Arrays.asList(promises));
+    }    
+    
+    public static <T> Promise<List<Optional<T>>> atLeastOrdered(int minResultsCount, boolean cancelRemaining,
+                                                                List<? extends CompletionStage<? extends T>> promises) {
+        return atLeastOrdered(minResultsCount, maxAllowedErrors(promises, minResultsCount), cancelRemaining, promises);
     }
     
     public static <K, T> Promise<Map<K, T>> atLeast(int minResultsCount, boolean cancelRemaining, 
                                                     Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        Map<K, T> result = new ConcurrentHashMap<>();
-        return 
-        atLeast(minResultsCount, cancelRemaining, collectKeyedResults(result, promises)) 
-        .dependent()
-        .thenApply(__ -> Collections.unmodifiableMap(result), true)
-        .unwrap();
+        return atLeast(
+            minResultsCount, maxAllowedErrors(promises, minResultsCount), cancelRemaining, promises
+        );
+    }
+    
+    private static int maxAllowedErrors(Map<?, ?> promises, int minResultsCount) {
+        return null == promises ? 0 : maxAllowedErrors(promises.entrySet(), minResultsCount);
+        
+    }
+    
+    private static int maxAllowedErrors(Collection<?> promises, int minResultsCount) {
+        return null == promises ? 0 : Math.max(0, promises.size() - minResultsCount);
     }
     
     /**
@@ -780,6 +837,21 @@ public final class Promises {
                                                      List<? extends CompletionStage<? extends T>> promises) {
         return atLeastStrict(minResultsCount, true, promises);
     }
+    
+    @SafeVarargs
+    public static <T> Promise<List<Optional<T>>> atLeastOrderedStrict(int minResultsCount, CompletionStage<? extends T>... promises) {
+        return atLeastOrderedStrict(minResultsCount, Arrays.asList(promises));
+    }
+    
+    public static <T> Promise<List<Optional<T>>> atLeastOrderedStrict(int minResultsCount, 
+                                                                      List<? extends CompletionStage<? extends T>> promises) {
+        return atLeastOrderedStrict(minResultsCount, true, promises);
+    }    
+    
+    public static <K, T> Promise<Map<K, T>> atLeastStrict(int minResultsCount, 
+                                                          Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        return atLeastStrict(minResultsCount, true, promises);
+    }    
 
     /**
      * <p>Generalization of the {@link Promises#anyStrict(CompletionStage...)} method.</p>
@@ -816,19 +888,20 @@ public final class Promises {
         return atLeast(minResultsCount, 0, cancelRemaining, promises);
     }
     
-    public static <K, T> Promise<Map<K, T>> atLeastStrict(int minResultsCount, 
-                                                          Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        return atLeastStrict(minResultsCount, true, promises);
-    }
+    @SafeVarargs
+    public static <T> Promise<List<Optional<T>>> atLeastOrderedStrict(int minResultsCount, boolean cancelRemaining, 
+                                                                      CompletionStage<? extends T>... promises) {
+        return atLeastOrderedStrict(minResultsCount, cancelRemaining, Arrays.asList(promises));
+    }  
+    
+    public static <T> Promise<List<Optional<T>>> atLeastOrderedStrict(int minResultsCount, boolean cancelRemaining, 
+                                                                      List<? extends CompletionStage<? extends T>> promises) {
+        return atLeastOrdered(minResultsCount, 0, cancelRemaining, promises);
+    }    
     
     public static <K, T> Promise<Map<K, T>> atLeastStrict(int minResultsCount, boolean cancelRemaining, 
                                                           Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
-        Map<K, T> result = new ConcurrentHashMap<>();
-        return 
-        atLeastStrict(minResultsCount, cancelRemaining, collectKeyedResults(result, promises)) 
-        .dependent()
-        .thenApply(__ -> Collections.unmodifiableMap(result), true)
-        .unwrap();
+        return atLeast(minResultsCount, 0, cancelRemaining, promises);
     }
     
     /**
@@ -868,10 +941,37 @@ public final class Promises {
     
     public static <T> Promise<List<T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
                                                List<? extends CompletionStage<? extends T>> promises) {
+        return atLeast(
+            minResultsCount, maxErrorsCount, cancelRemaining, 
+            AggregatingPromise.newWithSuccessResults(), singleSuccessResult(), 
+            promises
+        );
+    }    
+    
+    @SafeVarargs
+    public static <T> Promise<List<Optional<T>>> atLeastOrdered(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
+                                                                CompletionStage<? extends T>... promises) {
+        
+        return atLeastOrdered(minResultsCount, maxErrorsCount, cancelRemaining, Arrays.asList(promises));
+    }    
+    
+    public static <T> Promise<List<Optional<T>>> atLeastOrdered(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
+                                                                List<? extends CompletionStage<? extends T>> promises) {
+        return atLeast(
+            minResultsCount, maxErrorsCount, cancelRemaining, 
+            AggregatingPromise.newWithAllResults(), singleOptionalResult(), 
+            promises
+        );
+    }      
+    
+    private static <T, R> Promise<List<R>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining,
+                                                   AggregatingPromise.Constructor<T, R> ctr,
+                                                   Function<? super T, ? extends List<R>> singleResultMapper,
+                                                   List<? extends CompletionStage<? extends T>> promises) {
         
         int size = null == promises ? 0 : promises.size();
         if (minResultsCount > size) {
-            Promise<List<T>> result = insufficientNumberOfArguments(minResultsCount, size);
+            Promise<List<R>> result = insufficientNumberOfArguments(minResultsCount, size);
             if (cancelRemaining && size > 0) {
                 promises.stream().forEach( p -> cancelPromise(p, true) );
             }
@@ -880,9 +980,9 @@ public final class Promises {
             return success(Collections.emptyList());
         } else if (size == 1) {
             CompletionStage<? extends T> stage = promises.get(0);
-            return transform(stage, Collections::singletonList, Promises::wrapMultitargetException);
+            return transform(stage, singleResultMapper, Promises::wrapMultitargetException);
         } else {
-            AggregatingPromise<T> result = new AggregatingPromise<>(minResultsCount, maxErrorsCount, cancelRemaining, promises);
+            AggregatingPromise<T, R> result = ctr.create(minResultsCount, maxErrorsCount, cancelRemaining, promises);
             result.start();
             return result;
         }
@@ -891,10 +991,13 @@ public final class Promises {
     public static <K, T> Promise<Map<K, T>> atLeast(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
                                                     Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         Map<K, T> result = new ConcurrentHashMap<>();
-        return 
-        atLeast(minResultsCount, maxErrorsCount, cancelRemaining, collectKeyedResults(result, promises)) 
+        return atLeast(
+            minResultsCount, maxErrorsCount, cancelRemaining, 
+            AggregatingPromise.newWithEmptyResults(), v -> null,
+            collectKeyedResults(result, promises)
+        ) 
         .dependent()
-        .thenApply(__ -> Collections.unmodifiableMap(result), true)
+        .thenApply(__ -> Collections.unmodifiableMap(limitEntries(result, minResultsCount)), true)
         .unwrap();
     }    
     
@@ -913,7 +1016,7 @@ public final class Promises {
     public static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, 
                                        RetryPolicy<? super T> retryPolicy) {
         
-        return retry(toRetryCallable(codeBlock), executor, retryPolicy);
+        return retry(RetryCallable.of(codeBlock), executor, retryPolicy);
     }
 
     public static <T extends C, C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
@@ -931,7 +1034,7 @@ public final class Promises {
     public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
                                                RetryPolicy<? super T> retryPolicy) {
         
-        return retryOptional(toRetryCallable(codeBlock), executor, retryPolicy);
+        return retryOptional(RetryCallable.of(codeBlock), executor, retryPolicy);
     }
     
     public static <T extends C, C> Promise<T> retryOptional(RetryCallable<Optional<T>, C> codeBlock, Executor executor, 
@@ -944,7 +1047,7 @@ public final class Promises {
     public static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, 
                                              RetryPolicy<? super T> retryPolicy) {
         
-        return retryFuture(toRetryCallable(invoker), retryPolicy);
+        return retryFuture(RetryCallable.of(invoker), retryPolicy);
     }
     
     public static <T extends C, C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 
@@ -1094,16 +1197,25 @@ public final class Promises {
         ;        
     }
     
-    private static <K, V> Map<K, V> firstEntryOnly(Map<K, V> map) {
-        return map.entrySet()
-                  .stream()
-                  .findFirst()
-                  .map(e -> Collections.singletonMap(e.getKey(), e.getValue()))
-                  .orElse(Collections.emptyMap());
+    private static <K, V> Map<K, V> limitEntries(Map<K, V> map, int maxCount) {
+        // Copy to avoid ongoing mods from other threads
+        Map<K, V> result = new HashMap<>(map);
+        if (result.size() <= maxCount) {
+            return result;
+        } else {
+            return result.entrySet()
+                         .stream()
+                         .limit(maxCount)
+                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
     }
     
-    private static <V, T> RetryCallable<V, T> toRetryCallable(Callable<? extends V> callable) {
-        return ctx -> callable.call();
+    private static <T> Function<T, List<T>> singleSuccessResult() {
+        return Collections::singletonList;
+    }
+    
+    private static <T> Function<T, List<Optional<T>>> singleOptionalResult() {
+        return v -> Collections.singletonList(Optional.ofNullable(v));
     }
     
     private static Duration duration(long startTime, long finishTime) {

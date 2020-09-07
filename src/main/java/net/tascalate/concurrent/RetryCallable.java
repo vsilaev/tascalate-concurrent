@@ -15,7 +15,12 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.concurrent.Callable;
+
 @FunctionalInterface
 public interface RetryCallable<V, T> {
     V call(RetryContext<T> ctx) throws Exception;
+    public static <V, T> RetryCallable<V, T> of(Callable<? extends V> callable) {
+        return ctx -> callable.call();
+    }
 }

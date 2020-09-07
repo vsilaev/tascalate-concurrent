@@ -30,8 +30,11 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
+import net.tascalate.concurrent.util.AsyncLock;
+
 import static net.tascalate.concurrent.PromiseOperations.partitionedItems;
 import static net.tascalate.concurrent.PromiseOperations.partitionedStream;
+import static net.tascalate.concurrent.PromiseOperations.tryCompose;
 
 public class J8Examples {
     
@@ -55,7 +58,18 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
-        
+        AsyncLock lock = AsyncLock.create();
+        for (int i = 0; i < 10; i++) {
+            int idx  = i;
+            lock.acquire()
+                .orTimeout(Duration.ofMillis(450), true)
+                .as(tryCompose(token -> CompletableTask.submit(() -> {
+                    System.out.println("Current i " + idx  + " = " + Thread.currentThread().getName());
+                    Thread.sleep(100);
+                    return "Value" + idx;
+                    }, executorService)                    
+                )); 
+        }
         /*
         Promise<?> timeout = CompletableTask.submit(() -> pollingMethod(
             RetryContext.initial(RetryPolicy.DEFAULT.withMaxRetries(1))
@@ -65,10 +79,11 @@ public class J8Examples {
             System.out.println(r);
             System.out.println(e);
         });
-        Thread.sleep(7000);
-        //timeout.cancel(true);
-        System.exit(0);
         */
+        //Thread.sleep(7000); 
+        //timeout.cancel(true);
+        //System.exit(0);
+        
         
         Promises.all(IntStream.range(1, 5)
                               .mapToObj(i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 100), executorService))
