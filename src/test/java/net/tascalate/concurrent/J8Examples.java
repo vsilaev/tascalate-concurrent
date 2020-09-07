@@ -30,7 +30,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
-import net.tascalate.concurrent.util.AsyncLock;
 
 import static net.tascalate.concurrent.PromiseOperations.partitionedItems;
 import static net.tascalate.concurrent.PromiseOperations.partitionedStream;
@@ -58,6 +57,7 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
+        /*
         AsyncLock lock = AsyncLock.create();
         for (int i = 0; i < 10; i++) {
             int idx  = i;
@@ -70,6 +70,8 @@ public class J8Examples {
                     }, executorService)                    
                 )); 
         }
+        */
+        
         /*
         Promise<?> timeout = CompletableTask.submit(() -> pollingMethod(
             RetryContext.initial(RetryPolicy.DEFAULT.withMaxRetries(1))
