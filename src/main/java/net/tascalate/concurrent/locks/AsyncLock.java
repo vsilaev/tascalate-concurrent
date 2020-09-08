@@ -13,10 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-module net.tascalate.concurrent {
-    exports net.tascalate.concurrent;
-    exports net.tascalate.concurrent.decorators;
-    exports net.tascalate.concurrent.delays;
-    exports net.tascalate.concurrent.var;
-    exports net.tascalate.concurrent.locks;
+package net.tascalate.concurrent.locks;
+
+/**
+ * An asynchronously acquirable mutual exclusion lock.
+ *
+ */
+public interface AsyncLock extends AbstractAsyncLock<AsyncLock.Token> {
+
+    interface Token extends AbstractAsyncLock.Token {}
+
+    static AsyncLock create() {
+        return new DefaultAsyncLock();
+    }
 }

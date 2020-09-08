@@ -30,6 +30,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
+import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
 
 import static net.tascalate.concurrent.PromiseOperations.partitionedItems;
 import static net.tascalate.concurrent.PromiseOperations.partitionedStream;
@@ -57,20 +58,22 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
-        /*
-        AsyncLock lock = AsyncLock.create();
+        
+        AsyncSemaphoreLock lock = AsyncSemaphoreLock.create(7, true);
         for (int i = 0; i < 10; i++) {
             int idx  = i;
-            lock.acquire()
-                .orTimeout(Duration.ofMillis(450), true)
+            lock.acquire(2)
+                .orTimeout(Duration.ofMillis(5900), true)
                 .as(tryCompose(token -> CompletableTask.submit(() -> {
-                    System.out.println("Current i " + idx  + " = " + Thread.currentThread().getName());
-                    Thread.sleep(100);
+                    System.out.println("Current i " + idx  + " = " + Thread.currentThread().getName() + " ::: " + lock);
+                    Thread.sleep(2000);
                     return "Value" + idx;
                     }, executorService)                    
-                )); 
+                )).whenComplete((r, e) -> {
+                    if (null != e) onError(e); else System.out.println("Result of " + idx + " is " + r);
+                }); 
         }
-        */
+        
         
         /*
         Promise<?> timeout = CompletableTask.submit(() -> pollingMethod(
@@ -82,7 +85,7 @@ public class J8Examples {
             System.out.println(e);
         });
         */
-        //Thread.sleep(7000); 
+        Thread.sleep(10000); 
         //timeout.cancel(true);
         //System.exit(0);
         

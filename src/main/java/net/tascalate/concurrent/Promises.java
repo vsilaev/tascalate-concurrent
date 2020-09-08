@@ -238,7 +238,7 @@ public final class Promises {
     
     
     public static <T, R extends AsyncCloseable> Promise<T> tryComposeEx(Promise<R> resourcePromise,
-                                                                      Function<? super R, ? extends CompletionStage<T>> fn) {
+                                                                        Function<? super R, ? extends CompletionStage<T>> fn) {
         return
         resourcePromise.dependent()
                        .thenCompose(resource -> {
@@ -346,30 +346,6 @@ public final class Promises {
             .unwrap();
     }
     
-    private static <T> Function<Promise<T>, Promise<T>> onCloseSource(Object source) {
-        if (source instanceof AutoCloseable) {
-            return p -> p.dependent().whenComplete((r, e) -> {
-                try (AutoCloseable o = (AutoCloseable)source) {
-                    
-                } catch (RuntimeException | Error ex) {
-                    if (null != e) {
-                        e.addSuppressed(ex);
-                    } else {
-                        throw ex;
-                    }
-                } catch (Exception ex) {
-                    if (null != e) {
-                        e.addSuppressed(ex);
-                    } else {
-                        throw new CompletionException(ex);
-                    }
-                }
-            }, true);
-        } else {
-            return Function.identity();
-        }
-    }
-    
     private static <T, A, R> Promise<A> parallelStep1(Iterator<? extends T> values, 
                                                      int batchSize,
                                                      Function<? super T, CompletionStage<? extends T>> spawner,                                                        
@@ -378,16 +354,16 @@ public final class Promises {
         int[] step = {0};
         return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
+            boolean initial = step[0] == 0;
             if (valuesBatch.isEmpty()) {
                 // Over
-                return Promises.success(step[0] == 0 ? downstream.supplier().get() : current);
+                return Promises.success(initial ? downstream.supplier().get() : current);
             } else {
                 List<CompletionStage<? extends T>> promisesBatch = 
                     valuesBatch.stream()
                                .map(spawner)
                                .collect(Collectors.toList());
-               
-                boolean initial = step[0] == 0;
+                
                 step[0]++;
                 return 
                 Promises.all(promisesBatch)
@@ -406,21 +382,19 @@ public final class Promises {
         int[] step = {0};
         return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
+            boolean initial = step[0] == 0;
             if (valuesBatch.isEmpty()) {
                 // Over
-                Promise<A> result;
-                if (step[0] == 0) {
-                    result = CompletableTask.supplyAsync(downstream.supplier(), downstreamExecutor);
-                } else {
-                    result = Promises.success(current);
-                }
-                return result;
+                return initial ?
+                    CompletableTask.supplyAsync(downstream.supplier(), downstreamExecutor)
+                    :
+                    Promises.success(current);
             } else {
                 List<CompletionStage<? extends T>> promisesBatch = 
                         valuesBatch.stream()
                                    .map(spawner)
                                    .collect(Collectors.toList());
-                boolean initial = step[0] == 0;
+                
                 step[0]++;
                 return 
                 Promises.all(promisesBatch)
@@ -445,6 +419,30 @@ public final class Promises {
         
         return initial ? insertion : downstream.combiner().apply(current, insertion);
     }
+    
+    private static <T> Function<Promise<T>, Promise<T>> onCloseSource(Object source) {
+        if (source instanceof AutoCloseable) {
+            return p -> p.dependent().whenComplete((r, e) -> {
+                try (AutoCloseable o = (AutoCloseable)source) {
+                    
+                } catch (RuntimeException | Error ex) {
+                    if (null != e) {
+                        e.addSuppressed(ex);
+                    } else {
+                        throw ex;
+                    }
+                } catch (Exception ex) {
+                    if (null != e) {
+                        e.addSuppressed(ex);
+                    } else {
+                        throw new CompletionException(ex);
+                    }
+                }
+            }, true);
+        } else {
+            return Function.identity();
+        }
+    }    
 
     
     /**
@@ -1093,10 +1091,8 @@ public final class Promises {
                         return Try.success(value);
                     } else {
                         long finishTime = System.nanoTime();
-                        ctxRef[0] = ctx.nextRetry(
-                            duration(startTime, finishTime), unwrapCompletionException(ex)
-                        );
-                        return Try.failure(ex != null ? ex : new IllegalAccessException("Result not accepted by policy"));
+                        ctxRef[0] = ctx.nextRetry(duration(startTime, finishTime), unwrapCompletionException(ex));
+                        return Try.failure(ex != null ? ex : new IllegalStateException("Result not accepted by policy"));
                     }                  
                 }, true);
                 

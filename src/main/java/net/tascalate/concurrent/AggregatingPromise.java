@@ -176,7 +176,7 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
     void start() {
         int i = 0;
         for (CompletionStage<? extends T> promise : promises) {
-            final int idx = i++;
+            int idx = i++;
             promise.whenComplete((r, e) -> onComplete(idx, r, e));
         }
     }    
@@ -190,8 +190,7 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
     private void cancelPromises() {
         int i = 0;
         for (CompletionStage<? extends T> promise : promises) {
-            final int idx = i++;
-            if (completions.get(idx) == COMPLETED_CANCEL) {
+            if (completions.get(i++) == COMPLETED_CANCEL) {
                 cancelPromise(promise, true);
             }
         }
@@ -201,8 +200,8 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
         return new ArrayList<>(Collections.nCopies(length, null));
     }
 
-    private static final int PENDING = 0;
-    private static final int COMPLETED_RESULT = 1;
-    private static final int COMPLETED_ERROR = 2;
+    private static final int PENDING          =  0;
+    private static final int COMPLETED_RESULT =  1;
+    private static final int COMPLETED_ERROR  =  2;
     private static final int COMPLETED_CANCEL = -1;
 }

@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent.util;
+package net.tascalate.concurrent.locks;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.LongBinaryOperator;
 
 import net.tascalate.concurrent.CompletablePromise;
 
-public class CountDownPromise extends CompletablePromise<Long> {
-    private static final AtomicLongFieldUpdater<CountDownPromise> COUNT_UPDATER =
-        AtomicLongFieldUpdater.newUpdater(CountDownPromise.class, "count");
+public class AsyncCountDownLatch extends CompletablePromise<Long> {
+    private static final AtomicLongFieldUpdater<AsyncCountDownLatch> COUNT_UPDATER =
+        AtomicLongFieldUpdater.newUpdater(AsyncCountDownLatch.class, "count");
     private static final LongBinaryOperator DECREMENT = 
         (prev, change) -> Math.max(0, prev - change);
     
@@ -31,7 +31,7 @@ public class CountDownPromise extends CompletablePromise<Long> {
     @SuppressWarnings("unused")
     private volatile long count;
     
-    public CountDownPromise(long count) {
+    public AsyncCountDownLatch(long count) {
         if (count < 0) {
             throw new IllegalArgumentException("count < 0 : " + count);
         }
