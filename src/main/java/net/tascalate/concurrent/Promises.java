@@ -1178,18 +1178,17 @@ public final class Promises {
         if (null == promises || promises.isEmpty()) {
             return Collections.emptyList();
         }
-        return 
-        promises.entrySet()
-                .stream()
-                .map(e -> {
-                    CompletionStage<? extends T> promise = e.getValue();
-                    return from(promise).dependent()
-                                        .thenApply(value -> {
-                                            result.put(e.getKey(), value);
-                                            return value;
-                                        }, true);
-                })
-                .collect(Collectors.toList())
+        return promises.entrySet()
+                       .stream()
+                       .map(e -> 
+                           from((CompletionStage<? extends T>)e.getValue())
+                           .dependent()
+                           .thenApply(value -> {
+                               result.put(e.getKey(), value);
+                               return value;
+                           }, true)
+                       )
+                       .collect(Collectors.toList())
         ;        
     }
     
