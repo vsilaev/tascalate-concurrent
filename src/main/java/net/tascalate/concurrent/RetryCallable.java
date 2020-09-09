@@ -20,7 +20,19 @@ import java.util.concurrent.Callable;
 @FunctionalInterface
 public interface RetryCallable<V, T> {
     V call(RetryContext<T> ctx) throws Exception;
+    
     public static <V, T> RetryCallable<V, T> of(Callable<? extends V> callable) {
         return ctx -> callable.call();
+    }
+    
+    public static RetryCallable<Void, Void> of(RetryRunnable runnable) {
+        return ctx -> { 
+            runnable.run(ctx); 
+            return null; 
+        };
+    }
+    
+    public static RetryCallable<Void, Void> of(Runnable runnable) {
+        return RetryCallable.of(RetryRunnable.of(runnable));
     }
 }

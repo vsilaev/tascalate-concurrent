@@ -18,4 +18,8 @@ package net.tascalate.concurrent;
 @FunctionalInterface
 public interface RetryRunnable {
     void run(RetryContext<Void> ctx);
+    
+    public static RetryRunnable of(Runnable runnable) {
+        return ctx -> runnable.run();
+    }
 }

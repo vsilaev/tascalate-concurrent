@@ -1002,13 +1002,13 @@ public final class Promises {
     public static Promise<Void> retry(Runnable codeBlock, Executor executor, 
                                       RetryPolicy<? super Void> retryPolicy) {
         
-        return retry(ctx -> { codeBlock.run(); }, executor, retryPolicy);
+        return retry(RetryRunnable.of(codeBlock), executor, retryPolicy);
     }
     
     public static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, 
                                       RetryPolicy<? super Void> retryPolicy) {
         
-        return retry(ctx -> { codeBlock.run(ctx); return null; }, executor, retryPolicy.acceptNullResult());
+        return retry(RetryCallable.of(codeBlock), executor, retryPolicy.acceptNullResult());
     }
 
     public static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, 
