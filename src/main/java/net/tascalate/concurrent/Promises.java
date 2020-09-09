@@ -35,6 +35,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -126,11 +128,18 @@ public final class Promises {
     public static <T> Promise<T> loop(T initialValue, 
                                       Predicate<? super T> loopCondition,
                                       Function<? super T, ? extends CompletionStage<T>> loopBody) {
-        AsyncLoop<T> asyncLoop = new AsyncLoop<>(loopCondition, loopBody);
-        asyncLoop.run(initialValue);
-        return asyncLoop;
+        return loop(initialValue, null, (v, __) -> loopCondition.test(v), (v, __) -> loopBody.apply(v));
     }
 
+    
+    public static <T, S> Promise<T> loop(T initialValue,
+                                         S sharedState,   
+                                         BiPredicate<? super T, ? super S> loopCondition,
+                                         BiFunction<? super T, ? super S, ? extends CompletionStage<T>> loopBody) {
+        AsyncLoop<T, S> asyncLoop = new AsyncLoop<>(sharedState, loopCondition, loopBody);
+        asyncLoop.run(initialValue);
+        return asyncLoop;        
+    }    
     
     public static <T, R extends AutoCloseable> Promise<T> tryApply(CompletionStage<R> resourcePromise,
                                                                    Function<? super R, ? extends T> fn) {
@@ -351,8 +360,7 @@ public final class Promises {
                                                      Function<? super T, CompletionStage<? extends T>> spawner,                                                        
                                                      Collector<T, A, R> downstream) {
 
-        int[] step = {0};
-        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+        return loop(null, new int[1], (__, step) -> step[0] == 0 || values.hasNext(), (current, step) -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
             boolean initial = step[0] == 0;
             if (valuesBatch.isEmpty()) {
@@ -379,8 +387,7 @@ public final class Promises {
                                                      Collector<T, A, R> downstream,
                                                      Executor downstreamExecutor) {
 
-        int[] step = {0};
-        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+        return loop(null, new int[1], (__, step) -> step[0] == 0 || values.hasNext(), (current, step) -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
             boolean initial = step[0] == 0;
             if (valuesBatch.isEmpty()) {
@@ -1064,12 +1071,13 @@ public final class Promises {
                                                          RetryContext<C> initialCtx,
                                                          boolean usePrevAsync) {
 
-        @SuppressWarnings("unchecked")
-        RetryContext<C>[] ctxRef = new RetryContext[] {initialCtx};
-        DependentPromise<?>[] prevRef = new DependentPromise[1];
+        class State {
+            RetryContext<C> ctx = initialCtx;
+            DependentPromise<?> prevPromise;
+        }
         
-        return loop(null, v -> null == v || !v.isSuccess() , (Try<T> v) -> {
-            RetryContext<C> ctx = ctxRef[0];
+        return loop(null, new State(), (v, __) -> null == v || !v.isSuccess() , (Try<T> v, State SS) -> {
+            RetryContext<C> ctx = SS.ctx;
             RetryPolicy.Verdict verdict = ctx.shouldContinue();
             if (!verdict.shouldExecute()) {
                 return failure(ctx.asFailure());
@@ -1091,13 +1099,13 @@ public final class Promises {
                         return Try.success(value);
                     } else {
                         long finishTime = System.nanoTime();
-                        ctxRef[0] = ctx.nextRetry(duration(startTime, finishTime), unwrapCompletionException(ex));
+                        SS.ctx = ctx.nextRetry(duration(startTime, finishTime), unwrapCompletionException(ex));
                         return Try.failure(ex != null ? ex : new IllegalStateException("Result not accepted by policy"));
                     }                  
                 }, true);
                 
                 if (usePrevAsync) {
-                    prevRef[0] = result;
+                    SS.prevPromise = result;
                 }
                 
                 return result;
@@ -1105,14 +1113,14 @@ public final class Promises {
             
             Duration backoffDelay = verdict.backoffDelay();
             if (DelayPolicy.isValid(backoffDelay)) {
-                DependentPromise<?> delay = prevRef[0] == null ?
+                DependentPromise<?> delay = SS.prevPromise == null ?
                     Timeouts.delay(backoffDelay).dependent()
                     :
-                    prevRef[0].delay(backoffDelay, true, false);
+                    SS.prevPromise.delay(backoffDelay, true, false);
                 return delay.thenCompose(__ -> callSupplier.get(), true)
                             .exceptionally(ex -> {
                                 // May be thrown when backoff delay is interrupted (canceled)
-                                ctxRef[0] = ctxRef[0].nextRetry(duration(0, 0), ex);
+                                SS.ctx = ctx.nextRetry(duration(0, 0), ex);
                                 return Try.failure(ex);
                             }, true);
             } else {
