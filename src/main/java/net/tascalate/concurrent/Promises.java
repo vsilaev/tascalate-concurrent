@@ -1161,7 +1161,8 @@ public final class Promises {
     
     private static <T> Promise<T> insufficientNumberOfArguments(int minResultCount, int size) {
         String message = String.format(
-            "The number of futures supplied (%d) is less than a number of futures to await (%d)", size, minResultCount
+            "The number of futures supplied (%d) is less than a number of futures to await (%d)", 
+            size, minResultCount
         );
         Exception ex = new NoSuchElementException(message);
         //TODO: exceptional completion vs runtime exception on combined promise construction?
@@ -1173,7 +1174,8 @@ public final class Promises {
     }
     
     private static <K, T> List<? extends CompletionStage<? extends T>> 
-    collectKeyedResults(Map<K, T> result, Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
+        collectKeyedResults(Map<K, T> result, 
+                            Map<? extends K, ? extends CompletionStage<? extends T>> promises) {
         
         if (null == promises || promises.isEmpty()) {
             return Collections.emptyList();

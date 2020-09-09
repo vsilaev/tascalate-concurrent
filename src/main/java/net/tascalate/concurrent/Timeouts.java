@@ -22,7 +22,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -115,7 +114,10 @@ class Timeouts {
         };
     }
     
-    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, CompletableFuture<Try<? super T>> delayed, Duration duration, boolean delayOnError) {
+    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, 
+                                                                    CompletableFuture<Try<? super T>> delayed, 
+                                                                    Duration duration, 
+                                                                    boolean delayOnError) {
         return (result, error) -> {
             if (error == null || (delayOnError && !self.isCancelled())) {
                 Promise<?> timeout = delay(duration);
@@ -172,16 +174,9 @@ class Timeouts {
     private static final Duration MAX_BY_NANOS  = Duration.ofNanos(Long.MAX_VALUE);
     private static final Duration MAX_BY_MILLIS = Duration.ofMillis(Long.MAX_VALUE);
 
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
-        
-        private final ThreadFactory threadFactory = Executors.defaultThreadFactory();
-        
-        @Override
-        public Thread newThread(Runnable r) {
-            final Thread result = threadFactory.newThread(r);
-            result.setDaemon(true);
-            result.setName(Timeouts.class.getName());
-            return result;
-        }
-    });
+    private static final ScheduledExecutorService scheduler = 
+        Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
+                                                .withDaemonFlag(true)
+                                                .withNameFormat(Timeouts.class.getName() + "-workers-%1$d")
+                                            .build());
 }

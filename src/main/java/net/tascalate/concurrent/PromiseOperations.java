@@ -86,10 +86,10 @@ public class PromiseOperations {
         return resourcePromise -> Promises.tryComposeEx(resourcePromise, fn);
     }
     
-    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> partitionedItems(
-            int batchSize, 
-            Function<? super T, CompletionStage<? extends T>> spawner, 
-            Collector<T, A, R> downstream) {
+    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> 
+        partitionedItems(int batchSize, 
+                         Function<? super T, CompletionStage<? extends T>> spawner,
+                         Collector<T, A, R> downstream) {
         
         return p -> p.dependent()
                      .thenCompose(values -> 
@@ -97,11 +97,11 @@ public class PromiseOperations {
                      .unwrap();
     }
     
-    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> partitionedItems(
-            int batchSize, 
-            Function<? super T, CompletionStage<? extends T>> spawner, 
-            Collector<T, A, R> downstream,
-            Executor downstreamExecutor) {
+    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> 
+        partitionedItems(int batchSize, 
+                         Function<? super T, CompletionStage<? extends T>> spawner, 
+                         Collector<T, A, R> downstream,
+                         Executor downstreamExecutor) {
         
         return p -> p.dependent()
                      .thenCompose(values -> 
@@ -109,10 +109,10 @@ public class PromiseOperations {
                      .unwrap();
     }
     
-    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> partitionedStream( 
-            int batchSize, 
-            Function<? super T, CompletionStage<? extends T>> spawner, 
-            Collector<T, A, R> downstream) {
+    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> 
+        partitionedStream(int batchSize, 
+                          Function<? super T, CompletionStage<? extends T>> spawner, 
+                          Collector<T, A, R> downstream) {
         
          return p -> p.dependent()
                       .thenCompose(values -> 
@@ -120,11 +120,11 @@ public class PromiseOperations {
                       .unwrap();
      }
     
-    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> partitionedStream( 
-           int batchSize, 
-           Function<? super T, CompletionStage<? extends T>> spawner, 
-           Collector<T, A, R> downstream,
-           Executor downstreamExecutor) {
+    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> 
+        partitionedStream(int batchSize, 
+                          Function<? super T, CompletionStage<? extends T>> spawner, 
+                          Collector<T, A, R> downstream,
+                          Executor downstreamExecutor) {
         
         return p -> p.dependent()
                      .thenCompose(values -> 
