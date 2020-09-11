@@ -357,7 +357,8 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                 } catch (Throwable e) {
                     // CompletableFuture handle[Async](BiFunction)
                     // allows to overwrite exception for resulting stage.
-                    // Copying this behavior
+                    // Copying this behavior but enlist suppressed failure
+                    e.addSuppressed(failure);
                     return forwardException(e);
                 }
             },

@@ -98,12 +98,6 @@ class SharedFunctions {
         return () -> value;
     }
     
-    @SuppressWarnings("unchecked")
-    static <T, E extends Throwable> T sneakyThrow(Throwable e) throws E {
-        throw (E) e;
-    }
-    
-    
     private static Optional<Boolean> tryCancellation(Function<Class<?>, ExceptionalCancellation> option, 
                                                      CompletionStage<?> promise,
                                                      boolean mayInterruptIfRunning) {

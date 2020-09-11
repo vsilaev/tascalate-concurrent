@@ -15,15 +15,13 @@
  */
 package net.tascalate.concurrent;
 
-import java.time.Duration;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 abstract class Try<R> {
 
     abstract R done();
     abstract boolean isSuccess();
+    abstract Promise<R> asPromise();
     
     static final class Success<R> extends Try<R> {
         
@@ -36,6 +34,11 @@ abstract class Try<R> {
         @Override
         R done() {
             return result;
+        }
+        
+        @Override
+        Promise<R> asPromise() {
+            return Promises.success(result);
         }
         
         @Override
@@ -54,7 +57,12 @@ abstract class Try<R> {
         
         @Override
         R done() {
-            return SharedFunctions.sneakyThrow(error);
+            return sneakyThrow(error);
+        }
+        
+        @Override
+        Promise<R> asPromise() {
+            return Promises.failure(error);
         }
 
         @Override
@@ -71,31 +79,20 @@ abstract class Try<R> {
         return new Failure<R>(error);
     }
     
-    static <R> Supplier<Try<R>> with(Supplier<? extends R> supplier) {
-        return () -> call(supplier);
-    }
-    
     static <R> BiFunction<R, Throwable, Try<R>> liftResult() {
         return (result, error) -> null == error ? Try.success(result) : Try.failure(error);
     }
-    
-    static <R> R doneOrTimeout(Try<R> result, Duration duration) {
-        Try<R> checkedResult = null != result ? result: failure(new TimeoutException("Timeout after " + duration));
-        return checkedResult.done();        
-    }
-    
+
     @SuppressWarnings("unchecked")
     static <R> Try<R> nothing() {
         return (Try<R>)NOTHING;
     }
-    
-    private static <R> Try<R> call(Supplier<? extends R> supplier) {
-        try {
-            return success(supplier.get());
-        } catch (Throwable ex) {
-            return failure(ex);
-        }
+
+    @SuppressWarnings("unchecked")
+    static <T, E extends Throwable> T sneakyThrow(Throwable e) throws E {
+        throw (E) e;
     }
+    
     
     private static final Try<Object> NOTHING = success(null); 
 }

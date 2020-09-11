@@ -152,7 +152,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         // Use *Async to execute on default "this" executor
         return 
         this.handle(Try.liftResult(), enlistOrigin)
-            .thenCombineAsync(delayed, (u, v) -> u.done(), PromiseOrigin.ALL);
+            .thenCombineAsync(delayed, selectFirst(), PromiseOrigin.ALL)
+            .thenCompose(Try::asPromise, true);
     }
 
     // All orTimeout overloads delegate to these methods
@@ -167,7 +168,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         DependentPromise<T> result = 
         this.handle(Try.liftResult(), enlistOrigin)
             // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, v -> Try.doneOrTimeout(v, duration), PromiseOrigin.ALL);
+            .applyToEitherAsync(onTimeout, v -> doneOrTimeout(v, duration), PromiseOrigin.ALL)
+            .thenCompose(Try::asPromise, true);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
@@ -184,7 +186,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         DependentPromise<T> result = 
         this.handle(Try.liftResult(), enlistOrigin)
             // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Try::done, PromiseOrigin.ALL);
+            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.ALL)
+            .thenCompose(Try::asPromise, true);
 
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
@@ -199,13 +202,14 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         // timeout converted to supplier
-        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.with(supplier), duration);
+        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(tryCall(supplier), duration);
         
         DependentPromise<T> result = 
         this.handle(Try.liftResult(), enlistOrigin)
             .thenApply(SharedFunctions::supply, true)
             // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, s -> s.get().done(),  PromiseOrigin.ALL);
+            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
+            .thenCompose(Try::asPromise, true);
         
         result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result;
@@ -918,6 +922,21 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         return a.containsAll(b) && b.containsAll(a);
     }
     
+    
+    static <T> Try<T> doneOrTimeout(Try<T> result, Duration duration) {
+        return null != result ? result: Try.failure(new TimeoutException("Timeout after " + duration));
+    }
+    
+    private static <R> Supplier<Try<R>> tryCall(Supplier<? extends R> supplier) {
+        return () -> {
+            try {
+                return Try.success(supplier.get());
+            } catch (Throwable ex) {
+                return Try.failure(ex);
+            }
+        };
+    }
+
     static class UndecoratedCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
         private final CompletionStage<?>[] dependent;
         UndecoratedCancellationPromise(Promise<T> original, CompletionStage<?>[] dependent) {

@@ -1074,9 +1074,18 @@ public final class Promises {
         class State {
             RetryContext<C> ctx = initialCtx;
             DependentPromise<?> prevPromise;
+            Try<T> nextRetry(long startTime, long finishTime, Throwable ex) {
+                ctx = ctx.nextRetry(duration(startTime, finishTime), ex);
+                // Temp failure -- not reported outside
+                return Try.failure(ex != null ? 
+                    unwrapCompletionException(ex) : 
+                    new IllegalStateException("Result is not accepted by policy")
+                );
+            }
         }
         
-        return loop(null, new State(), (v, __) -> null == v || !v.isSuccess() , (Try<T> v, State SS) -> {
+        Try<T> initialV = Try.failure(new IllegalStateException("Not executed"));
+        return loop(initialV, new State(), (v, __) -> !v.isSuccess() , (Try<T> v, State SS) -> {
             RetryContext<C> ctx = SS.ctx;
             RetryPolicy.Verdict verdict = ctx.shouldContinue();
             if (!verdict.shouldExecute()) {
@@ -1096,11 +1105,10 @@ public final class Promises {
                 
                 DependentPromise<Try<T>> result = withTimeout.handle((value, ex) -> {
                     if (null == ex && ctx.isValidResult(value)) {
+                        // Keep SS.ctx - it produced valid result
                         return Try.success(value);
                     } else {
-                        long finishTime = System.nanoTime();
-                        SS.ctx = ctx.nextRetry(duration(startTime, finishTime), unwrapCompletionException(ex));
-                        return Try.failure(ex != null ? ex : new IllegalStateException("Result not accepted by policy"));
+                        return SS.nextRetry(startTime, System.nanoTime(), ex);
                     }                  
                 }, true);
                 
@@ -1120,16 +1128,15 @@ public final class Promises {
                 return delay.thenCompose(__ -> callSupplier.get(), true)
                             .exceptionally(ex -> {
                                 // May be thrown when backoff delay is interrupted (canceled)
-                                SS.ctx = ctx.nextRetry(duration(0, 0), ex);
-                                return Try.failure(ex);
+                                return SS.nextRetry(0, 0, ex);
                             }, true);
             } else {
                 return callSupplier.get();
             }
         })
         .dependent()
-        .thenApply(Try::done, true);
-        // Don't unwrap - internal use only
+        .thenCompose(Try::asPromise, true)
+        .unwrap();
     }    
     
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
