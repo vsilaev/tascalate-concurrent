@@ -85,21 +85,23 @@ public class J8Examples {
             System.out.println(e);
         });
         */
-        Thread.sleep(10000); 
         //timeout.cancel(true);
-        //System.exit(0);
-        
         
         Promises.all(IntStream.range(1, 5)
                               .mapToObj(i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 100), executorService))
                               .collect(Collectors.toList()) 
                       )
+        .thenApply(v -> {System.out.println("PARTITIONED SOURCE: " + v); return v;})
                 .thenApply(Collection::stream)
                 .as(partitionedStream(2, i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 1000), executorService), Collectors.toList()))
                 .whenComplete((r, e) -> {
                     System.out.println("PARTITIONED: " + r + " ON " + Thread.currentThread());
                     //System.exit(0);
                 });
+
+        
+        //Thread.sleep(10000);
+        //System.exit(0);
         
         IntFunction<Promise<Integer>> makeNewValue = v -> CompletableTask.supplyAsync(() -> awaitAndProduce2(v), executorService);
         // MUST be Promises.streamCompletions(..., false) -- while the original stream is generator-base rather than collection based 
@@ -291,7 +293,7 @@ public class J8Examples {
     
     private static int awaitAndProduce1(int i, long delay) {
         try {
-            System.out.println("Delay I in " + Thread.currentThread());
+            System.out.println("Delay I in " + Thread.currentThread() + " >> VAL " + i) ;
             Thread.sleep(delay);
             if (i < 0) {
                 throw new RuntimeException("Negative value: " + i);
