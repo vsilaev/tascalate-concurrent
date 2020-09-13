@@ -16,21 +16,18 @@
 package net.tascalate.concurrent;
 
 import java.util.concurrent.CompletionStage;
-import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
-class AsyncLoop<T, S> extends CompletablePromise<T> {
-    private final BiPredicate<? super T, ? super S> loopCondition;
-    private final BiFunction<? super T, ? super S, ? extends CompletionStage<T>> loopBody;
-    private final S sharedState;
+class AsyncLoop<T> extends CompletablePromise<T> {
+    private final Predicate<? super T> loopCondition;
+    private final Function<? super T, ? extends CompletionStage<T>> loopBody;
     
     private volatile CompletionStage<T> currentStage;
     
-    AsyncLoop(S sharedState,
-              BiPredicate<? super T, ? super S> loopCondition, 
-              BiFunction<? super T, ? super S, ? extends CompletionStage<T>> loopBody) {
+    AsyncLoop(Predicate<? super T> loopCondition, 
+              Function<? super T, ? extends CompletionStage<T>> loopBody) {
         
-        this.sharedState   = sharedState;
         this.loopCondition = loopCondition;
         this.loopBody      = loopBody;
     }
@@ -65,8 +62,8 @@ class AsyncLoop<T, S> extends CompletablePromise<T> {
                 try {
                     if (isDone()) {
                         break;
-                    } else if (loopCondition.test(currentValue, sharedState)) {
-                        (currentStage = loopBody.apply(currentValue, sharedState)).whenComplete((next, ex) -> {
+                    } else if (loopCondition.test(currentValue)) {
+                        (currentStage = loopBody.apply(currentValue)).whenComplete((next, ex) -> {
                             if (ex != null) {
                                 onFailure(ex);
                             } else {

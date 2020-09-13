@@ -134,7 +134,13 @@ public class J8Examples {
             J8Examples::tryCalc, executorService, 
             new RetryPolicy<Number>().withResultValidator(v -> v.intValue() > 0).withMaxRetries(2)
         );
-        System.out.println( tryTyping.get() );
+        System.out.println( tryTyping.get() ); 
+        
+        Promise<BigInteger> tryTypingFuture = Promises.retryFuture(
+            J8Examples::tryCalcFuture, 
+            new RetryPolicy<Number>().withResultValidator(v -> v.intValue() > 0).withMaxRetries(2)
+        ); 
+        System.out.println( tryTypingFuture.get() );
 
         Promise<Object> k = CompletableTask.supplyAsync(() -> produceStringSlow("-ABC"), executorService);
         //Promise<Object> k = CompletableTask.complete("ABC", executorService);
@@ -367,6 +373,10 @@ public class J8Examples {
     
     static BigInteger tryCalc(RetryContext<Number> ctx) {
         return BigInteger.ONE;
+    }
+    
+    static Promise<BigInteger> tryCalcFuture(RetryContext<? extends Number> ctx) {
+        return Promises.success(BigInteger.ONE);
     }
     
     static void nop() {

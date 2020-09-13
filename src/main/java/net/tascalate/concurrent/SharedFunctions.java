@@ -94,8 +94,17 @@ class SharedFunctions {
         return (BiFunction<U, V, V>)SELECT_SECOND;
     }
     
+    @SuppressWarnings("unchecked")
+    static <T, R> Function<T, R> nullify() {
+        return (Function<T, R>)NULLIFY;
+    }
+    
     static <T> Supplier<T> supply(T value) {
         return () -> value;
+    }
+    
+    static <T, R> Function<T, R> apply(Function<T, R> fn) {
+        return fn;
     }
     
     private static Optional<Boolean> tryCancellation(Function<Class<?>, ExceptionalCancellation> option, 
@@ -150,6 +159,7 @@ class SharedFunctions {
     
     private static final BiFunction<Object, Object, Object> SELECT_FIRST  = (u, v) -> u;
     private static final BiFunction<Object, Object, Object> SELECT_SECOND = (u, v) -> v;
+    private static final Function<Object, Object> NULLIFY = v -> null;
     
     @FunctionalInterface
     private static interface Cancellation extends BiFunction<CompletionStage<?>, Boolean, Boolean> { }

@@ -18,14 +18,12 @@ package net.tascalate.concurrent;
 import java.time.Duration;
 
 public final class RetryContext<T> {
-    private final RetryPolicy<? super T> policy;
     private final int retryCount;
     private final Duration lastCallDuration;
     private final T lastResult;
     private final Throwable lastError;
     
-    private RetryContext(RetryPolicy<? super T> policy, int retryCount, Duration lastCallDuration, T lastResult, Throwable lastError) {
-        this.policy = policy;
+    private RetryContext(int retryCount, Duration lastCallDuration, T lastResult, Throwable lastError) {
         this.retryCount = retryCount;
         this.lastCallDuration = lastCallDuration;
         this.lastResult = lastResult;
@@ -49,40 +47,33 @@ public final class RetryContext<T> {
     }
     
     public RetryContext<T> overrideRetryCount(int newRetryCount) {
-        return new RetryContext<>(policy, newRetryCount, lastCallDuration, lastResult, lastError);
+        return new RetryContext<>(newRetryCount, lastCallDuration, lastResult, lastError);
     }
     
     public RetryContext<T> overrideLastCallDuration(Duration newDuration) {
-        return new RetryContext<>(policy, retryCount, newDuration, lastResult, lastError);
+        return new RetryContext<>(retryCount, newDuration, lastResult, lastError);
     }
 
     public RetryContext<T> overrideLastResult(T newResult) {
-        return new RetryContext<>(policy, retryCount, lastCallDuration, newResult, lastError);
+        return new RetryContext<>(retryCount, lastCallDuration, newResult, lastError);
     }
     
     public RetryContext<T> overrideLastError(Throwable newError) {
-        return new RetryContext<>(policy, retryCount, lastCallDuration, lastResult, newError);
+        return new RetryContext<>(retryCount, lastCallDuration, lastResult, newError);
     }
     
-    static <T> RetryContext<T> initial(RetryPolicy<? super T> policy) {
-        return new RetryContext<>(policy, 0, Duration.ZERO, null, null);
-    }
-    
-    RetryPolicy.Verdict shouldContinue() {
-        return policy.shouldContinue(this);
+    static <T> RetryContext<T> initial() {
+        return new RetryContext<>(0, Duration.ZERO, null, null);
     }
     
     RetryContext<T> nextRetry(Duration callDuration, T lastResult) {
-        return new RetryContext<>(policy, retryCount + 1, callDuration, lastResult, null);
+        return new RetryContext<>(retryCount + 1, callDuration, lastResult, null);
     }
     
     RetryContext<T> nextRetry(Duration callDuration, Throwable lastError) {
-        return new RetryContext<>(policy, retryCount + 1, callDuration, null, lastError);
+        return new RetryContext<>(retryCount + 1, callDuration, null, lastError);
     }
-    
-    boolean isValidResult(T newResult) {
-        return policy.acceptResult(newResult);
-    }
+
     
     RetryException asFailure() {
         RetryException result = new RetryException(retryCount, lastCallDuration, lastError);

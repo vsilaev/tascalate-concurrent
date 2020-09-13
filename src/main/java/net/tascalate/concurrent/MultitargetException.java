@@ -21,6 +21,7 @@ import java.io.PrintWriter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import java.util.function.BiConsumer;
@@ -43,7 +44,7 @@ public class MultitargetException extends Exception {
     }
     
     Optional<Throwable> getFirstException() {
-        return exceptions.stream().filter(ex -> ex != null).findFirst();
+        return exceptions.stream().filter(Objects::nonNull).findFirst();
     }
 
     public static MultitargetException of(final Throwable exception) {

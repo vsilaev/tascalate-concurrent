@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -35,8 +34,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -128,18 +125,11 @@ public final class Promises {
     public static <T> Promise<T> loop(T initialValue, 
                                       Predicate<? super T> loopCondition,
                                       Function<? super T, ? extends CompletionStage<T>> loopBody) {
-        return loop(initialValue, null, (v, __) -> loopCondition.test(v), (v, __) -> loopBody.apply(v));
+        AsyncLoop<T> asyncLoop = new AsyncLoop<>(loopCondition, loopBody);
+        asyncLoop.run(initialValue);
+        return asyncLoop;  
     }
 
-    
-    public static <T, S> Promise<T> loop(T initialValue,
-                                         S sharedState,   
-                                         BiPredicate<? super T, ? super S> loopCondition,
-                                         BiFunction<? super T, ? super S, ? extends CompletionStage<T>> loopBody) {
-        AsyncLoop<T, S> asyncLoop = new AsyncLoop<>(sharedState, loopCondition, loopBody);
-        asyncLoop.run(initialValue);
-        return asyncLoop;        
-    }    
     
     public static <T, R extends AutoCloseable> Promise<T> tryApply(CompletionStage<R> resourcePromise,
                                                                    Function<? super R, ? extends T> fn) {
@@ -360,9 +350,10 @@ public final class Promises {
                                                      Function<? super T, CompletionStage<? extends T>> spawner,                                                        
                                                      Collector<T, A, R> downstream) {
 
-        return loop(null, new int[1], (__, step) -> step[0] == 0 || values.hasNext(), (current, step) -> {
+        int[] step = new int[0];
+        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
-            boolean initial = step[0] == 0;
+            boolean initial = step[0]++ == 0;
             if (valuesBatch.isEmpty()) {
                 // Over
                 return Promises.success(initial ? downstream.supplier().get() : current);
@@ -372,7 +363,6 @@ public final class Promises {
                                .map(spawner)
                                .collect(Collectors.toList());
                 
-                step[0]++;
                 return 
                 Promises.all(promisesBatch)
                         .dependent()
@@ -387,9 +377,10 @@ public final class Promises {
                                                      Collector<T, A, R> downstream,
                                                      Executor downstreamExecutor) {
 
-        return loop(null, new int[1], (__, step) -> step[0] == 0 || values.hasNext(), (current, step) -> {
+        int[] step = new int[0];
+        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
-            boolean initial = step[0] == 0;
+            boolean initial = step[0]++ == 0;
             if (valuesBatch.isEmpty()) {
                 // Over
                 return initial ?
@@ -402,7 +393,6 @@ public final class Promises {
                                    .map(spawner)
                                    .collect(Collectors.toList());
                 
-                step[0]++;
                 return 
                 Promises.all(promisesBatch)
                         .dependent()
@@ -585,7 +575,7 @@ public final class Promises {
             default:
                 return transform(
                     atLeast(1, size - 1, cancelRemaining, promises), 
-                    Promises::extractFirstNonNull, Function.identity() /* DO NOT unwrap multitarget exception */
+                    Promises::firstElement, Function.identity() /* DO NOT unwrap multitarget exception */
                 );
         }
     }
@@ -685,7 +675,7 @@ public final class Promises {
             default:
                 return transform(
                     atLeast(1, 0, cancelRemaining, promises), 
-                    Promises::extractFirstNonNull, Promises::unwrapMultitargetException
+                    Promises::firstElement, Promises::unwrapMultitargetException
                 );
         }
     }
@@ -948,7 +938,7 @@ public final class Promises {
                                                List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(
             minResultsCount, maxErrorsCount, cancelRemaining, 
-            AggregatingPromise.newWithSuccessResults(), singleSuccessResult(), 
+            AggregatingPromise.newWithSuccessResults(), Collections::singletonList, 
             promises
         );
     }    
@@ -964,7 +954,7 @@ public final class Promises {
                                                                 List<? extends CompletionStage<? extends T>> promises) {
         return atLeast(
             minResultsCount, maxErrorsCount, cancelRemaining, 
-            AggregatingPromise.newWithAllResults(), singleOptionalResult(), 
+            AggregatingPromise.newWithAllResults(), v -> Collections.singletonList(Optional.ofNullable(v)), 
             promises
         );
     }      
@@ -998,7 +988,7 @@ public final class Promises {
         Map<K, T> result = new ConcurrentHashMap<>();
         return atLeast(
             minResultsCount, maxErrorsCount, cancelRemaining, 
-            AggregatingPromise.newWithEmptyResults(), v -> null,
+            AggregatingPromise.newWithEmptyResults(), SharedFunctions.nullify(),
             collectKeyedResults(result, promises)
         ) 
         .dependent()
@@ -1027,13 +1017,10 @@ public final class Promises {
     public static <T extends C, C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
                                                     RetryPolicy<? super C> retryPolicy) {
         // 
-        return retryImpl((RetryContext<C> ctx) -> {
-                try {
-                    return CompletableTask.submit(() -> codeBlock.call(ctx), executor);
-                } catch (Throwable ex) {
-                    return failure(ex);
-                }
-            }, RetryContext.initial(retryPolicy), true);
+        return retryFuture(
+            (RetryContext<C> ctx) -> CompletableTask.submit(() -> codeBlock.call(ctx), executor), 
+            retryPolicy
+        );
     }
     
     public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
@@ -1064,78 +1051,116 @@ public final class Promises {
             } catch (Throwable ex) {
                 return failure(ex);
             }
-        }, RetryContext.initial(retryPolicy), true);
+        }, retryPolicy, true);
     }
 
     private static <T extends C, C> Promise<T> retryImpl(Function<? super RetryContext<C>, ? extends Promise<T>> futureFactory, 
-                                                         RetryContext<C> initialCtx,
+                                                         RetryPolicy<? super C> retryPolicy,
                                                          boolean usePrevAsync) {
 
         class State {
-            RetryContext<C> ctx = initialCtx;
-            DependentPromise<?> prevPromise;
-            Try<T> nextRetry(long startTime, long finishTime, Throwable ex) {
-                ctx = ctx.nextRetry(duration(startTime, finishTime), ex);
-                // Temp failure -- not reported outside
-                return Try.failure(ex != null ? 
-                    unwrapCompletionException(ex) : 
-                    new IllegalStateException("Result is not accepted by policy")
-                );
+            private final boolean isDone;
+            private final Promise<?> prevAsync;
+
+            final RetryContext<C> ctx;
+            final RetryPolicy.Verdict verdict;
+            
+            
+            private State(RetryContext<C> ctx, Promise<?> prevAsync, boolean isDone) {
+                this.ctx       = ctx;
+                this.prevAsync = prevAsync;
+                this.isDone    = isDone;
+                this.verdict   = isDone ? null : retryPolicy.shouldContinue(ctx);
+            }
+            
+            // Initial
+            State(RetryContext<C> ctx) {
+                this(ctx, null, false);
+            }
+            
+            // Transition to intermediate
+            State next(Throwable error, Duration d, Promise<?> prevAsync) {
+               return new State(ctx.nextRetry(d, unwrapCompletionException(error)), useAsync(prevAsync), false); 
+            }
+            
+            State next(T result, Duration d, Promise<?> prevAsync) {
+                return new State(ctx.nextRetry(d, result), useAsync(prevAsync), false);
+            }
+            
+            // Transition to final
+            State done(T result, Duration d) {
+                return new State(ctx.nextRetry(d, result), null, true);
+            }
+            
+            boolean isRunning() {
+                return !isDone && verdict.shouldExecute();
+            }
+            
+            @SuppressWarnings("unchecked")
+            Promise<T> toPromise() {
+                // it's safe to cast types C -> T while we use T in done
+                return  isDone ? success((T)ctx.getLastResult()) : failure(ctx.asFailure());
+            }
+            
+            Promise<?> useAsync(Promise<?> prevAsync) {
+                return prevAsync != null ? prevAsync : this.prevAsync;
+            }
+            
+            DependentPromise<?> makeDelay(Duration delay) {
+                return prevAsync == null ?
+                    Timeouts.delay(delay).dependent()
+                    :
+                    prevAsync.exceptionally(SharedFunctions.nullify()) // Don't propagate own error
+                             .dependent()
+                             .delay(delay, true, true);
             }
         }
         
-        Try<T> initialV = Try.failure(new IllegalStateException("Not executed"));
-        return loop(initialV, new State(), (v, __) -> !v.isSuccess() , (Try<T> v, State SS) -> {
-            RetryContext<C> ctx = SS.ctx;
-            RetryPolicy.Verdict verdict = ctx.shouldContinue();
-            if (!verdict.shouldExecute()) {
-                return failure(ctx.asFailure());
-            }
+        return loop(new State(RetryContext.initial()), State::isRunning , currentState -> {
+            RetryContext<C> ctx = currentState.ctx;
+            RetryPolicy.Verdict verdict = currentState.verdict;
 
-            Supplier<Promise<Try<T>>> callSupplier = () -> {
+            Supplier<Promise<State>> callSupplier = () -> {
                 long startTime = System.nanoTime();
-                Promise<T> target = futureFactory.apply(ctx);
 
-                DependentPromise<T> withTimeout = target.dependent();
+                Promise<T> target = futureFactory.apply(ctx);
+                DependentPromise<T> withTimeout;
                 
                 Duration timeout = verdict.timeout();
                 if (DelayPolicy.isValid(timeout)) {
-                    withTimeout = withTimeout.orTimeout(timeout, true, true);
+                    withTimeout = target.dependent().orTimeout(timeout, true, true);
+                } else {
+                    withTimeout = target.dependent();
                 }
-                
-                DependentPromise<Try<T>> result = withTimeout.handle((value, ex) -> {
-                    if (null == ex && ctx.isValidResult(value)) {
-                        // Keep SS.ctx - it produced valid result
-                        return Try.success(value);
+
+                return withTimeout.handle((value, ex) -> {
+                    Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
+                    if (null == ex) {
+                        if (retryPolicy.acceptResult(value)) {
+                            return currentState.done(value, duration);
+                        } else {
+                            return currentState.next(value, duration, target);
+                        }
                     } else {
-                        return SS.nextRetry(startTime, System.nanoTime(), ex);
+                        return currentState.next(ex, duration, target);
                     }                  
                 }, true);
-                
-                if (usePrevAsync) {
-                    SS.prevPromise = result;
-                }
-                
-                return result;
             };
             
             Duration backoffDelay = verdict.backoffDelay();
-            if (DelayPolicy.isValid(backoffDelay)) {
-                DependentPromise<?> delay = SS.prevPromise == null ?
-                    Timeouts.delay(backoffDelay).dependent()
-                    :
-                    SS.prevPromise.delay(backoffDelay, true, false);
-                return delay.thenCompose(__ -> callSupplier.get(), true)
-                            .exceptionally(ex -> {
-                                // May be thrown when backoff delay is interrupted (canceled)
-                                return SS.nextRetry(0, 0, ex);
-                            }, true);
-            } else {
-                return callSupplier.get();
-            }
+            return DelayPolicy.isValid(backoffDelay) ?
+                currentState
+                .makeDelay(backoffDelay)
+                .thenCompose(__ -> callSupplier.get(), true)
+                .exceptionally(ex -> {
+                    // May be thrown when backoff delay is interrupted (canceled)
+                    return currentState.next(ex, Duration.ofNanos(0), null);
+                 }, true)
+                :
+                callSupplier.get();
         })
         .dependent()
-        .thenCompose(Try::asPromise, true)
+        .thenCompose(State::toPromise, true)
         .unwrap();
     }    
     
@@ -1153,8 +1178,8 @@ public final class Promises {
         return result.onCancel(() -> cancelPromise(original, true));
     }
     
-    private static <T> T extractFirstNonNull(Collection<? extends T> collection) {
-        return collection.stream().filter(Objects::nonNull).findFirst().get();
+    private static <T> T firstElement(Collection<? extends T> collection) {
+        return collection.stream().findFirst().get();
     }
     
     private static <E extends Throwable> Throwable unwrapMultitargetException(E exception) {
@@ -1220,17 +1245,5 @@ public final class Promises {
                          .limit(maxCount)
                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
-    }
-    
-    private static <T> Function<T, List<T>> singleSuccessResult() {
-        return Collections::singletonList;
-    }
-    
-    private static <T> Function<T, List<Optional<T>>> singleOptionalResult() {
-        return v -> Collections.singletonList(Optional.ofNullable(v));
-    }
-    
-    private static Duration duration(long startTime, long finishTime) {
-        return Duration.ofNanos(finishTime - startTime);
     }
 }
