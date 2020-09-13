@@ -350,7 +350,7 @@ public final class Promises {
                                                      Function<? super T, CompletionStage<? extends T>> spawner,                                                        
                                                      Collector<T, A, R> downstream) {
 
-        int[] step = new int[0];
+        int[] step = new int[1];
         return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
             boolean initial = step[0]++ == 0;
@@ -377,7 +377,7 @@ public final class Promises {
                                                      Collector<T, A, R> downstream,
                                                      Executor downstreamExecutor) {
 
-        int[] step = new int[0];
+        int[] step = new int[1];
         return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
             boolean initial = step[0]++ == 0;
