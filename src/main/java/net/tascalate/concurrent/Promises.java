@@ -292,7 +292,7 @@ public final class Promises {
                                                    int batchSize, 
                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
                                                    Collector<T, A, R> downstream) {
-        return partitioned1(values.iterator(), batchSize, spawner, downstream);
+        return partitioned1(values.iterator(), null, batchSize, spawner, downstream);
     }
     
     public static <T, A, R> Promise<R> partitioned(Iterable<? extends T> values, 
@@ -300,14 +300,14 @@ public final class Promises {
                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
                                                    Collector<T, A, R> downstream,
                                                    Executor downstreamExecutor) {
-        return partitioned2(values.iterator(), batchSize, spawner, downstream, downstreamExecutor);
+        return partitioned2(values.iterator(), null, batchSize, spawner, downstream, downstreamExecutor);
     }
     
     public static <T, A, R> Promise<R> partitioned(Stream<? extends T> values, 
                                                    int batchSize, 
                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
                                                    Collector<T, A, R> downstream) {
-        return partitioned1(values.iterator(), batchSize, spawner, downstream);
+        return partitioned1(values.iterator(), values, batchSize, spawner, downstream);
     }
     
     public static <T, A, R> Promise<R> partitioned(Stream<? extends T> values, 
@@ -315,48 +315,48 @@ public final class Promises {
                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
                                                    Collector<T, A, R> downstream,
                                                    Executor downstreamExecutor) {
-        return partitioned2(values.iterator(), batchSize, spawner, downstream, downstreamExecutor);
+        return partitioned2(values.iterator(), values, batchSize, spawner, downstream, downstreamExecutor);
     }
     
     
     private static <T, A, R> Promise<R> partitioned1(Iterator<? extends T> values, 
-                                                    int batchSize, 
-                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                    Collector<T, A, R> downstream) {
+                                                     Object source,
+                                                     int batchSize, 
+                                                     Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                     Collector<T, A, R> downstream) {
         return
             parallelStep1(values, batchSize, spawner, downstream)
             .dependent()
-            .thenApply(downstream.finisher(), true)
-            .as(onCloseSource(values))
+            .thenApply(downstream.finisher().compose(IndexedStep::payload), true)
+            .as(onCloseSource(null != source? source : values))
             .unwrap();
     }
     
 
     private static <T, A, R> Promise<R> partitioned2(Iterator<? extends T> values, 
-                                                    int batchSize, 
-                                                    Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                    Collector<T, A, R> downstream,
-                                                    Executor downstreamExecutor) {
+                                                     Object source,
+                                                     int batchSize, 
+                                                     Function<? super T, CompletionStage<? extends T>> spawner, 
+                                                     Collector<T, A, R> downstream,
+                                                     Executor downstreamExecutor) {
         return 
             parallelStep2(values, batchSize, spawner, downstream, downstreamExecutor)
             .dependent()
-            .thenApplyAsync(downstream.finisher(), downstreamExecutor, true)
-            .as(onCloseSource(values))
+            .thenApplyAsync(downstream.finisher().compose(IndexedStep::payload), downstreamExecutor, true)
+            .as(onCloseSource(null != source? source : values))
             .unwrap();
     }
     
-    private static <T, A, R> Promise<A> parallelStep1(Iterator<? extends T> values, 
-                                                     int batchSize,
-                                                     Function<? super T, CompletionStage<? extends T>> spawner,                                                        
-                                                     Collector<T, A, R> downstream) {
+    private static <T, A, R> Promise<IndexedStep<A>> parallelStep1(
+        Iterator<? extends T> values, int batchSize,
+        Function<? super T, CompletionStage<? extends T>> spawner,                                                        
+        Collector<T, A, R> downstream) {
 
-        int[] step = new int[1];
-        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+        return loop(new IndexedStep<>(), step -> step.initial() || values.hasNext(), step -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
-            boolean initial = step[0]++ == 0;
             if (valuesBatch.isEmpty()) {
                 // Over
-                return Promises.success(initial ? downstream.supplier().get() : current);
+                return Promises.success(step.initial() ? step.next(downstream.supplier().get()) : step);
             } else {
                 List<CompletionStage<? extends T>> promisesBatch = 
                     valuesBatch.stream()
@@ -366,27 +366,27 @@ public final class Promises {
                 return 
                 Promises.all(promisesBatch)
                         .dependent()
-                        .thenApply(vals -> accumulate(vals, initial, current, downstream), true);
+                        .thenApply(vals -> step.next(
+                            accumulate(vals, step.initial(), step.payload(), downstream)
+                        ), true);
             }
         });
     }
 
-    private static <T, A, R> Promise<A> parallelStep2(Iterator<? extends T> values, 
-                                                     int batchSize,
-                                                     Function<? super T, CompletionStage<? extends T>> spawner,                                                        
-                                                     Collector<T, A, R> downstream,
-                                                     Executor downstreamExecutor) {
+    private static <T, A, R> Promise<IndexedStep<A>> parallelStep2(
+        Iterator<? extends T> values, int batchSize,
+        Function<? super T, CompletionStage<? extends T>> spawner,                                                        
+        Collector<T, A, R> downstream,
+        Executor downstreamExecutor) {
 
-        int[] step = new int[1];
-        return loop(null, __ -> step[0] == 0 || values.hasNext(), current -> {
+        return loop(new IndexedStep<>(), step -> step.initial() || values.hasNext(), step -> {
             List<T> valuesBatch = drainBatch(values, batchSize);
-            boolean initial = step[0]++ == 0;
             if (valuesBatch.isEmpty()) {
                 // Over
-                return initial ?
-                    CompletableTask.supplyAsync(downstream.supplier(), downstreamExecutor)
+                return step.initial() ?
+                    CompletableTask.supplyAsync(() -> step.next(downstream.supplier().get()), downstreamExecutor)
                     :
-                    Promises.success(current);
+                    Promises.success(step);
             } else {
                 List<CompletionStage<? extends T>> promisesBatch = 
                         valuesBatch.stream()
@@ -396,9 +396,38 @@ public final class Promises {
                 return 
                 Promises.all(promisesBatch)
                         .dependent()
-                        .thenApplyAsync(vals -> accumulate(vals, initial, current, downstream), downstreamExecutor, true);                
+                        .thenApplyAsync(vals -> step.next(
+                            accumulate(vals, step.initial(), step.payload(), downstream)
+                        ), downstreamExecutor, true);                
             }
         });
+    }
+    
+    
+    private static class IndexedStep<T> {
+        private final int idx;
+        private final T payload;
+        
+        IndexedStep() {
+            this(0, null);
+        }
+        
+        private IndexedStep(int idx, T payload) {
+            this.idx     = idx;
+            this.payload = payload;
+        }
+        
+        IndexedStep<T> next(T payload) {
+            return new IndexedStep<>(idx + 1, payload);
+        }
+        
+        boolean initial() {
+            return idx == 0;
+        }
+        
+        T payload() {
+            return payload;
+        }
     }
     
     private static <T> List<T> drainBatch(Iterator<? extends T> values, int batchSize) {
@@ -1060,13 +1089,13 @@ public final class Promises {
 
         class State {
             private final boolean isDone;
-            private final Promise<?> prevAsync;
+            private final DependentPromise<?> prevAsync;
 
             final RetryContext<C> ctx;
             final RetryPolicy.Verdict verdict;
             
             
-            private State(RetryContext<C> ctx, Promise<?> prevAsync, boolean isDone) {
+            private State(RetryContext<C> ctx, DependentPromise<?> prevAsync, boolean isDone) {
                 this.ctx       = ctx;
                 this.prevAsync = prevAsync;
                 this.isDone    = isDone;
@@ -1079,11 +1108,11 @@ public final class Promises {
             }
             
             // Transition to intermediate
-            State next(Throwable error, Duration d, Promise<?> prevAsync) {
+            State next(Throwable error, Duration d, DependentPromise<?> prevAsync) {
                return new State(ctx.nextRetry(d, unwrapCompletionException(error)), useAsync(prevAsync), false); 
             }
             
-            State next(T result, Duration d, Promise<?> prevAsync) {
+            State next(T result, Duration d, DependentPromise<?> prevAsync) {
                 return new State(ctx.nextRetry(d, result), useAsync(prevAsync), false);
             }
             
@@ -1102,7 +1131,7 @@ public final class Promises {
                 return  isDone ? success((T)ctx.getLastResult()) : failure(ctx.asFailure());
             }
             
-            Promise<?> useAsync(Promise<?> prevAsync) {
+            private DependentPromise<?> useAsync(DependentPromise<?> prevAsync) {
                 return prevAsync != null ? prevAsync : this.prevAsync;
             }
             
@@ -1111,7 +1140,6 @@ public final class Promises {
                     Timeouts.delay(delay).dependent()
                     :
                     prevAsync.exceptionally(SharedFunctions.nullify()) // Don't propagate own error
-                             .dependent()
                              .delay(delay, true, true);
             }
         }
@@ -1123,14 +1151,14 @@ public final class Promises {
             Supplier<Promise<State>> callSupplier = () -> {
                 long startTime = System.nanoTime();
 
-                Promise<T> target = futureFactory.apply(ctx);
+                DependentPromise<T> target = futureFactory.apply(ctx).dependent();
                 DependentPromise<T> withTimeout;
                 
                 Duration timeout = verdict.timeout();
                 if (DelayPolicy.isValid(timeout)) {
-                    withTimeout = target.dependent().orTimeout(timeout, true, true);
+                    withTimeout = target.orTimeout(timeout, true, true);
                 } else {
-                    withTimeout = target.dependent();
+                    withTimeout = target;
                 }
 
                 return withTimeout.handle((value, ex) -> {

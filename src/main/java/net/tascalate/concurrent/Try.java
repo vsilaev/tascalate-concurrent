@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.concurrent.CancellationException;
 import java.util.function.BiFunction;
 
 abstract class Try<R> {
@@ -57,7 +58,16 @@ abstract class Try<R> {
         
         @Override
         R done() {
+            /*
             return sneakyThrow(error);
+            */
+            if (error instanceof Error) {
+                throw (Error)error;
+            } else if (error instanceof CancellationException) {
+                throw (CancellationException)error;
+            } else {
+                throw SharedFunctions.wrapCompletionException(error); 
+            }
         }
         
         @Override
@@ -88,10 +98,12 @@ abstract class Try<R> {
         return (Try<R>)NOTHING;
     }
 
+    /*
     @SuppressWarnings("unchecked")
     static <T, E extends Throwable> T sneakyThrow(Throwable e) throws E {
         throw (E) e;
     }
+    */
     
     
     private static final Try<Object> NOTHING = success(null); 

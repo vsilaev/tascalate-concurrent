@@ -39,7 +39,7 @@ public interface AbstractAsyncLock<T extends AbstractAsyncLock.Token> {
      * lock after it has been acquired and the lock-protected action has
      * completed.
      *
-     * @return A {@link CompletionStage} which will complete with a
+     * @return A {@link Promise} which will complete with a
      *         {@link Token} when the lock has been exclusively acquired
      */
     Promise<T> acquire();
@@ -47,7 +47,7 @@ public interface AbstractAsyncLock<T extends AbstractAsyncLock.Token> {
     /**
      * A lock token indicating that the associated lock has been exclusively
      * acquired. Once the protected action is completed, the lock may be
-     * released by calling {@link Token#releaseLock()}
+     * released by calling {@link Token#release()}
      */
     interface Token extends AutoCloseable {
         /** Releases this lock, allowing others to acquire it. */

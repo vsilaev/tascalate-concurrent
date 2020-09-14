@@ -42,7 +42,7 @@ public interface AsyncSemaphoreLock extends AbstractAsyncLock<AsyncSemaphoreLock
     /**
      * A semaphore token indicating that necessary permit has been exclusively acquired. Once the
      * protected action is completed, permits may be released by calling
-     * {@link Token#releaseLock()}
+     * {@link Token#release()}
      */
     interface Token extends AsyncLock.Token {
         long permits();
