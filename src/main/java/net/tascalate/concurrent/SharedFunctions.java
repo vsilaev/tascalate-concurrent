@@ -102,11 +102,7 @@ class SharedFunctions {
     static <T> Supplier<T> supply(T value) {
         return () -> value;
     }
-    
-    static <T, R> Function<T, R> apply(Function<T, R> fn) {
-        return fn;
-    }
-    
+
     private static Optional<Boolean> tryCancellation(Function<Class<?>, ExceptionalCancellation> option, 
                                                      CompletionStage<?> promise,
                                                      boolean mayInterruptIfRunning) {
