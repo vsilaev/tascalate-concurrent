@@ -25,11 +25,14 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
+import net.tascalate.concurrent.decorators.AbstractPromiseDecorator;
 import net.tascalate.concurrent.decorators.BlockingCompletionStageDecorator;
 
 public class CompletionStageWrapper<T> 
@@ -117,7 +120,6 @@ public class CompletionStageWrapper<T>
             throw wrapCompletionException(fault);
         }        
     }
-    
 
     @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {
@@ -125,12 +127,50 @@ public class CompletionStageWrapper<T>
     }
 
     public static <T> Promise<T> from(CompletionStage<T> stage) {
+        return from(stage, true);
+    }
+    
+    public static <T> Promise<T> from(CompletionStage<T> stage, boolean composeSafe) {
+        Promise<T> result;
         if (stage instanceof Future) {
             // If we can delegate blocking Future API...
-            return BlockingCompletionStageDecorator.from(stage);
+            result = BlockingCompletionStageDecorator.from(stage);
         } else {
             // Otherwise fallback to own implementation
-            return new CompletionStageWrapper<>(stage);
+            result = new CompletionStageWrapper<>(stage);
         }
+        return composeSafe ? new ComposeSafePromise<>(result) : result;
+    }
+    
+    // By default CompletableFuture doesn't interrupt a promise from thenCompose(fn)!
+    // Pessimistically assume this "feature" for all CompletionStage impls
+    static class ComposeSafePromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
+        protected ComposeSafePromise(Promise<T> delegate) {
+            super(delegate);
+        }
+
+        @Override
+        protected <U> Promise<U> wrap(CompletionStage<U> original) {
+            return new ComposeSafePromise<>((Promise<U>)original);
+        }
+        
+        @Override
+        public <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
+            ComposedFutureRef<U> ref = new ComposedFutureRef<>();
+            return super.thenCompose(ref.captureResult(fn)).onCancel(ref.cancelCaptured);
+        }
+
+        @Override
+        public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
+            ComposedFutureRef<U> ref = new ComposedFutureRef<>();
+            return super.thenComposeAsync(ref.captureResult(fn)).onCancel(ref.cancelCaptured);
+        }
+
+        @Override
+        public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, 
+                                                        Executor executor) {
+            ComposedFutureRef<U> ref = new ComposedFutureRef<>();
+            return super.thenComposeAsync(ref.captureResult(fn), executor).onCancel(ref.cancelCaptured);        
+        }        
     }
 }

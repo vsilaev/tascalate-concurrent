@@ -24,6 +24,7 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import net.tascalate.concurrent.delays.BoundedMaxDelayPolicy;
 import net.tascalate.concurrent.delays.BoundedMinDelayPolicy;
@@ -131,8 +132,11 @@ public interface DelayPolicy<T> {
         return new FirstRetryNoDelayPolicy<>(this);
     }
     
+    default <D extends DelayPolicy<T>> D withCusomizer(Function<? super DelayPolicy<T>, D> fn) {
+        return fn.apply(this);
+    }
+
     public static boolean isValid(Duration d) {
         return !(d.isNegative() || d.isZero());
     }
-
 }

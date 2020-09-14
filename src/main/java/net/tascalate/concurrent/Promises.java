@@ -1182,7 +1182,7 @@ public final class Promises {
                 .thenCompose(__ -> callSupplier.get(), true)
                 .exceptionally(ex -> {
                     // May be thrown when backoff delay is interrupted (canceled)
-                    return currentState.next(ex, Duration.ofNanos(0), null);
+                    return currentState.next(ex, Duration.ZERO, null);
                  }, true)
                 :
                 callSupplier.get();
@@ -1233,7 +1233,7 @@ public final class Promises {
             size, minResultCount
         );
         Exception ex = new NoSuchElementException(message);
-        //TODO: exceptional completion vs runtime exception on combined promise construction?
+        //Prefer exceptional completion as opposed to runtime exception on combined promise construction
         ex.fillInStackTrace();
         return failure(ex);
         /*

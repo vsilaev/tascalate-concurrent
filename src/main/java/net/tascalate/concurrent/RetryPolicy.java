@@ -271,16 +271,16 @@ public class RetryPolicy<T> {
         return result ? new PositiveVerdict(backoff.delay(context), timeout.delay(context)) : DONT_RETRY;
     }
 
-    private boolean tooManyRetries(RetryContext<?> context) {
-        return maxRetries >= 0 && context.getRetryCount() > maxRetries;
-    }
-
-    private boolean exceptionClassRetryable(RetryContext<?> context) {
+    protected boolean exceptionClassRetryable(RetryContext<?> context) {
         if (context.getLastError() == null) {
             return true;
         }
         final Class<? extends Throwable> e = context.getLastError().getClass();
         return !matches(e, abortOn) && matches(e, retryOn); 
+    }
+    
+    private boolean tooManyRetries(RetryContext<?> context) {
+        return maxRetries >= 0 && context.getRetryCount() > maxRetries;
     }
 
     private static boolean matches(Class<? extends Throwable> throwable, Set<Class<? extends Throwable>> set) {

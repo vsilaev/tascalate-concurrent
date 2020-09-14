@@ -19,6 +19,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 import net.tascalate.concurrent.decorators.AbstractFutureDecorator;
 
@@ -29,7 +31,6 @@ public class CompletableFutureWrapper<T>
     protected CompletableFutureWrapper() {
         this(new CompletableFuture<T>());
     }
-    
     
     protected CompletableFutureWrapper(CompletableFuture<T> delegate) {
         super(delegate);
@@ -48,5 +49,25 @@ public class CompletableFutureWrapper<T>
     @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {
         return new CompletableFutureWrapper<>((CompletableFuture<U>)original);
+    }
+
+    // By default CompletableFuture doesn't interrupt a promise from thenCompose(fn)!
+    @Override
+    public <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
+        ComposedFutureRef<U> ref = new ComposedFutureRef<>();
+        return super.thenCompose(ref.captureResult(fn)).onCancel(ref.cancelCaptured);
+    }
+
+    @Override
+    public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
+        ComposedFutureRef<U> ref = new ComposedFutureRef<>();
+        return super.thenComposeAsync(ref.captureResult(fn)).onCancel(ref.cancelCaptured);
+    }
+
+    @Override
+    public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, 
+                                                    Executor executor) {
+        ComposedFutureRef<U> ref = new ComposedFutureRef<>();
+        return super.thenComposeAsync(ref.captureResult(fn), executor).onCancel(ref.cancelCaptured);        
     }
 }

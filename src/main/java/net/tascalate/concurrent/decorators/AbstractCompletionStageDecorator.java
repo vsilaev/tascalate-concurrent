@@ -331,4 +331,9 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
                                        .thenCompose(Function.identity()))
                        .thenCompose(Function.identity());
     }
+    
+    @Override
+    public String toString() {
+        return String.format("%s[%s]", getClass().getName(), delegate);
+    }
 }

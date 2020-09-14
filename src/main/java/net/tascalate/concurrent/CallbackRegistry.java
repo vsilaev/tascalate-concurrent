@@ -284,9 +284,9 @@ class CallbackRegistry<T> {
     }
 
     private static <S, U> void callCallback(Consumer<? super Callable<?>> stageTransition,
-                                    Function<? super S, ? extends U> callback, 
-                                    S value, 
-                                    Executor executor) {
+                                            Function<? super S, ? extends U> callback, 
+                                            S value,  
+                                            Executor executor) {
 
         Callable<U> callable = () -> callback.apply(value);
         try {

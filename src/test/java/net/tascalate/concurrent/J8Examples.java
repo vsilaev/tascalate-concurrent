@@ -19,6 +19,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -58,6 +59,38 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
+        
+        Promise<?> t = 
+        Promises.success("11")
+        //CompletableTask
+          //  .supplyAsync(() -> "11", executorService)
+            .dependent()
+            .thenComposeAsync(v -> {
+                System.out.println("In compose " + v);
+                try {
+                    Thread.sleep(400);
+                    System.out.println("In compose after sleep " + v);
+                    return CompletableTask.supplyAsync(() -> {
+                        System.out.println("Started in nested");
+                        try {
+                            Thread.sleep(250);
+                        } catch (InterruptedException ex) {
+                            System.out.println("Interrupted in nested");
+                            throw new CompletionException(ex);
+                        }
+                        System.out.println("Continue in nested");
+                        System.out.println("Providing " + v); 
+                        return Integer.valueOf(v); 
+                    }, executorService);
+                } catch (InterruptedException ex) {
+                    System.out.println("Interrupted " + ex);
+                    throw new CompletionException(ex);
+                }
+            }, executorService, true); 
+        
+        Thread.sleep(500);
+        t.cancel(true);
+        System.out.println("Is cancelled ? " + t.isCancelled());
         
         AsyncSemaphoreLock lock = AsyncSemaphoreLock.create(7, true);
         for (int i = 0; i < 10; i++) {

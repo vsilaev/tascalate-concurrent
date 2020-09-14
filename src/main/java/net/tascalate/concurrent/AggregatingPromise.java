@@ -42,6 +42,7 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
     private final boolean cancelRemaining;
     private final List<? extends CompletionStage<? extends T>> promises;
     
+    @FunctionalInterface
     interface Constructor<T, R> {
         AggregatingPromise<T, R> create(int minResultsCount, int maxErrorsCount, boolean cancelRemaining,
                                         List<? extends CompletionStage<? extends T>> promises);
@@ -143,10 +144,14 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
                     // Synchronized around done
                     markRemainingCancelled();
                     // Now no other thread can modify results array.
-                    onSuccess(collectResults(minResultsCount, completions));
+                    
+                    // Cancel before firing events:
+                    // this helps with releasing thread pools, throttling etc.
                     if (cancelRemaining) {
                         cancelPromises();
                     }
+                    
+                    onSuccess(collectResults(minResultsCount, completions));
                 }
             }
         } else {
@@ -163,11 +168,14 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
                     // Synchronized around done
                     markRemainingCancelled();
                     // Now no other thread can modify errors array.
-                    onFailure(new MultitargetException(errors));
-
+                    
+                    // Cancel before firing events:
+                    // this helps with releasing thread pools, throttling etc.
                     if (cancelRemaining) {
                         cancelPromises();
                     }
+                    
+                    onFailure(new MultitargetException(errors));
                 }
             }
         }

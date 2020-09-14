@@ -52,11 +52,11 @@ import net.tascalate.concurrent.decorators.ExecutorBoundDependentPromise;
  * 
  * <p>The ones that accepts another {@link CompletionStage} as argument (named <code>*Both*</code> and
  * <code>*Either*</code> are overloaded with a set of @{link {@link PromiseOrigin} as an argument to let
- * you specify what to enlist as origin: "this" related to method call or the parameter.
+ * you specify what to enlist as origin: "this" related to the method call or the parameter.
  * 
  * <p>Rest of methods from  {@link CompletionStage} API are overloaded with boolean argument 
  * <code>enlistOrigin</code> that specify whether or not the {@link Promise} object whose
- * method is invoiked should be added as an origin to result.
+ * method is invoked should be added as an origin to result.
  * 
  * <p>All methods originally  specified in {@link CompletionStage} does not add "this" as an origin to
  * resulting promise.
@@ -67,6 +67,15 @@ import net.tascalate.concurrent.decorators.ExecutorBoundDependentPromise;
  *   a type of the successfully resolved promise value    
  */
 public interface DependentPromise<T> extends Promise<T> {
+    
+    @Override
+    default <D> D as(Function<? super Promise<T>, D> decoratorFactory) {
+        return as_(decoratorFactory);
+    }
+    
+    default <D> D as_(Function<? super DependentPromise<T>, D> decoratorFactory) {
+        return decoratorFactory.apply(this);
+    }
     
     // Only for backward-compatibility with versions below 0.5.4
     public static <U> DependentPromise<U> from(Promise<U> source) {
