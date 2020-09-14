@@ -232,7 +232,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
             if (ex == null) {
                 settledResults.put(Try.success(resolvedValue));
             } else {
-                settledResults.put(Try.failure(SharedFunctions.wrapCompletionException(ex)));
+                settledResults.put(Try.failure(ex));
             }
         } catch (InterruptedException e) {
             throw new RuntimeException(e); // Shouldn't happen for the queue with an unlimited size
