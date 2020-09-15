@@ -22,9 +22,9 @@ import java.util.function.Function;
 class ComposedFutureRef<U> extends AtomicReference<CompletionStage<U>> {
     private static final long serialVersionUID = 1L;
 
-    <T> Function<T, CompletionStage<U>> captureResult(Function<? super T, ? extends CompletionStage<U>> fn) {
+    <T, F extends CompletionStage<U>> Function<T, F> captureResult(Function<? super T, ? extends F> fn) {
         return v -> {
-            CompletionStage<U> result = fn.apply(v);
+            F result = fn.apply(v);
             set(result);
             return result;
         };
