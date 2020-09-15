@@ -1,4 +1,4 @@
-[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.9.0/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.0) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+[![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.9.1/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.1) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
 
@@ -12,7 +12,7 @@ New name:
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>0.9.0</version> <!-- Any version above 0.8.0, the latest one is recommended -->
+    <version>0.9.1</version> <!-- Any version above 0.8.0, the latest one is recommended -->
 </dependency>
 ```
 Old Name
@@ -40,7 +40,7 @@ To use a library you have to add a single Maven dependency
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>0.9.0</version>
+    <version>0.9.1</version>
 </dependency>
 ```
 # What is inside?
@@ -68,7 +68,7 @@ Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionSta
 Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor);
 ```
 
-Plus, there are several overloads of the filtering operator that complements canonical `map/flatMap` (or `thenApply/thenCompose` in terms of the `CompletionStage` API), available since version [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.0):
+Plus, there are several overloads of the filtering operator that complements canonical `map/flatMap` (or `thenApply/thenCompose` in terms of the `CompletionStage` API), available since version [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.1):
 ```java
 Promise<T> thenFilter(Predicate<? super T> predicate);
 Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier);

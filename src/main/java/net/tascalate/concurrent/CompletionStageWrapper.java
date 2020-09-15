@@ -144,7 +144,7 @@ public class CompletionStageWrapper<T>
     
     // By default CompletableFuture doesn't interrupt a promise from thenCompose(fn)!
     // Pessimistically assume this "feature" for all CompletionStage impls
-    private static class ComposeSafePromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
+    static class ComposeSafePromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
         ComposeSafePromise(Promise<T> delegate) {
             super(delegate);
         }
