@@ -19,6 +19,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -81,13 +82,13 @@ public class ThreadPoolTaskExecutor extends ThreadPoolExecutor implements TaskEx
     }
 
     @Override
-    protected <T> CompletableTask<T> newTaskFor(Runnable runnable, T value) {
+    protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
         return newTaskFor(Executors.callable(runnable, value));
     }
 
     @Override
-    protected <T> CompletableTask<T> newTaskFor(Callable<T> callable) {
-        return new CompletableTask<>(this, callable);
+    protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+        return TaskExecutors.newRunnablePromise(this, callable);
     }
 
 }

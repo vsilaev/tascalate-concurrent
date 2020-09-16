@@ -19,7 +19,9 @@ import java.util.Collection;
 import java.util.List;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -178,6 +180,26 @@ public class TaskExecutors {
         }
     }
 
+    static <T> RunnablePromise<T> newRunnablePromise(Executor executor, Callable<T> callable) {
+        return new RunnableCompletableTask<>(executor, callable);
+    }
+    
+    static class RunnableCompletableTask<T> extends CompletableTask<T> 
+                                            implements RunnablePromise<T>,
+                                                       CompletableFuture.AsynchronousCompletionTask{
+
+        RunnableCompletableTask(Executor executor, Callable<T> callable) {
+            super(executor, callable);
+        }
+
+
+        @Override
+        public void run() {
+            task.run();
+        }
+    }
+
+    
     static class TaskExecutorServiceAdapter implements TaskExecutorService {
         private final ExecutorService delegate;
 
@@ -210,19 +232,19 @@ public class TaskExecutors {
         }
 
         public <T> Promise<T> submit(Callable<T> callable) {
-            CompletableTask<T> task = createTask(callable);
+            RunnablePromise<T> task = newRunnablePromise(this, callable);
             delegate.execute(task);
             return task;
         }
 
         public <T> Promise<T> submit(Runnable codeBlock, T result) {
-            CompletableTask<T> task = createTask(Executors.callable(codeBlock, result));
+            RunnablePromise<T> task = newRunnablePromise(this, Executors.callable(codeBlock, result));
             delegate.execute(task);
             return task;
         }
 
         public Promise<?> submit(Runnable codeBlock) {
-            CompletableTask<?> task = createTask(Executors.callable(codeBlock, null));
+            RunnablePromise<?> task = newRunnablePromise(this, Executors.callable(codeBlock, null));
             delegate.execute(task);
             return task;
         }
@@ -246,10 +268,5 @@ public class TaskExecutors {
             
             return delegate.invokeAny(tasks, timeout, unit);
         }
-
-        protected <T> CompletableTask<T> createTask(Callable<T> callable) {
-            return new CompletableTask<T>(this, callable);
-        }
-
     }
 }

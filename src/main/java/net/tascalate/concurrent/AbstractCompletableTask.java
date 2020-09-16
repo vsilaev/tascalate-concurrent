@@ -137,7 +137,8 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         return callbackRegistry.failure(ex);
     }
 
-    class StageTransition extends FutureTask<T> {
+    class StageTransition extends FutureTask<T>
+                          implements CompletableFuture.AsynchronousCompletionTask {
         StageTransition(Callable<T> callable) {
             super(callable);
         }

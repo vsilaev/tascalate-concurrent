@@ -24,6 +24,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 
 public class TaskExecutorCompletionService<V> extends ExecutorCompletionService<V> 
@@ -121,13 +122,13 @@ public class TaskExecutorCompletionService<V> extends ExecutorCompletionService<
         */
         
         @Override
-        protected <T> CompletableTask<T> newTaskFor(Runnable runnable, T value) {
+        protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
             return newTaskFor(Executors.callable(runnable, value));
         }
 
         @Override
-        protected <T> CompletableTask<T> newTaskFor(Callable<T> callable) {
-            return new CompletableTask<>(this, callable);
+        protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+            return TaskExecutors.newRunnablePromise(this, callable);
         }
 
     }

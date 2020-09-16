@@ -20,10 +20,8 @@ import static net.tascalate.concurrent.SharedFunctions.selectSecond;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -38,9 +36,7 @@ import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
  * @param <T>
  *   a type of the successfully executed task result   
  */
-public class CompletableTask<T> extends AbstractCompletableTask<T> 
-                                implements RunnableFuture<T>,
-                                           CompletableFuture.AsynchronousCompletionTask {
+public class CompletableTask<T> extends AbstractCompletableTask<T> {
 
     /**
      * Creates a CompletableTask; for internal use only 
@@ -51,14 +47,6 @@ public class CompletableTask<T> extends AbstractCompletableTask<T>
      */
     protected CompletableTask(Executor executor, Callable<T> callable) {
         super(executor, callable);
-    }
-
-    /**
-     * Executes wrapped {@link Callable}; don't use explicitly
-     */
-    @Override
-    public void run() {
-        task.run();
     }
 
     /**
@@ -89,7 +77,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T>
      */
     public static <T> Promise<T> completed(T value, Executor defaultExecutor) {
         CompletableTask<T> result = new CompletableTask<>(defaultExecutor, () -> value);
-        SAME_THREAD_EXECUTOR.execute(result);
+        SAME_THREAD_EXECUTOR.execute(result.task);
         return result;
     }
 
@@ -226,7 +214,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T>
      */
     public static <U> Promise<U> submit(Callable<U> call, Executor executor) {
         CompletableTask<U> result = new CompletableTask<>(executor, call);
-        executor.execute(result);
+        executor.execute(result.task);
         return result;
     }
     
