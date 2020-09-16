@@ -76,6 +76,24 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             throw wrapCompletionException(unwrapExecutionException(ex));
         }
     }
+
+    default boolean isCompletedExceptionally() {
+        if (!isDone()) {
+            return false;
+        }
+        
+        if (isCancelled()) {
+            return true;
+        } else {
+            try {
+                // We are done, so no blocking
+                get();
+            } catch (Throwable ex) {
+                return true;
+            }
+            return false;
+        }
+    }
     
     default Promise<T> onCancel(Runnable code) {
         return new ExtraCancellationPromise<>(this, code);

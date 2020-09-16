@@ -18,9 +18,9 @@ package net.tascalate.concurrent.locks;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.LongBinaryOperator;
 
-import net.tascalate.concurrent.CompletablePromise;
+import net.tascalate.concurrent.CompletableFutureWrapper;
 
-public class AsyncCountDownLatch extends CompletablePromise<Long> {
+public class AsyncCountDownLatch extends CompletableFutureWrapper<Long> {
     private static final AtomicLongFieldUpdater<AsyncCountDownLatch> COUNT_UPDATER =
         AtomicLongFieldUpdater.newUpdater(AsyncCountDownLatch.class, "count");
     private static final LongBinaryOperator DECREMENT = 
@@ -37,7 +37,7 @@ public class AsyncCountDownLatch extends CompletablePromise<Long> {
         }
         this.count = this.initial = count;
         if (count == 0) {
-            onSuccess(count);
+            success(count);
         }
     }
 
@@ -51,7 +51,7 @@ public class AsyncCountDownLatch extends CompletablePromise<Long> {
         }
         long current = COUNT_UPDATER.getAndAccumulate(this, delta, DECREMENT);
         if (current == 0) {
-          onSuccess(initial);
+          success(initial);
         }
         return current;
     }

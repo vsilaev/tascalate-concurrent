@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
+import static net.tascalate.concurrent.SharedFunctions.iif;
 import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
 
 import java.time.Duration;
@@ -845,6 +846,11 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
     
     @Override
+    public boolean isCompletedExceptionally() {
+        return delegate.isCompletedExceptionally();
+    }
+    
+    @Override
     public Promise<T> unwrap() {
         if (null == cancellableOrigins || cancellableOrigins.length == 0) {
             // No state collected, may optimize away own reference
@@ -878,7 +884,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         if (!enlistOrigin) {
             return delegate.toCompletableFuture();
         } else {
-            CompletablePromise<T> result = new CompletablePromise<T>() {
+            CompletableFutureWrapper<T> result = new CompletableFutureWrapper<T>() {
                 @Override 
                 public boolean cancel(boolean mayInterruptIfRunning) {
                     if (ConfigurableDependentPromise.this.cancel(mayInterruptIfRunning)) {
@@ -888,13 +894,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
                     }
                 }
             };
-            whenComplete((r, e) -> {
-               if (null != e) {
-                   result.onFailure(e);
-               } else {
-                   result.onSuccess(r);
-               }
-            });
+            whenComplete((r, e) -> iif(null == e ? result.success(r) : result.failure(e)));
             return result.toCompletableFuture();
         }
     }

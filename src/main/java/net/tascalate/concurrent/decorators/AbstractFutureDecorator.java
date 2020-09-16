@@ -43,7 +43,6 @@ abstract public class AbstractFutureDecorator<T, D extends CompletionStage<T> & 
     protected AbstractFutureDecorator(D delegate) {
         super(delegate);
     }
-	
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {

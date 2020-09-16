@@ -15,37 +15,42 @@
  */
 package net.tascalate.concurrent;
 
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-import net.tascalate.concurrent.decorators.AbstractFutureDecorator;
+import net.tascalate.concurrent.decorators.CompletableFutureDecorator;
 
 public class CompletableFutureWrapper<T> 
-    extends AbstractFutureDecorator<T, CompletableFuture<T>> 
-    implements Promise<T> {
+    extends CompletableFutureDecorator<T> {
 
     protected CompletableFutureWrapper() {
-        this(new CompletableFuture<T>());
+        super();
     }
     
     protected CompletableFutureWrapper(CompletableFuture<T> delegate) {
         super(delegate);
     }
 
-    @Override
-    public T getNow(T valueIfAbsent) {
-        return delegate.getNow(valueIfAbsent);
+    protected boolean success(T value) {
+        return onSuccess(value);
     }
     
-    @Override
-    public T join() throws CancellationException, CompletionException {
-        return delegate.join();
+    @Deprecated
+    protected boolean onSuccess(T value) {
+        return delegate.complete(value);
+    }
+    
+    protected boolean failure(Throwable ex) {
+        return onFailure(ex);
     }
 
+    @Deprecated
+    protected boolean onFailure(Throwable ex) {
+        return delegate.completeExceptionally(ex);
+    }    
+    
     @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {
         return new CompletableFutureWrapper<>((CompletableFuture<U>)original);

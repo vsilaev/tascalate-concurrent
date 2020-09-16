@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import net.tascalate.concurrent.CompletablePromise;
+import net.tascalate.concurrent.CompletableFutureWrapper;
 import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.Promises;
 
@@ -182,7 +182,7 @@ abstract class AsyncSemaphoreBase<T> {
         );
     }
     
-    abstract protected class AbstractSemaphorePromise extends CompletablePromise<T> {
+    abstract protected class AbstractSemaphorePromise extends CompletableFutureWrapper<T> {
         private final AtomicBoolean locked = new AtomicBoolean(); 
         
         boolean lock() {

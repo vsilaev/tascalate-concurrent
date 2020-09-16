@@ -41,9 +41,9 @@ class Timeouts {
      */
     static Promise<Duration> delay(Duration duration) {
         TimeMeasurment tm = new TimeMeasurment(duration);
-        CompletablePromise<Duration> result = new CompletablePromise<>();
+        CompletableFutureWrapper<Duration> result = new CompletableFutureWrapper<>();
         Future<?> timeout = scheduler.schedule( 
-            () -> result.onSuccess(duration), tm.amount, tm.unit 
+            () -> result.success(duration), tm.amount, tm.unit 
         );
         return result.onCancel(() -> timeout.cancel(true));
     }
@@ -78,9 +78,9 @@ class Timeouts {
      */
     static <T> Promise<T> failAfter(Duration duration) {
         TimeMeasurment tm = new TimeMeasurment(duration);
-        CompletablePromise<T> result = new CompletablePromise<>();
+        CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
         Future<?> timeout = scheduler.schedule(
-            () -> result.onFailure(new TimeoutException("Timeout after " + duration)), 
+            () -> result.failure(new TimeoutException("Timeout after " + duration)), 
             tm.amount, tm.unit
         );
         return result.onCancel(() -> timeout.cancel(true));

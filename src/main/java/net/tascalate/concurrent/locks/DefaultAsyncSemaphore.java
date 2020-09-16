@@ -59,7 +59,7 @@ public class DefaultAsyncSemaphore extends AsyncSemaphoreBase<Long>
         }
         
         boolean acquire() {
-            return onSuccess(permits);
+            return success(permits);
         }
     }
 }

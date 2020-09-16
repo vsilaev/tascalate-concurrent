@@ -20,6 +20,7 @@ import static net.tascalate.concurrent.SharedFunctions.selectSecond;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RunnableFuture;
@@ -37,7 +38,9 @@ import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
  * @param <T>
  *   a type of the successfully executed task result   
  */
-public class CompletableTask<T> extends AbstractCompletableTask<T> implements RunnableFuture<T> {
+public class CompletableTask<T> extends AbstractCompletableTask<T> 
+                                implements RunnableFuture<T>,
+                                           CompletableFuture.AsynchronousCompletionTask {
 
     /**
      * Creates a CompletableTask; for internal use only 
@@ -85,7 +88,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> implements Ru
      *   resolved {@link Promise} with a value passed; the promise is bound to the specified executor
      */
     public static <T> Promise<T> completed(T value, Executor defaultExecutor) {
-        CompletableTask<T> result = new CompletableTask<T>(defaultExecutor, () -> value);
+        CompletableTask<T> result = new CompletableTask<>(defaultExecutor, () -> value);
         SAME_THREAD_EXECUTOR.execute(result);
         return result;
     }

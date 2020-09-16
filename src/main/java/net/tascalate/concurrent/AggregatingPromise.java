@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
-abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
+abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>> {
 
     private final List<Throwable> errors;
     
@@ -151,7 +151,7 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
                         cancelPromises();
                     }
                     
-                    onSuccess(collectResults(minResultsCount, completions));
+                    success(collectResults(minResultsCount, completions));
                 }
             }
         } else {
@@ -175,7 +175,7 @@ abstract class AggregatingPromise<T, R> extends CompletablePromise<List<R>> {
                         cancelPromises();
                     }
                     
-                    onFailure(new MultitargetException(errors));
+                    failure(new MultitargetException(errors));
                 }
             }
         }

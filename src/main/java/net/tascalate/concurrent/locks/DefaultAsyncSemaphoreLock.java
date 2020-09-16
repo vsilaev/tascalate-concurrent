@@ -89,7 +89,7 @@ public class DefaultAsyncSemaphoreLock extends AsyncSemaphoreBase<AsyncSemaphore
         }
         
         boolean acquire() {
-            return onSuccess(token);
+            return success(token);
         }
         
         void release() {

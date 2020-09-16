@@ -102,7 +102,10 @@ class SharedFunctions {
     static <T> Supplier<T> supply(T value) {
         return () -> value;
     }
-
+    
+    static void iif(boolean v) {}
+    static <T> void voided(T v) {}
+    
     private static Optional<Boolean> tryCancellation(Function<Class<?>, ExceptionalCancellation> option, 
                                                      CompletionStage<?> promise,
                                                      boolean mayInterruptIfRunning) {

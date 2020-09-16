@@ -123,6 +123,11 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             throw rewrapExecutionException(ex);
         }
     }
+    
+    @Override
+    public boolean isCompletedExceptionally() {
+        return callbackRegistry.isFailure();
+    }
 
     boolean onSuccess(T result) {
         return callbackRegistry.success(result);

@@ -16,6 +16,7 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.iif;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -113,11 +114,7 @@ public final class Promises {
          */
         return CompletionStageWrapper.from(stage);
     }
-    
-    public static <T> CompletionStage<T> withDefaultExecutor(CompletionStage<T> stage, Executor executor) {
-        return new ExecutorBoundCompletionStage<>(stage, executor);
-    }
-    
+
     public static Throwable unwrapCompletionException(Throwable ex) {
         return SharedFunctions.unwrapCompletionException(ex);
     }
@@ -209,25 +206,25 @@ public final class Promises {
                                return failure(composeException);
                            }
 
-                           CompletablePromise<T> result = new CompletablePromise<>();
+                           CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
                            action.whenComplete((actionResult, actionException) -> {
                                try {
                                    resource.close();
                                } catch (Throwable onClose) {
                                    if (null != actionException) {
                                        actionException.addSuppressed(onClose);
-                                       result.onFailure(actionException);
+                                       result.failure(actionException);
                                    } else {
-                                       result.onFailure(onClose);
+                                       result.failure(onClose);
                                    }
                                    // DONE WITH ERROR ON CLOSE
                                    return;
                                }
                                // CLOSE OK
                                if (null == actionException) {
-                                   result.onSuccess(actionResult);
+                                   result.success(actionResult);
                                } else {
-                                   result.onFailure(actionException);
+                                   result.failure(actionException);
                                }
                            });
                            return result.onCancel(() -> cancelPromise(action, true));
@@ -254,7 +251,7 @@ public final class Promises {
                                }                               
                            }
 
-                           CompletablePromise<T> result = new CompletablePromise<>();
+                           CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
                            action.whenComplete((actionResult, actionException) -> {
                                CompletionStage<?> afterClose;
                                try {
@@ -262,9 +259,9 @@ public final class Promises {
                                } catch (Throwable onClose) {
                                    if (null != actionException) {
                                        actionException.addSuppressed(onClose);
-                                       result.onFailure(actionException);
+                                       result.failure(actionException);
                                    } else {
-                                       result.onFailure(onClose);
+                                       result.failure(onClose);
                                    }
                                    // DONE WITH ERROR ON ASYNC CLOSE
                                    return;
@@ -275,11 +272,11 @@ public final class Promises {
                                        if (null != onClose) {
                                            actionException.addSuppressed(onClose);
                                        }
-                                       result.onFailure(actionException);
+                                       result.failure(actionException);
                                    } else if (null != onClose) {
-                                       result.onFailure(onClose);
+                                       result.failure(onClose);
                                    } else {
-                                       result.onSuccess(actionResult);
+                                       result.success(actionResult);
                                    }
                                });
                            });
@@ -1195,14 +1192,10 @@ public final class Promises {
     private static <T, U> Promise<T> transform(CompletionStage<U> original, 
                                                Function<? super U, ? extends T> resultMapper, 
                                                Function<? super Throwable, ? extends Throwable> errorMapper) {
-        CompletablePromise<T> result = new CompletablePromise<>();
-        original.whenComplete((r, e) -> {
-           if (null == e) {
-               result.onSuccess( resultMapper.apply(r) );
-           } else {
-               result.onFailure( errorMapper.apply(e) );
-           }
-        });
+        CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
+        original.whenComplete(
+            (r, e) -> iif(null == e ? result.success(resultMapper.apply(r)) : result.failure(errorMapper.apply(e)))
+        );
         return result.onCancel(() -> cancelPromise(original, true));
     }
     

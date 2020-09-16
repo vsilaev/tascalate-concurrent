@@ -26,6 +26,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
@@ -97,6 +98,18 @@ class CallbackRegistry<T> {
         return true;
     }
 
+    boolean isFailure() {
+        synchronized (mutex) {
+            return state.isFailure();
+        }
+    }
+    
+    boolean isCompleted() {
+        synchronized (mutex) {
+            return state.isCompleted();
+        }
+    }
+    
     /**
      * State of the registry. All subclasses are meant to be used form a
      * synchronized block and are NOT thread safe on their own.
@@ -123,6 +136,10 @@ class CallbackRegistry<T> {
 
         protected boolean isCompleted() {
             return true;
+        }
+        
+        protected boolean isFailure() {
+            return false;
         }
     }
 
@@ -255,6 +272,10 @@ class CallbackRegistry<T> {
             callCallback(stageTransition, failureCallback, failure, executor);
             return this;
         }
+        
+        protected boolean isFailure() {
+            return true;
+        }
     }
 
     private static final class CallbackHolder<S> {
@@ -290,12 +311,15 @@ class CallbackRegistry<T> {
 
         Callable<U> callable = () -> callback.apply(value);
         try {
-            executor.execute( () -> stageTransition.accept(callable) );
+            executor.execute( (AsyncTask)() -> stageTransition.accept(callable) );
         } catch (RejectedExecutionException ex) {
             // Propagate error in-place
             Callable<U> propagateError = () -> { throw ex; };
             stageTransition.accept(propagateError);
         }
     }
+    
+    @FunctionalInterface
+    static interface AsyncTask extends Runnable, CompletableFuture.AsynchronousCompletionTask {}
 
 }

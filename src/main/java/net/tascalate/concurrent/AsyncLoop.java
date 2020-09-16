@@ -19,7 +19,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-class AsyncLoop<T> extends CompletablePromise<T> {
+class AsyncLoop<T> extends CompletableFutureWrapper<T> {
     private final Predicate<? super T> loopCondition;
     private final Function<? super T, ? extends CompletionStage<T>> loopBody;
     
@@ -65,17 +65,17 @@ class AsyncLoop<T> extends CompletablePromise<T> {
                     } else if (loopCondition.test(currentValue)) {
                         (currentStage = loopBody.apply(currentValue)).whenComplete((next, ex) -> {
                             if (ex != null) {
-                                onFailure(ex);
+                                failure(ex);
                             } else {
                                 run(next, currentThread, currentState);
                             }
                         });
                     } else {
-                        onSuccess(currentValue);
+                        success(currentValue);
                         break;
                     }
                 } catch (final Throwable ex) {
-                    onFailure(ex);
+                    failure(ex);
                     break;
                 }
             } while ((currentValue = currentState.take()) != IterationState.END);

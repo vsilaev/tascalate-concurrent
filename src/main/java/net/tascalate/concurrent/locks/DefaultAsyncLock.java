@@ -20,7 +20,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import net.tascalate.concurrent.CompletablePromise;
+import net.tascalate.concurrent.CompletableFutureWrapper;
 import net.tascalate.concurrent.Promise;
 
 public class DefaultAsyncLock implements AsyncLock {
@@ -54,7 +54,7 @@ public class DefaultAsyncLock implements AsyncLock {
         }
     }
 
-    private class LockPromise extends CompletablePromise<Token> {
+    private class LockPromise extends CompletableFutureWrapper<Token> {
         private final AtomicBoolean released = new AtomicBoolean();
         private final Token token = this::release;
 
@@ -69,7 +69,7 @@ public class DefaultAsyncLock implements AsyncLock {
         }
 
         boolean acquire() {
-            return onSuccess(token);
+            return success(token);
         }
         
         void release() {

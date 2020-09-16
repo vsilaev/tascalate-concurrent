@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.iif;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -39,22 +41,33 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         super(delegate);
     }
 
-    protected boolean onSuccess(T value) {
-        return delegate.complete(value);
+    public boolean complete​(T value) {
+        return success(value);
     }
-
-    protected boolean onFailure(Throwable ex) {
-        return delegate.completeExceptionally(ex);
+    
+    public boolean  completeExceptionally​(Throwable ex) {
+        return failure(ex);
     }
-
+    
     public Promise<T> completeAsync(Supplier<? extends T> supplier) {
-        return completeAsync(supplier, ForkJoinPool.commonPool());
+        Promise<T> result = 
+        this.dependent()
+            .acceptEitherAsync(CompletableFuture.supplyAsync(supplier, ForkJoinPool.commonPool()), this::success, PromiseOrigin.PARAM_ONLY)
+            .thenApply(__ -> this.join(), true);
+        
+        result.whenComplete((r, e) -> iif(null == e ? false : failure(e)));
+        
+        return result.unwrap();
     }
     
     public Promise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
-        CompletableTask.supplyAsync(supplier, executor).thenAccept(this::onSuccess);
-        return this;
+        Promise<T> result = CompletableTask.submit(supplier::get, executor);
+        result.whenComplete((r, e) -> iif(null == e ? success(r) : failure(e)));
+        return result;
     }
+    
+    // public CompletablePromise<T> copy();
+    // public CompletionStage<T> minimalCompletionStage();
 
     @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {

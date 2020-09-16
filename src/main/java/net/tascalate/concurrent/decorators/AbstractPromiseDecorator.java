@@ -65,6 +65,11 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
     }
     
     @Override
+    public boolean isCompletedExceptionally() {
+        return delegate.isCompletedExceptionally();
+    }
+    
+    @Override
     public Promise<T> unwrap() {
         return delegate;
     }

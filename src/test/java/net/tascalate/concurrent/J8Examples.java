@@ -36,9 +36,10 @@ import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
 import static net.tascalate.concurrent.PromiseOperations.partitionedItems;
 import static net.tascalate.concurrent.PromiseOperations.partitionedStream;
 import static net.tascalate.concurrent.PromiseOperations.tryCompose;
+import static net.tascalate.concurrent.PromiseOperations.peek;
 
 public class J8Examples {
-    
+
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         Promise<Long> eleOrigin = Promises.success(10L);
         Promise<Promise<Number>> eleDone1 = PromiseOperations.lift(eleOrigin);
@@ -65,6 +66,8 @@ public class J8Examples {
         //CompletableTask
           //  .supplyAsync(() -> "11", executorService)
             .dependent()
+            .as_(peek(p -> p.thenApply(Integer::parseInt)))
+            .as_(peek(System.out::println))
             .thenComposeAsync(v -> {
                 System.out.println("In compose " + v);
                 try {

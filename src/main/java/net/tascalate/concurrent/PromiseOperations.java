@@ -18,6 +18,7 @@ package net.tascalate.concurrent;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
@@ -64,6 +65,13 @@ public class PromiseOperations {
         return promise.dependent()
                       .handle((r, e) -> Optional.<T>ofNullable(null == e ? r : null), true)
                       .unwrap();
+    }
+    
+    public static <T, F extends Promise<T>> Function<F, F> peek(Consumer<? super F> fn) {
+        return p -> {
+            fn.accept(p);
+            return p;
+        };
     }
     
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 

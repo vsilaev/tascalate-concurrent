@@ -91,6 +91,7 @@ public class CompletionStageWrapper<T>
         }
     }
     
+    @Override
     public boolean isCompletedExceptionally() {
         return isDone() && fault != null;
     }
