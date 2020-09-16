@@ -4,7 +4,7 @@ The library provides an implementation of the [CompletionStage](https://docs.ora
 
 Since the version [0.7.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.7.0) the library is shipped as a multi-release JAR and may be used both with Java 8 as a classpath library or with Java 9+ as a module.
 
-IMPORTANT! 
+**IMPORTANT!**
 
 In the version [0.8.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.0) the artifact was renamed:
 New name:
@@ -23,7 +23,8 @@ Old Name
     <version>0.7.1</version>
 </dependency>
 ```
-
+**IMPORTANT!**
+Don't use release 0.9.0, use [0.9.1](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.1) instead -- the previous one is severely broken, see release notes for 0.9.1.
 
 # Why a CompletableFuture is not enough?
 There are several shortcomings associated with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its usage for real-life asynchronous programming, especially when you have to work with I/O-bound interruptible tasks:
