@@ -240,6 +240,10 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> {
                .unwrap();
     }
     
+    protected void runTask() {
+        task.run();
+    }
+    
     @Override
     void fireTransition(Callable<T> code) {
         throw new UnsupportedOperationException();

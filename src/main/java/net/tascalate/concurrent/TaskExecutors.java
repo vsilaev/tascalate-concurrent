@@ -19,7 +19,6 @@ import java.util.Collection;
 import java.util.List;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -185,8 +184,7 @@ public class TaskExecutors {
     }
     
     static class RunnableCompletableTask<T> extends CompletableTask<T> 
-                                            implements RunnablePromise<T>,
-                                                       CompletableFuture.AsynchronousCompletionTask{
+                                            implements RunnablePromise<T> {
 
         RunnableCompletableTask(Executor executor, Callable<T> callable) {
             super(executor, callable);
@@ -195,7 +193,7 @@ public class TaskExecutors {
 
         @Override
         public void run() {
-            task.run();
+            runTask();
         }
     }
 
