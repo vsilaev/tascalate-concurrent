@@ -158,7 +158,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     @Override
     public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
         AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
-        addCallbacks(nextStage, fn, executor);
+        addCallbacks(nextStage, fn, AbstractCompletableTask::forwardException, executor);
         return nextStage;
     }
 
@@ -467,13 +467,6 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     private static ExecutionException rewrapExecutionException(ExecutionException ex) {
         return wrapExecutionException( unwrapCompletionException(unwrapExecutionException(ex)) );
     }    
-
-    private <U> void addCallbacks(AbstractCompletableTask<U> targetStage,
-                                  Function<? super T, ? extends U> successCallback, 
-                                  Executor executor) {
-        
-        addCallbacks(targetStage, successCallback, AbstractCompletableTask::forwardException, executor);
-    }
 
     private <U> void addCallbacks(AbstractCompletableTask<U> targetStage,
                                   Function<? super T, ? extends U> successCallback, 
