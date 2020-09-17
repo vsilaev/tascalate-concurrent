@@ -20,6 +20,8 @@ import java.util.concurrent.Executor;
 
 class J9CompletionStageAPI extends J8CompletionStageAPI {
     
+    J9CompletionStageAPI() {}
+    
     @Override
     public boolean defaultExecutorOverridable() {
         return true;

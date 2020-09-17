@@ -48,17 +48,17 @@ import net.tascalate.concurrent.decorators.ExecutorBoundDependentPromise;
  * <p>In the example <code>p2</code> is created with specifying <code>p1</code> as origin (last argument is <code>true</code>).
  * Now when canceling <code>p2</code> both <code>p2</code> and <code>p1</code> will be cancelled if not completed yet. 
  * 
- * <p>The class add overloads to all composition methods declared in {@link CompletionStage} interface.
+ * <p>The class add overloads to all composition methods declared in {@link CompletionStage} and {@link Promise} interface.
  * 
  * <p>The ones that accepts another {@link CompletionStage} as argument (named <code>*Both*</code> and
  * <code>*Either*</code> are overloaded with a set of @{link {@link PromiseOrigin} as an argument to let
  * you specify what to enlist as origin: "this" related to the method call or the parameter.
  * 
- * <p>Rest of methods from  {@link CompletionStage} API are overloaded with boolean argument 
+ * <p>Rest of methods from {@link CompletionStage} and {@link Promise} API are overloaded with boolean argument 
  * <code>enlistOrigin</code> that specify whether or not the {@link Promise} object whose
  * method is invoked should be added as an origin to result.
  * 
- * <p>All methods originally  specified in {@link CompletionStage} does not add "this" as an origin to
+ * <p>All methods originally specified in {@link CompletionStage} does not add "this" as an origin to
  * resulting promise.
  * 
  * @author vsilaev

@@ -175,7 +175,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
      * created DependentPromise
      */
     default DependentPromise<T> dependent() {
-    	return DependentPromise.from(this);
+    	return ConfigurableDependentPromise.from(this);
     }
     
     /**
@@ -190,7 +190,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
      * created DependentPromise
      */
     default DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
-        return DependentPromise.from(this, defaultEnlistOptions);
+        return ConfigurableDependentPromise.from(this, defaultEnlistOptions);
     }
     
     default Promise<T> defaultAsyncOn(Executor executor) {

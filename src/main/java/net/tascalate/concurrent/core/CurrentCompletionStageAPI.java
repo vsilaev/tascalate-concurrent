@@ -15,8 +15,10 @@
  */
 package net.tascalate.concurrent.core;
 
-class CurrentCompletionStageAPI {
+final class CurrentCompletionStageAPI {
     static final CompletionStageAPI INSTANCE;
+    
+    private CurrentCompletionStageAPI() {}
     
     private static int getJavaVersion() {
         String version = System.getProperty("java.version");

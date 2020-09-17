@@ -59,7 +59,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
             return result; // use what is provided
         } else {
             // defaultExecutor might be changed in ad-hoc manner via subclassing
-            // let take back to the actual default executor
+            // let us take back to the actual default executor
             return result.dependent()
                          .thenApplyAsync(Function.identity()) 
                          .unwrap();

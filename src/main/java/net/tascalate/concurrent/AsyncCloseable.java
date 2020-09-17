@@ -19,15 +19,15 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 /**
- * An object that may hold resources that must be explicitly released, where the release may be
- * performed asynchronously.
+ * An object that may hold resources that must be explicitly released, and the release operation 
+ * should be performed asynchronously.
  *
  * <p>
- * Examples of such resources are manually managed memory, open file handles, socket descriptors
+ * Examples of such resources are database connections, open file handles, socket descriptors
  * etc. While similar to {@link AutoCloseable}, this interface should be used when the resource
- * release operation may possibly be async. For example, if an object is thread-safe and has many
- * consumers, an implementation may require all current ongoing operations to complete before
- * resources are relinquished. 
+ * release operation may possibly be asynchronous. For example, if an object is thread-safe and 
+ * has many consumers, an implementation may require all current ongoing operations to complete 
+ * before resources are relinquished. 
  *
  * <p>
  * May be used with the methods {@link Promises#tryApplyEx(CompletionStage, Function)},
@@ -38,10 +38,10 @@ import java.util.function.Function;
 @FunctionalInterface
 public interface AsyncCloseable {
   /**
-   * Relinquishes any resources associated with this object.
+   * Release any resources associated with this object.
    *
    * @return a {@link CompletionStage} that completes when all resources associated with this object
-   *         have been released, or with an exception if the resources cannot be released.
+   *         have been released, or settled with an exception if the resources cannot be released.
    */
   CompletionStage<Void> close();
 }

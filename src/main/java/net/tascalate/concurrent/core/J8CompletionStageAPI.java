@@ -21,7 +21,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 
-public class J8CompletionStageAPI implements CompletionStageAPI {
+class J8CompletionStageAPI implements CompletionStageAPI {
+    
+    J8CompletionStageAPI() {}
     
     @Override
     public boolean defaultExecutorOverridable() {

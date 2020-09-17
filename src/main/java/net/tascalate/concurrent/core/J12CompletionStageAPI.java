@@ -20,7 +20,10 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-public class J12CompletionStageAPI implements CompletionStageAPI {
+class J12CompletionStageAPI implements CompletionStageAPI {
+    
+    J12CompletionStageAPI() {}
+    
     @Override
     public boolean defaultExecutorOverridable() {
         return true;
