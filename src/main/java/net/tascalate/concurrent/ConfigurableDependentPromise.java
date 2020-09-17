@@ -15,10 +15,11 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
-import static net.tascalate.concurrent.SharedFunctions.selectFirst;
-import static net.tascalate.concurrent.SharedFunctions.iif;
 import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
+import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.failure;
+import static net.tascalate.concurrent.SharedFunctions.iif;
+import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -413,7 +414,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
-        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        PromiseRef<T> onError = new PromiseRef<>();
         return setupExceptionalHandler(
             handle((r, ex) -> ex == null ? this : onError.modify( handleAsync((r1, ex1) -> fn.apply(ex1), false) ), 
                    enlistOrigin),
@@ -422,7 +423,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
-        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        PromiseRef<T> onError = new PromiseRef<>();
         return setupExceptionalHandler(
             handle((r, ex) -> ex == null ? this : onError.modify( handleAsync((r1, ex1) -> fn.apply(ex1), executor, false) ), 
                    enlistOrigin),
@@ -431,14 +432,17 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        return drop( handle((r, ex) -> ex == null ? this : fn.apply(ex), enlistOrigin) );
+        CompletionStageRef<T> onError = new CompletionStageRef<>();
+        return drop( handle((r, ex) -> ex == null ? 
+                                       this : 
+                                       onError.modify(fn.apply(ex)), enlistOrigin).onCancel(onError.cancel) );
     }
     
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        PromiseRef<T> onError = new PromiseRef<>();
         return setupExceptionalHandler(
-            handle((r, ex) -> ex == null ? this : onError.modify(drop( handleAsync((r1, ex1) -> fn.apply(ex1), false) )),
+            handle((r, ex) -> ex == null ? this : onError.modify(exceptionallyComposeHelper(fn, null, false)),
                    enlistOrigin),
             onError);
     }
@@ -447,11 +451,21 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
                                                          Executor executor, 
                                                          boolean enlistOrigin) {
-        PromiseHolder<T> onError = new PromiseHolder<>(this);
+        PromiseRef<T> onError = new PromiseRef<>();
         return setupExceptionalHandler(
-            handle((r, ex) -> ex == null ? this : onError.modify(drop( handleAsync((r1, ex1) -> fn.apply(ex1), executor, false) )),
+            handle((r, ex) -> ex == null ? this : onError.modify(exceptionallyComposeHelper(fn, executor, true)),
                    enlistOrigin),
             onError);
+    }
+    
+    Promise<T> exceptionallyComposeHelper(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean useExecutor) {
+        CompletionStageRef<T> ref = new CompletionStageRef<>();
+        DependentPromise<CompletionStage<T>> asyncLifted = useExecutor ?
+            handleAsync((r1, ex1) -> ref.modify(fn.apply(ex1)), executor, false) 
+            :
+            handleAsync((r1, ex1) -> ref.modify(fn.apply(ex1)), false);
+            
+        return drop(asyncLifted.onCancel(ref.cancel));
     }
     
     @Override
@@ -934,20 +948,14 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
 
     static <T> DependentPromise<T> setupExceptionalHandler(DependentPromise<? extends Promise<T>> origin, 
-                                                             AtomicReference<? extends Promise<?>> onException) {
+                                                           PromiseRef<?> onException) {
         return (DependentPromise<T>)
-            drop(origin).onCancel(() -> onException.get().cancel(true))
+            drop(origin).onCancel(onException.cancel)
                         .unwrap();
     }
     
     static <T> DependentPromise<T> drop(DependentPromise<? extends CompletionStage<T>> lifted) {
         return lifted.thenCompose(Function.identity(), true);
-    }
-    
-    static <T> CompletionStage<T> failure(Function<? super T, Throwable> errorSupplier, T value) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        result.completeExceptionally(errorSupplier.apply(value));
-        return result;
     }
     
     private static boolean identicalSets(Set<?> a, Set<?> b) {
@@ -1012,16 +1020,19 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         }
     }
 
-    static class PromiseHolder<T> extends AtomicReference<Promise<T>> {
+    static class PromiseRef<T> extends AtomicReference<Promise<T>> {
         private static final long serialVersionUID = 1L;
-
-        public PromiseHolder(Promise<T> initial) {
-            super(initial);
-        }
         
         Promise<T> modify(Promise<T> newValue) {
             set(newValue);
             return newValue;
         }
+        
+        Runnable cancel = () -> {
+            Promise<?> promise = get();
+            if (null != promise) {
+                promise.cancel(true);
+            }
+        };
     }
 }

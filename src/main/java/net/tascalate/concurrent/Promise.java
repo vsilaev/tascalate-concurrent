@@ -15,8 +15,10 @@
  */
 package net.tascalate.concurrent;
 
+import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.failure;
 
 import java.time.Duration;
 import java.util.Set;
@@ -321,27 +323,27 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
 
     default Promise<T> thenFilter(Predicate<? super T> predicate) {
-        return dependent().thenFilter(predicate).unwrap();
+        return thenFilter(predicate, NO_SUCH_ELEMENT);
     }
     
     default Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
-        return dependent().thenFilter(predicate, errorSupplier).unwrap();
+        return thenCompose(v -> predicate.test(v) ? this : failure(errorSupplier, v));
     }
     
     default Promise<T> thenFilterAsync(Predicate<? super T> predicate) {
-        return dependent().thenFilterAsync(predicate).unwrap();
+        return thenFilterAsync(predicate, NO_SUCH_ELEMENT);
     }
     
     default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
-        return dependent().thenFilterAsync(predicate, errorSupplier).unwrap();
+        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v));
     }
     
     default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
-        return dependent().thenFilterAsync(predicate, executor).unwrap();
+        return thenFilterAsync(predicate, NO_SUCH_ELEMENT, executor);
     }
     
     default Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
-        return dependent().thenFilterAsync(predicate, errorSupplier, executor).unwrap();
+        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v), executor);
     }
     
     Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action);

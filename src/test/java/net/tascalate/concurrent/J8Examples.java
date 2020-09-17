@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import net.tascalate.concurrent.core.CompletionStageAPI;
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
 
@@ -41,6 +42,8 @@ import static net.tascalate.concurrent.PromiseOperations.peek;
 public class J8Examples {
 
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
+        CompletionStageAPI.current();
+        
         Promise<Long> eleOrigin = Promises.success(10L);
         Promise<Promise<Number>> eleDone1 = PromiseOperations.lift(eleOrigin);
         Promise<Promise<Number>> eleDone2 = eleOrigin.as(PromiseOperations::lift);

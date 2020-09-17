@@ -240,5 +240,4 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
                                       Executor executor) {
         return wrap(delegate.thenFilterAsync(predicate, errorSupplier, executor));
     }
-    
 }

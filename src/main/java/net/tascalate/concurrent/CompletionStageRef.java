@@ -19,9 +19,14 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-class ComposedFutureRef<U> extends AtomicReference<CompletionStage<U>> {
+class CompletionStageRef<U> extends AtomicReference<CompletionStage<U>> {
     private static final long serialVersionUID = 1L;
 
+    CompletionStage<U> modify(CompletionStage<U> newValue) {
+        set(newValue);
+        return newValue;
+    }
+    
     <T, F extends CompletionStage<U>> Function<T, F> captureResult(Function<? super T, ? extends F> fn) {
         return v -> {
             F result = fn.apply(v);
@@ -30,7 +35,7 @@ class ComposedFutureRef<U> extends AtomicReference<CompletionStage<U>> {
         };
     }    
 
-    Runnable cancelCaptured = () -> {
+    Runnable cancel = () -> {
         CompletionStage<U> stage = get();
         if (null != stage) {
             SharedFunctions.cancelPromise(stage, true);

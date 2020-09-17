@@ -19,6 +19,7 @@ import java.lang.reflect.Method;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -62,6 +63,12 @@ class SharedFunctions {
         } else {
             return new ExecutionException(e);
         }
+    }
+    
+    static <T> CompletionStage<T> failure(Function<? super T, Throwable> errorSupplier, T value) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        result.completeExceptionally(errorSupplier.apply(value));
+        return result;
     }
     
     

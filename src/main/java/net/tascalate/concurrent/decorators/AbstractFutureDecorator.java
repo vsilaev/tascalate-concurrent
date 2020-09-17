@@ -37,7 +37,7 @@ import net.tascalate.concurrent.Promise;
  *   a type of the concrete {@link CompletionStage} + {@link Future} subclass
  */
 abstract public class AbstractFutureDecorator<T, D extends CompletionStage<T> & Future<T>>
-    extends AbstractCompletionStageDecorator<T, D>
+    extends AbstractPromiseLikeDecorator<T, D>
     implements CompletionStage<T>, Future<T> {
 
     protected AbstractFutureDecorator(D delegate) {
@@ -68,5 +68,4 @@ abstract public class AbstractFutureDecorator<T, D extends CompletionStage<T> & 
     public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         return delegate.get(timeout, unit);
     }
-
 }

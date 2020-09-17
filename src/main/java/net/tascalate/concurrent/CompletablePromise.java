@@ -20,8 +20,11 @@ import static net.tascalate.concurrent.SharedFunctions.iif;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.function.Function;
 import java.util.function.Supplier;
+
+import net.tascalate.concurrent.core.CompletionStageAPI;
+import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
 
 /**
  * The {@link CompletablePromise} is an adapter of a {@link CompletableFuture} to the {@link Promise} API 
@@ -41,23 +44,26 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         super(delegate);
     }
 
-    public boolean complete​(T value) {
+    public boolean complete(T value) {
         return success(value);
     }
     
-    public boolean  completeExceptionally​(Throwable ex) {
+    public boolean  completeExceptionally(Throwable ex) {
         return failure(ex);
     }
     
     public Promise<T> completeAsync(Supplier<? extends T> supplier) {
-        Promise<T> result = 
-        this.dependent()
-            .acceptEitherAsync(CompletableFuture.supplyAsync(supplier, ForkJoinPool.commonPool()), this::success, PromiseOrigin.PARAM_ONLY)
-            .thenApply(__ -> this.join(), true);
-        
-        result.whenComplete((r, e) -> iif(null == e ? false : failure(e)));
-        
-        return result.unwrap();
+        CompletionStageAPI api = CompletionStageAPI.current();
+        Promise<T> result = completeAsync(supplier, api.defaultExecutorOf(delegate));
+        if (api.defaultExecutorOverridable() || delegate.getClass() == CompletableFuture.class) {
+            return result; // use what is provided
+        } else {
+            // defaultExecutor might be changed in ad-hoc manner via subclassing
+            // let take back to the actual default executor
+            return result.dependent()
+                         .thenApplyAsync(Function.identity()) 
+                         .unwrap();
+        }
     }
     
     public Promise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
@@ -66,11 +72,64 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         return result;
     }
     
-    // public CompletablePromise<T> copy();
-    // public CompletionStage<T> minimalCompletionStage();
+    public CompletablePromise<T> copy() {
+        CompletablePromise<T> result = wrap(new CompletableFuture<>());
+        if (isDone()) {
+            try {
+                result.complete(join());
+            } catch (Exception ex) {
+                result.completeExceptionally(ex);
+            }
+            return result;
+        } else {
+            whenComplete((r, e) -> iif(null == e ? result.complete(r) : result.completeExceptionally(e)));
+            return result;
+        }
+    }
+    
+    public Promise<T> minimalPromise() {
+        CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
+        if (isDone()) {
+            try {
+                result.success(join());
+            } catch (Exception ex) {
+                result.failure(ex);
+            }
+            return result;            
+        } else {
+            whenComplete((r, e) -> iif(null == e ? result.success(r) : result.failure(e)));
+            return result;
+        }
+    }
+    
+    public CompletionStage<T> minimalCompletionStage() {
+        // Should pass this, not delegate - while delegate has invalid thenCompose impl.
+        return new MinimalCompletionStage<>(this);
+    }
 
     @Override
-    protected <U> Promise<U> wrap(CompletionStage<U> original) {
+    protected <U> CompletablePromise<U> wrap(CompletionStage<U> original) {
         return new CompletablePromise<>((CompletableFuture<U>)original);
+    }
+    
+    static class MinimalCompletionStage<T> extends AbstractCompletionStageDecorator<T, CompletionStage<T>> {
+        public MinimalCompletionStage(CompletionStage<T> delegate) {
+            super(delegate);
+        }
+
+        @Override
+        protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
+            return new MinimalCompletionStage<>(original);
+        }
+        
+        @Override
+        public CompletableFuture<T> toCompletableFuture() {
+            // Should be independent future according to existing Java impl. 
+            // http://hg.openjdk.java.net/jdk9/jdk9/jdk/file/tip/src/java.base/share/classes/java/util/concurrent/CompletableFuture.java 
+            // - MinimalCompletionStage
+            CompletableFuture<T> result = new CompletableFuture<>();
+            whenComplete((r, e) -> iif(null == e ? result.complete(r) : result.completeExceptionally(e)));
+            return result;
+        }
     }
 }

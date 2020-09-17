@@ -28,6 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass as an
@@ -122,6 +123,26 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
         return applyToEitherAsync(other, fn, this.defaultExecutor);
     }
+    
+    @Override
+    public Promise<T> exceptionally(Function<Throwable, ? extends T> fn) {
+        return exceptionallyAsync(fn, SAME_THREAD_EXECUTOR);
+    }
+    
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return exceptionallyAsync(fn, this.defaultExecutor);
+    }
+
+    @Override
+    public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return exceptionallyComposeAsync(fn, SAME_THREAD_EXECUTOR);
+    }
+    
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        return exceptionallyComposeAsync(fn, this.defaultExecutor);
+    }
 
     @Override
     public Promise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action) {
@@ -152,6 +173,38 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
         return thenComposeAsync(fn, this.defaultExecutor);
     }
+    
+    @Override
+    public Promise<T> thenFilter(Predicate<? super T> predicate) {
+        return thenFilterAsync(predicate, SAME_THREAD_EXECUTOR);
+    }
+    
+    @Override
+    public Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
+        return thenFilterAsync(predicate, errorSupplier, SAME_THREAD_EXECUTOR);
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate) {
+        return thenFilterAsync(predicate, this.defaultExecutor);
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
+        return thenFilterAsync(predicate, errorSupplier, this.defaultExecutor);
+    }
+    
+    /* AS IS (definitions in Promise are OK)
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
+        return thenFilterAsync(predicate, NO_SUCH_ELEMENT, executor);
+    }
+    
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
+        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v), executor);
+    }
+    */
 
     @Override
     public Promise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
@@ -172,7 +225,6 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn) {
         return handleAsync(fn, this.defaultExecutor);
     }
-   
 
     protected final Executor getDefaultExecutor() {
         return this.defaultExecutor;

@@ -297,15 +297,29 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
 
         return nextStage;
     }
+
+    // Provide better impl. rather than several nested stages by default
+    /*
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        return null;
+    }
+    */
+    
+    // Default opertaion in Promise is ok
+    /*
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
+    */
     
     private <U> Consumer<? super U> runTransition(Function<? super U, ? extends T> converter) {
         return u -> fireTransition(() -> converter.apply(u)); 
     }
-
+    
     @Override
-    public Promise<T> exceptionally(Function<Throwable, ? extends T> fn) {
-        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(getDefaultExecutor());
-        addCallbacks(nextStage, Function.identity(), fn, SAME_THREAD_EXECUTOR);
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
+        addCallbacks(nextStage, Function.identity(), fn, executor);
         return nextStage;
     }
 

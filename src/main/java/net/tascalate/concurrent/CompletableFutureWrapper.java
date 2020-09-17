@@ -56,23 +56,43 @@ public class CompletableFutureWrapper<T>
         return new CompletableFutureWrapper<>((CompletableFuture<U>)original);
     }
 
-    // By default CompletableFuture doesn't interrupt a promise from thenCompose(fn)!
+    // By default CompletableFuture doesn't interrupt a promise 
+    // from thenCompose(fn) and exceptionallyCompose!
     @Override
     public <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
-        ComposedFutureRef<U> ref = new ComposedFutureRef<>();
-        return super.thenCompose(ref.captureResult(fn)).onCancel(ref.cancelCaptured);
+        CompletionStageRef<U> ref = new CompletionStageRef<>();
+        return super.thenCompose(ref.captureResult(fn)).onCancel(ref.cancel);
     }
 
     @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
-        ComposedFutureRef<U> ref = new ComposedFutureRef<>();
-        return super.thenComposeAsync(ref.captureResult(fn)).onCancel(ref.cancelCaptured);
+        CompletionStageRef<U> ref = new CompletionStageRef<>();
+        return super.thenComposeAsync(ref.captureResult(fn)).onCancel(ref.cancel);
     }
 
     @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, 
                                                     Executor executor) {
-        ComposedFutureRef<U> ref = new ComposedFutureRef<>();
-        return super.thenComposeAsync(ref.captureResult(fn), executor).onCancel(ref.cancelCaptured);        
+        CompletionStageRef<U> ref = new CompletionStageRef<>();
+        return super.thenComposeAsync(ref.captureResult(fn), executor).onCancel(ref.cancel);        
+    }
+    
+    @Override
+    public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        CompletionStageRef<T> ref = new CompletionStageRef<>();
+        return super.exceptionallyCompose(ref.captureResult(fn)).onCancel(ref.cancel);
+    }
+
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
+        CompletionStageRef<T> ref = new CompletionStageRef<>();
+        return super.exceptionallyComposeAsync(ref.captureResult(fn)).onCancel(ref.cancel);
+    }
+    
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
+                                                Executor executor) {
+        CompletionStageRef<T> ref = new CompletionStageRef<>();
+        return super.exceptionallyComposeAsync(ref.captureResult(fn), executor).onCancel(ref.cancel);        
     }
 }
