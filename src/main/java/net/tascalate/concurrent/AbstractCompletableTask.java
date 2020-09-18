@@ -281,14 +281,14 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                         // Synchronous, while transition to tempStage is asynchronous already
                         returned.whenComplete(biConsumer(onResult, onError));
                     }
-                } catch (Throwable ex) {
+                } catch (Throwable e) {
                     // must-have if fn.apply above failed 
                     nextStage.resetCancellableOrigins((CompletionStage<U>)null);
                     // no need to check nextStage.isCancelled()
                     // while there are no origins to cancel
                     // propagate error immediately
                     // synchronous, while transition to tempStage is asynchronous already
-                    onError.accept(ex);  
+                    onError.accept(e);  
                 }
             }), 
             consumerAsFunction(onError),
@@ -298,30 +298,58 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         return nextStage;
     }
 
-    // Provide better impl. rather than several nested stages by default
-    /*
-    @Override
-    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
-        return null;
-    }
-    */
-    
-    // Default opertaion in Promise is ok
-    /*
-    @Override
-    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
-    */
-    
-    private <U> Consumer<? super U> runTransition(Function<? super U, ? extends T> converter) {
-        return u -> fireTransition(() -> converter.apply(u)); 
-    }
-    
     @Override
     public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        // Symmetrical with thenApplyAsync
         AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
         addCallbacks(nextStage, Function.identity(), fn, executor);
         return nextStage;
     }
+
+    // Provide better impl. rather than several nested stages by default
+    @Override
+    public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
+        // Symmetrical with thenComposeAsync
+        // See comments for thenComposeAsync -- all are valid here, this is just a different path in Either (left vs right)
+        AbstractCompletableTask<Void> tempStage = internalCreateCompletionStage(executor);
+        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
+
+        nextStage.resetCancellableOrigins(tempStage);
+
+        Consumer<? super T> onResult = nextStage.runTransition(Function.identity());
+        Consumer<? super Throwable> onError = nextStage.runTransition(AbstractCompletableTask::forwardException);
+
+        addCallbacks(
+            tempStage, 
+            consumerAsFunction(onResult),
+            consumerAsFunction(error -> {
+                try {
+                    CompletionStage<T> returned = fn.apply(error);
+                    nextStage.resetCancellableOrigins(returned);
+                    if (nextStage.isCancelled()) {
+                        nextStage.cancelOrigins(true);
+                    } else {
+                        returned.whenComplete(biConsumer(onResult, onError));
+                    }
+                } catch (Throwable e) {
+                    nextStage.resetCancellableOrigins((CompletionStage<T>)null);
+                    // In JDK 12 CompletionStage.composeExceptionally[Async] uses *.handle[Async]
+                    // So overwrite returned error with the latest one - as in handle()
+                    e.addSuppressed(error);
+                    onError.accept(e);  
+                }
+            }), 
+            executor
+        );
+
+        return nextStage;
+    }
+    
+    // Default operation in Promise is ok - it just delegates to thenCompose[Async]
+    /*
+    @Override
+    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
+    */
 
     @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
@@ -426,7 +454,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         // Next stage is not exposed to the client, so we can
         // short-circuit its initiation - just fire callbacks
         // without task execution (unlike as in other methods,
-        // event in thenComposeAsync with its ad-hoc execution)
+        // even in thenComposeAsync with its ad-hoc execution)
 
         // In certain sense, nextStage here is bogus: neither
         // of Future-defined methods are functional.
@@ -449,6 +477,10 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         // Preserve default async executor, or use user-supplied executor as default
         // But don't let SAME_THREAD_EXECUTOR to be a default async executor
         return createCompletionStage(executor == SAME_THREAD_EXECUTOR ? getDefaultExecutor() : executor);
+    }
+    
+    private <U> Consumer<? super U> runTransition(Function<? super U, ? extends T> converter) {
+        return u -> fireTransition(() -> converter.apply(u)); 
     }
 
     private static <V, R> Function<V, R> consumerAsFunction(Consumer<? super V> action) {
