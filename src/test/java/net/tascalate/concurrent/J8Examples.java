@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import net.tascalate.concurrent.core.CompletionStageAPI;
+import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
 
@@ -41,8 +42,49 @@ import static net.tascalate.concurrent.PromiseOperations.peek;
 
 public class J8Examples {
 
+    public static interface ICancel {
+        public boolean cancel(boolean miifr);
+        //public boolean completeExceptionally(Throwable ex);
+    }
+    
+    abstract static class X<T> extends AbstractCompletionStageDecorator<T, CompletionStage<T>>
+        implements ICancel {
+        protected X(CompletionStage<T> delegate) {
+            super(delegate);
+        }
+    }
+    
+    static class MyStage<T> extends X<T> {
+        MyStage(CompletionStage<T> original) {
+            super(original);
+        }
+
+        @Override
+        protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
+            return new MyStage<>(original);
+        }
+        
+        public boolean xcancel() {
+            System.out.println("No-arg cancel");
+            return true;
+        }
+        
+        public boolean cancel(boolean miifr) {
+            System.out.println("Arg cancel " + miifr);
+            return true;
+        }
+        
+        public boolean completeExceptionally(Throwable ex) {
+            System.out.println("Exceptional cancel " + ex);
+            return true;
+        }
+
+    }
+    
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         CompletionStageAPI.current();
+        CompletionStage<Integer> testCancel = new MyStage<>(Promises.success(10));
+        SharedFunctions.cancelPromise(testCancel, true);
         
         Promise<Long> eleOrigin = Promises.success(10L);
         Promise<Promise<Number>> eleDone1 = PromiseOperations.lift(eleOrigin);
