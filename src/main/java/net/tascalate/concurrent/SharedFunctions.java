@@ -100,7 +100,9 @@ class SharedFunctions {
     }
     
     static void iif(boolean v) {}
+    /*
     static <T> void voided(T v) {}
+    */
 
     static final Function<Object, Throwable> NO_SUCH_ELEMENT = t -> new NoSuchElementException("Result rejected by filter: " + t);
     

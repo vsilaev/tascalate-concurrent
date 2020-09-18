@@ -27,7 +27,6 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public final class CancelMethodsCache {
