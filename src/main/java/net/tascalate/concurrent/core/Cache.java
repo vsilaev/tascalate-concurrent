@@ -23,11 +23,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 
-public final class Cache<K, V> {
+final class Cache<K, V> {
     private final Map<Reference<K>, V> entries = new ConcurrentHashMap<>();
     private final ReferenceQueue<K> queue = new ReferenceQueue<K>();
 
-    public V get(K key, Function<? super K, ? extends V> valueFactory) {
+    V get(K key, Function<? super K, ? extends V> valueFactory) {
         expungeStaleEntries();
         return entries.computeIfAbsent(new KeyReference<>(key), __ -> valueFactory.apply(key));
     }

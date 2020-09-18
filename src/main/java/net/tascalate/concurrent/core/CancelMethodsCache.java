@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public final class CancelMethodsCache {
@@ -60,19 +61,13 @@ public final class CancelMethodsCache {
     
     private static ExceptionalCancellation cancelInterruptibleMethodOf(Class<?> clazz) {
         try {
-            Method m = clazz.getMethod("cancel", boolean.class);
-            Method mf = firstUnreflectableMethod(m);
-            if (null != mf) {
-                try {
-                    MethodHandle mh = MethodHandles.publicLookup()
-                                                   .unreflect(mf)
-                                                   .asType(MethodType.methodType(boolean.class, CompletionStage.class, boolean.class));            
-                    return (p, b) -> (boolean)mh.invokeExact(p, b);
-                } catch (IllegalAccessException ex) {
-                    // will try reflective
-                }
+            Method m = firstUnreflectableMethod( clazz.getMethod("cancel", boolean.class) );
+            if (null == m) {
+                return null;
             }
-            return (p, b) -> (Boolean)m.invoke(p, b);
+            MethodHandle mh = unreflect(m).asType(MethodType.methodType(boolean.class, CompletionStage.class, boolean.class));            
+            return (p, b) -> (boolean)mh.invokeExact(p, b);
+            //return (p, b) -> (Boolean)m.invoke(p, b);
         } catch (ReflectiveOperationException | SecurityException ex) {
             return null;
         }
@@ -80,19 +75,13 @@ public final class CancelMethodsCache {
     
     private static ExceptionalCancellation cancelMethodOf(Class<?> clazz) {
         try {
-            Method m = clazz.getMethod("cancel");
-            Method mf = firstUnreflectableMethod(m);
-            if (null != mf) {
-                try {
-                    MethodHandle mh = MethodHandles.publicLookup()
-                                                   .unreflect(mf)
-                                                   .asType(MethodType.methodType(boolean.class, CompletionStage.class));
-                    return (p, b) -> (boolean)mh.invokeExact(p);
-                } catch (IllegalAccessException ex) {
-                    // will try reflective
-                } 
+            Method m = firstUnreflectableMethod( clazz.getMethod("cancel") );
+            if (null == m) {
+                return null;
             }
-            return (p, b) -> (Boolean)m.invoke(p);
+            MethodHandle mh = unreflect(m).asType(MethodType.methodType(boolean.class, CompletionStage.class));
+            return (p, b) -> (boolean)mh.invokeExact(p);
+            //return (p, b) -> (Boolean)m.invoke(p);
         } catch (ReflectiveOperationException | SecurityException ex) {
             return null;
         }
@@ -100,18 +89,13 @@ public final class CancelMethodsCache {
     
     private static ExceptionalCancellation completeExceptionallyMethodOf(Class<?> clazz) {
         try {
-            Method m = clazz.getMethod("completeExceptionally", Throwable.class);
-            Method mf = firstUnreflectableMethod(m);
-            if (null != mf) {
-                try {
-                    MethodHandle mh = MethodHandles.publicLookup()
-                                                   .unreflect(mf)
-                                                   .asType(MethodType.methodType(boolean.class, CompletionStage.class, CancellationException.class));
-                    return (p, b) -> (boolean)mh.invokeExact(p, new CancellationException());
-                } catch (IllegalAccessException ex) {
-                }
+            Method m = firstUnreflectableMethod( clazz.getMethod("completeExceptionally", Throwable.class) );
+            if (null == m) {
+                return null;
             }
-            return (p, b) -> (Boolean)m.invoke(p, new CancellationException());
+            MethodHandle mh = unreflect(m).asType(MethodType.methodType(boolean.class, CompletionStage.class, CancellationException.class));
+            return (p, b) -> (boolean)mh.invokeExact(p, new CancellationException());
+            //return (p, b) -> (Boolean)m.invoke(p, new CancellationException());
         } catch (ReflectiveOperationException | SecurityException ex) {
             return null;
         }
@@ -139,13 +123,17 @@ public final class CancelMethodsCache {
             }
         }
         return
-        Stream.concat(Stream.of(clazz.getSuperclass()), Stream.of(clazz.getInterfaces()))
-              .filter(Objects::nonNull)
+        Stream.concat( Stream.of(clazz.getSuperclass()), Stream.of(clazz.getInterfaces()) )
+              .filter(c -> c != null && !visited.contains(c))
               .map(superClazz -> firstUnreflectableMethod(superClazz, m, visited))
               .filter(Objects::nonNull)
               .findFirst()
               .orElse(null)
         ;
+    }
+    
+    private static MethodHandle unreflect(Method m) throws IllegalAccessException {
+        return MethodHandles.publicLookup().unreflect(m);
     }
     
     @FunctionalInterface
