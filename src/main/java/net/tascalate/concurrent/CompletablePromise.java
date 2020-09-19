@@ -94,6 +94,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
     
     public Promise<T> minimalPromise() {
         CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
+        // Should we cancel result along this?
         if (isDone()) {
             try {
                 result.success(join());

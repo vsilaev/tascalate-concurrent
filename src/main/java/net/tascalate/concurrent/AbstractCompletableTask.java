@@ -43,6 +43,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Base superclass for both root and intermediate {@link Promise}-s that
@@ -345,11 +346,10 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         return nextStage;
     }
     
-    // Default operation in Promise is ok - it just delegates to thenCompose[Async]
-    /*
     @Override
     public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
-    */
+        return thenApplyAsync(r -> predicate.test(r) ? r : forwardException(errorSupplier.apply(r)), executor);
+    }
 
     @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {

@@ -15,10 +15,8 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
-import static net.tascalate.concurrent.SharedFunctions.failure;
-import static net.tascalate.concurrent.SharedFunctions.selectFirst;
+import static net.tascalate.concurrent.SharedFunctions.iif;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -31,7 +29,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -142,22 +139,9 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin) {
-        if (!(delayOnError || enlistOrigin)) {
-            // Fast route
-            return thenCompose( 
-                v -> thenCombineAsync(Timeouts.delay(duration), selectFirst(), PromiseOrigin.PARAM_ONLY)
-            );
-        }
-        CompletableFuture<Try<? super T>> delayed = new CompletableFuture<>();
-        whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
-        // Use *Async to execute on default "this" executor
-        return 
-        this.handle(Try.liftResult(), enlistOrigin)
-            .thenCombineAsync(delayed, selectFirst(), PromiseOrigin.ALL)
-            .thenCompose(Try::asPromise, true);
+        return wrap(delegate.delay(duration, delayOnError), origin(enlistOrigin));
     }
 
-    // All orTimeout overloads delegate to these methods
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
         return orTimeout(duration, cancelOnTimeout, defaultEnlistOrigin());
@@ -165,15 +149,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Promise<? extends Try<T>> onTimeout = Timeouts.delayed(null, duration);
-        DependentPromise<T> result = 
-        this.handle(Try.liftResult(), enlistOrigin)
-            // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, v -> doneOrTimeout(v, duration), PromiseOrigin.ALL)
-            .thenCompose(Try::asPromise, true);
-        
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result;
+        return wrap(delegate.orTimeout(duration, cancelOnTimeout), origin(enlistOrigin));
     }
     
     @Override
@@ -183,15 +159,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     
     @Override
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
-        DependentPromise<T> result = 
-        this.handle(Try.liftResult(), enlistOrigin)
-            // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.ALL)
-            .thenCompose(Try::asPromise, true);
-
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result;
+        return wrap(delegate.onTimeout(value, duration, cancelOnTimeout), origin(enlistOrigin));
     }
     
     // All onTimeout overloads delegate to this method
@@ -202,18 +170,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        // timeout converted to supplier
-        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(tryCall(supplier), duration);
-        
-        DependentPromise<T> result = 
-        this.handle(Try.liftResult(), enlistOrigin)
-            .thenApply(SharedFunctions::supply, true)
-            // Use *Async to execute on default "this" executor
-            .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
-            .thenCompose(Try::asPromise, true);
-        
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
-        return result;
+        return wrap(delegate.onTimeout(supplier, duration, cancelOnTimeout), origin(enlistOrigin));
     }
     
     @Override
@@ -413,88 +370,59 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
-        PromiseRef<T> onError = new PromiseRef<>();
-        return setupExceptionalHandler(
-            handle((r, ex) -> ex == null ? this : onError.modify( handleAsync((r1, ex1) -> fn.apply(ex1), false) ), 
-                   enlistOrigin),
-            onError);
+        return wrap(delegate.exceptionallyAsync(fn), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
-        PromiseRef<T> onError = new PromiseRef<>();
-        return setupExceptionalHandler(
-            handle((r, ex) -> ex == null ? this : onError.modify( handleAsync((r1, ex1) -> fn.apply(ex1), executor, false) ), 
-                   enlistOrigin),
-            onError);
+        return wrap(delegate.exceptionallyAsync(fn, executor), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        CompletionStageRef<T> onError = new CompletionStageRef<>();
-        return drop( handle((r, ex) -> ex == null ? 
-                                       this : 
-                                       onError.modify(fn.apply(ex)), enlistOrigin).onCancel(onError.cancel) );
+        return wrap(delegate.exceptionallyCompose(fn), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
-        PromiseRef<T> onError = new PromiseRef<>();
-        return setupExceptionalHandler(
-            handle((r, ex) -> ex == null ? this : onError.modify(exceptionallyComposeHelper(fn, null, false)),
-                   enlistOrigin),
-            onError);
+        return wrap(delegate.exceptionallyComposeAsync(fn), origin(enlistOrigin));
     }
 
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
                                                          Executor executor, 
                                                          boolean enlistOrigin) {
-        PromiseRef<T> onError = new PromiseRef<>();
-        return setupExceptionalHandler(
-            handle((r, ex) -> ex == null ? this : onError.modify(exceptionallyComposeHelper(fn, executor, true)),
-                   enlistOrigin),
-            onError);
-    }
-    
-    Promise<T> exceptionallyComposeHelper(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor, boolean useExecutor) {
-        CompletionStageRef<T> ref = new CompletionStageRef<>();
-        DependentPromise<CompletionStage<T>> asyncLifted = useExecutor ?
-            handleAsync((r1, ex1) -> ref.modify(fn.apply(ex1)), executor, false) 
-            :
-            handleAsync((r1, ex1) -> ref.modify(fn.apply(ex1)), false);
-            
-        return drop(asyncLifted.onCancel(ref.cancel));
+        return wrap(delegate.exceptionallyComposeAsync(fn, executor), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> thenFilter(Predicate<? super T> predicate, boolean enlistOrigin) {
-        return thenFilter(predicate, NO_SUCH_ELEMENT, enlistOrigin);
+        return wrap(delegate.thenFilter(predicate), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, boolean enlistOrigin) {
-        return thenCompose(v -> predicate.test(v) ? this : failure(errorSupplier, v), enlistOrigin);
+        return wrap(delegate.thenFilter(predicate, errorSupplier), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin) {
-        return thenFilterAsync(predicate, NO_SUCH_ELEMENT, enlistOrigin);
+        return wrap(delegate.thenFilterAsync(predicate), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, boolean enlistOrigin) {
-        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v), enlistOrigin); 
+        return wrap(delegate.thenFilterAsync(predicate, errorSupplier), origin(enlistOrigin)); 
     }
     
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor, boolean enlistOrigin) {
-        return thenFilterAsync(predicate, NO_SUCH_ELEMENT, executor, enlistOrigin);
+        return wrap(delegate.thenFilterAsync(predicate, executor), origin(enlistOrigin));
     }
     
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor, boolean enlistOrigin) {
-        return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v), executor, enlistOrigin);
+        return wrap(delegate.thenFilterAsync(predicate, errorSupplier, executor), origin(enlistOrigin));
     }
     
     @Override
@@ -897,18 +825,15 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         if (!enlistOrigin) {
             return delegate.toCompletableFuture();
         } else {
-            CompletableFutureWrapper<T> result = new CompletableFutureWrapper<T>() {
+            CompletableFuture<T> result = new CompletableFuture<T>() {
                 @Override 
                 public boolean cancel(boolean mayInterruptIfRunning) {
-                    if (ConfigurableDependentPromise.this.cancel(mayInterruptIfRunning)) {
-                        return super.cancel(mayInterruptIfRunning);
-                    } else {
-                        return false;
-                    }
+                    ConfigurableDependentPromise.this.cancel(mayInterruptIfRunning);
+                    return super.cancel(mayInterruptIfRunning);
                 }
             };
-            whenComplete(result::complete);
-            return result.toCompletableFuture(); // Effectively result.delegate
+            whenComplete((r, e) -> iif(null == e ? result.complete(r) : result.completeExceptionally(e)));
+            return result;
         }
     }
     
@@ -946,34 +871,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         }
     }
 
-    static <T> DependentPromise<T> setupExceptionalHandler(DependentPromise<? extends Promise<T>> origin, 
-                                                           PromiseRef<?> onException) {
-        return (DependentPromise<T>)
-            drop(origin).onCancel(onException.cancel)
-                        .unwrap();
-    }
-    
-    static <T> DependentPromise<T> drop(DependentPromise<? extends CompletionStage<T>> lifted) {
-        return lifted.thenCompose(Function.identity(), true);
-    }
-    
     private static boolean identicalSets(Set<?> a, Set<?> b) {
         return a.containsAll(b) && b.containsAll(a);
-    }
-    
-    
-    static <T> Try<T> doneOrTimeout(Try<T> result, Duration duration) {
-        return null != result ? result: Try.failure(new TimeoutException("Timeout after " + duration));
-    }
-    
-    private static <R> Supplier<Try<R>> tryCall(Supplier<? extends R> supplier) {
-        return () -> {
-            try {
-                return Try.success(supplier.get());
-            } catch (Throwable ex) {
-                return Try.failure(ex);
-            }
-        };
     }
 
     static class UndecoratedCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
@@ -1017,21 +916,5 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
             // No wrapping by definition
             return (Promise<U>)original;
         }
-    }
-
-    static class PromiseRef<T> extends AtomicReference<Promise<T>> {
-        private static final long serialVersionUID = 1L;
-        
-        Promise<T> modify(Promise<T> newValue) {
-            set(newValue);
-            return newValue;
-        }
-        
-        Runnable cancel = () -> {
-            Promise<?> promise = get();
-            if (null != promise) {
-                promise.cancel(true);
-            }
-        };
     }
 }

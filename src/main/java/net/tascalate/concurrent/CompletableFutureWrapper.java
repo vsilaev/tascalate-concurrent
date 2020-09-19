@@ -22,8 +22,7 @@ import java.util.function.Function;
 
 import net.tascalate.concurrent.decorators.CompletableFutureDecorator;
 
-public class CompletableFutureWrapper<T> 
-    extends CompletableFutureDecorator<T> {
+public class CompletableFutureWrapper<T> extends CompletableFutureDecorator<T> {
 
     protected CompletableFutureWrapper() {
         super();
@@ -76,27 +75,37 @@ public class CompletableFutureWrapper<T>
 
     @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, 
-                                                    Executor executor) {
+                                           Executor executor) {
         CompletionStageRef<U> ref = new CompletionStageRef<>();
         return super.thenComposeAsync(ref.captureResult(fn), executor).onCancel(ref.cancel);        
     }
     
+    // Default CompletionStage API implementation for exceptionallyAsync / exceptionallyCompose[Async]
+    // doesn't handle cancellation well due to numerous orchestrated calls (handle->handleAsync->thenCompose
+    // Use own implementation here for safety
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
+        return PromiseHelper.exceptionallyAsync(this, fn);
+    }
+    
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        return PromiseHelper.exceptionallyAsync(this, fn, executor);
+    }
+    
     @Override
     public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        CompletionStageRef<T> ref = new CompletionStageRef<>();
-        return super.exceptionallyCompose(ref.captureResult(fn)).onCancel(ref.cancel);
+        return PromiseHelper.exceptionallyCompose(this, fn);
     }
 
     @Override
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        CompletionStageRef<T> ref = new CompletionStageRef<>();
-        return super.exceptionallyComposeAsync(ref.captureResult(fn)).onCancel(ref.cancel);
+        return PromiseHelper.exceptionallyComposeAsync(this, fn);
     }
     
     @Override
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
                                                 Executor executor) {
-        CompletionStageRef<T> ref = new CompletionStageRef<>();
-        return super.exceptionallyComposeAsync(ref.captureResult(fn), executor).onCancel(ref.cancel);        
-    }
+        return PromiseHelper.exceptionallyComposeAsync(this, fn, executor);
+    }   
 }
