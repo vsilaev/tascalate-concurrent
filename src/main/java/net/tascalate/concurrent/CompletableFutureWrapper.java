@@ -51,6 +51,10 @@ public class CompletableFutureWrapper<T>
         return delegate.completeExceptionally(ex);
     }    
     
+    boolean complete(T value, Throwable ex) {
+        return null == ex ? success(value) : failure(ex);
+    }
+    
     @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {
         return new CompletableFutureWrapper<>((CompletableFuture<U>)original);

@@ -126,7 +126,6 @@ public final class Promises {
         asyncLoop.run(initialValue);
         return asyncLoop;  
     }
-
     
     public static <T, R extends AutoCloseable> Promise<T> tryApply(CompletionStage<R> resourcePromise,
                                                                    Function<? super R, ? extends T> fn) {
@@ -148,7 +147,6 @@ public final class Promises {
                         }, true)
                        .unwrap();
     }
-    
 
     public static <T, R extends AsyncCloseable> Promise<T> tryApplyEx(CompletionStage<R> resourcePromise,
                                                                       Function<? super R, ? extends T> fn) {
@@ -221,17 +219,12 @@ public final class Promises {
                                    return;
                                }
                                // CLOSE OK
-                               if (null == actionException) {
-                                   result.success(actionResult);
-                               } else {
-                                   result.failure(actionException);
-                               }
+                               result.complete(actionResult, actionException);
                            });
                            return result.onCancel(() -> cancelPromise(action, true));
                        }, true)
                        .unwrap();        
     }
-    
     
     public static <T, R extends AsyncCloseable> Promise<T> tryComposeEx(Promise<R> resourcePromise,
                                                                         Function<? super R, ? extends CompletionStage<T>> fn) {
@@ -273,10 +266,8 @@ public final class Promises {
                                            actionException.addSuppressed(onClose);
                                        }
                                        result.failure(actionException);
-                                   } else if (null != onClose) {
-                                       result.failure(onClose);
                                    } else {
-                                       result.success(actionResult);
+                                       result.complete(actionResult, onClose);
                                    }
                                });
                            });
@@ -315,7 +306,6 @@ public final class Promises {
         return partitioned2(values.iterator(), values, batchSize, spawner, downstream, downstreamExecutor);
     }
     
-    
     private static <T, A, R> Promise<R> partitioned1(Iterator<? extends T> values, 
                                                      Object source,
                                                      int batchSize, 
@@ -328,7 +318,6 @@ public final class Promises {
             .as(onCloseSource(null != source? source : values))
             .unwrap();
     }
-    
 
     private static <T, A, R> Promise<R> partitioned2(Iterator<? extends T> values, 
                                                      Object source,
@@ -400,7 +389,6 @@ public final class Promises {
         });
     }
     
-    
     private static class IndexedStep<T> {
         private final int idx;
         private final T payload;
@@ -466,7 +454,6 @@ public final class Promises {
             return Function.identity();
         }
     }    
-
     
     /**
      * <p>Returns a promise that is resolved successfully when all {@link CompletionStage}-s passed as parameters
@@ -487,7 +474,6 @@ public final class Promises {
     public static <T> Promise<List<T>> all(CompletionStage<? extends T>... promises) {
         return all(Arrays.asList(promises));
     }
-    
     
     public static <T> Promise<List<T>> all(List<? extends CompletionStage<? extends T>> promises) {
         return all(true, promises);        

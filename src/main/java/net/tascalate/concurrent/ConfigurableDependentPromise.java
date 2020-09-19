@@ -18,7 +18,6 @@ package net.tascalate.concurrent;
 import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.failure;
-import static net.tascalate.concurrent.SharedFunctions.iif;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 
 import java.time.Duration;
@@ -908,8 +907,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
                     }
                 }
             };
-            whenComplete((r, e) -> iif(null == e ? result.success(r) : result.failure(e)));
-            return result.toCompletableFuture();
+            whenComplete(result::complete);
+            return result.toCompletableFuture(); // Effectively result.delegate
         }
     }
     

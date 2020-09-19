@@ -48,8 +48,13 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         return success(value);
     }
     
-    public boolean  completeExceptionally(Throwable ex) {
+    public boolean completeExceptionally(Throwable ex) {
         return failure(ex);
+    }
+    
+    @Override
+    public boolean complete(T value, Throwable ex) {
+        return super.complete(value, ex);
     }
     
     public Promise<T> completeAsync(Supplier<? extends T> supplier) {
@@ -82,7 +87,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
             }
             return result;
         } else {
-            whenComplete((r, e) -> iif(null == e ? result.complete(r) : result.completeExceptionally(e)));
+            whenComplete(result::complete);
             return result;
         }
     }
@@ -97,7 +102,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
             }
             return result;            
         } else {
-            whenComplete((r, e) -> iif(null == e ? result.success(r) : result.failure(e)));
+            whenComplete(result::complete);
             return result;
         }
     }
