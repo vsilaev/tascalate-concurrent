@@ -211,41 +211,31 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
     }
 
     /* Since Java 12 */
-    /*
     @Override
-    */
     public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
         return cast(super.exceptionallyAsync(fn));
     }
     
     /* Since Java 12 */
-    /*
     @Override
-    */
     public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
         return cast(super.exceptionallyAsync(fn, executor));
     }
     
     /* Since Java 12 */
-    /*
     @Override
-    */
     public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return cast(super.exceptionallyCompose(fn));
     }
     
     /* Since Java 12 */
-    /*
     @Override
-    */
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return cast(super.exceptionallyComposeAsync(fn));
     }
 
     /* Since Java 12 */
-    /*
     @Override
-    */
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         return cast(super.exceptionallyComposeAsync(fn, executor));
     }
