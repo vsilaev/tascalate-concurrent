@@ -88,6 +88,28 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
         this.cancellableOrigins = cancellableOrigins;
     }
     
+    private DependentPromise<T> postConstruct() {
+        if (isEmptyArray(cancellableOrigins)) {
+            // Nothing to do
+        }
+        if (isCancelled()) {
+            // Wrapped over already cancelled Promise
+            // So result.cancel() has no effect
+            // and we have to cancel origins explicitly
+            // right after construction
+            cancelPromises(cancellableOrigins, true);
+        } else if (isDone()) {
+            // nothing to do
+        } else {
+            delegate.whenComplete((r, e) -> {
+                if (isCancelled()) {
+                    cancelPromises(cancellableOrigins, true); 
+                }
+            });
+        }        
+        return this;
+    }
+    
     public static <U> DependentPromise<U> from(Promise<U> source) {
         return from(source, PromiseOrigin.NONE);
     }
@@ -103,7 +125,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     private static <U> DependentPromise<U> doWrap(Promise<U> original, 
                                                   Set<PromiseOrigin> defaultEnlistOptions, 
                                                   CompletionStage<?>[] cancellableOrigins) {
-        if (null == cancellableOrigins || cancellableOrigins.length == 0) {
+        if (isEmptyArray(cancellableOrigins)) {
             // Nothing to enlist additionally for this "original" instance
             if (original instanceof ConfigurableDependentPromise) {
                 ConfigurableDependentPromise<U> ioriginal = (ConfigurableDependentPromise<U>)original;
@@ -113,22 +135,15 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
                 }
             }
         }
-        ConfigurableDependentPromise<U> result = 
-            new ConfigurableDependentPromise<>(original, defaultEnlistOptions, cancellableOrigins);
         
-        if (result.isCancelled()) {
-            // Wrapped over already cancelled Promise
-            // So result.cancel() has no effect
-            // and we have to cancel origins explicitly
-            // right after construction
-            cancelPromises(result.cancellableOrigins, true);
-        }
-        return result;
+        return new ConfigurableDependentPromise<>(
+            original, defaultEnlistOptions, cancellableOrigins
+        ).postConstruct();
     }
     
     @Override
     public DependentPromise<T> onCancel(Runnable code) {
-        return new ExtraCancellationDependentPromise<>(this, code);
+        return new ExtraCancellationDependentPromise<>(this, code).postConstruct();
     }
     
     // All delay overloads delegate to these methods
@@ -743,12 +758,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        if (delegate.cancel(mayInterruptIfRunning)) {
-            cancelPromises(cancellableOrigins, mayInterruptIfRunning);
-            return true;
-        } else {
-            return false;
-        }
+        // See postConstruct -- handling is done in delegate.whenComplete
+        return delegate.cancel(mayInterruptIfRunning);
     }
     
     @Override
@@ -864,7 +875,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     }
 
     static void cancelPromises(CompletionStage<?>[] promises, boolean mayInterruptIfRunning) {
-        if (null != promises) {
+        if (!isEmptyArray(promises)) {
             Arrays.stream(promises)
                   .filter(p -> p != null)
                   .forEach(p -> cancelPromise(p, mayInterruptIfRunning));
@@ -873,6 +884,10 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
 
     private static boolean identicalSets(Set<?> a, Set<?> b) {
         return a.containsAll(b) && b.containsAll(a);
+    }
+    
+    private static boolean isEmptyArray(Object[] array) {
+        return null == array || array.length == 0;
     }
 
     static class UndecoratedCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {

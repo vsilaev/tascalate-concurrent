@@ -99,8 +99,9 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         }
     }
     
+    // @Decorator
     default Promise<T> onCancel(Runnable code) {
-        return new ExtraCancellationPromise<>(this, code);
+        return new ExtraCancellationPromise<>(this, code).postConstruct();
     }
 
     default Promise<T> delay(long timeout, TimeUnit unit) {
@@ -221,6 +222,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
      * @return
      * created DependentPromise
      */
+    // @Decorator
     default DependentPromise<T> dependent() {
     	return ConfigurableDependentPromise.from(this);
     }
@@ -236,10 +238,12 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
      * @return
      * created DependentPromise
      */
+    // @Decorator
     default DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
         return ConfigurableDependentPromise.from(this, defaultEnlistOptions);
     }
     
+    // @Decorator
     default Promise<T> defaultAsyncOn(Executor executor) {
         return new ExecutorBoundPromise<>(this, executor);
     }
@@ -258,7 +262,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
 
     /**
-     * Unwraps underlying {@link Promise} if it was decorated
+     * Unwraps underlying {@link Promise} if it was decorated (removes one level of decorators)
      * @return
      *   the underlying un-decorated {@link Promise} or self if not decorated
      */
@@ -267,7 +271,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     /**
-     * Fully unwraps underlying {@link Promise}
+     * Fully unwraps underlying {@link Promise} (removes all decoration layers)
      * @return
      *   the underlying un-decorated {@link Promise} or self if not decorated
      */

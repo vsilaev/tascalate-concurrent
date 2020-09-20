@@ -181,12 +181,13 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
         }
     }
     
-    void start() {
+    Promise<List<R>> postConstruct() {
         int i = 0;
         for (CompletionStage<? extends T> promise : promises) {
             int idx = i++;
             promise.whenComplete((r, e) -> onComplete(idx, r, e));
         }
+        return this;
     }    
 
     private void markRemainingCancelled() {

@@ -28,14 +28,19 @@ class ExtraCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>
         this.code = code;
     }
     
-    @Override
-    public boolean cancel(boolean mayInterruptIfRunning) {
-        if (super.cancel(mayInterruptIfRunning)) {
+    Promise<T> postConstruct() {
+        if (isCancelled()) {
             code.run();
-            return true;
+        } else if (isDone()) {
+            //
         } else {
-            return false;
+            delegate.whenComplete((r, e) -> {
+               if (isCancelled()) {
+                   code.run();
+               }
+            });
         }
+        return this;
     }
     
     @Override
@@ -45,7 +50,7 @@ class ExtraCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>
     
     @Override
     public Promise<T> unwrap() {
-        return new Unwrapped<>(delegate, code);
+        return new Unwrapped<>(delegate, code).postConstruct();
     }
     
     @Override
@@ -58,7 +63,7 @@ class ExtraCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>
         if (unwrapped == delegate) {
             return this;
         } else {
-            return new Unwrapped<>(unwrapped, code);
+            return new Unwrapped<>(unwrapped, code).postConstruct();
         }   
     } 
     

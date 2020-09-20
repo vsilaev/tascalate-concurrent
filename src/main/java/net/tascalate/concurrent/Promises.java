@@ -989,9 +989,8 @@ public final class Promises {
             CompletionStage<? extends T> stage = promises.get(0);
             return transform(stage, singleResultMapper, Promises::wrapMultitargetException);
         } else {
-            AggregatingPromise<T, R> result = ctr.create(minResultsCount, maxErrorsCount, cancelRemaining, promises);
-            result.start();
-            return result;
+            return ctr.create(minResultsCount, maxErrorsCount, cancelRemaining, promises)
+                      .postConstruct();
         }
     }
     
