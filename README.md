@@ -63,7 +63,8 @@ Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn);
 Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor);
 Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn);
 Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn);
-Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor);
+Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
+                                     Executor executor);
 ```
 
 Plus, there are several overloads of the filtering operator that complements canonical `map/flatMap` (or `thenApply/thenCompose` in terms of the `CompletionStage` API), available since version [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.1):
@@ -73,7 +74,8 @@ Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwa
 Promise<T> thenFilterAsync(Predicate<? super T> predicate);
 Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier);
 Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor);
-Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor);
+Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier,
+                           Executor executor);
 ```
 
 Besides this, there are numerous operators in the `Promise` API to work with timeouts and delays, to override default asynchronous executor and similar. All of them will be discussed later.
