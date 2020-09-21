@@ -137,6 +137,11 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     boolean onError(Throwable ex) {
         return callbackRegistry.failure(ex);
     }
+    
+    @Override
+    public String toString() {
+        return String.format("%s@%d[%s]", getClass().getSimpleName(), System.identityHashCode(this), task);
+    }
 
     class StageTransition extends FutureTask<T>
                           implements CompletableFuture.AsynchronousCompletionTask {

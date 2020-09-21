@@ -294,6 +294,6 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
     
     @Override
     public String toString() {
-        return String.format("%s@%d[%s]", getClass().getName(), System.identityHashCode(this), delegate);
+        return String.format("%s@%d[%s]", getClass().getSimpleName(), System.identityHashCode(this), delegate);
     }
 }
