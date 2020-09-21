@@ -120,7 +120,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
     }
     
     @Override
-    public CompletionStage<T> τ() {
+    public CompletionStage<T> α() {
         return delegate;
     }
 

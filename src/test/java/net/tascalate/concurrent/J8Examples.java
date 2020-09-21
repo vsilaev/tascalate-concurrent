@@ -107,17 +107,17 @@ public class J8Examples {
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
         
-        System.out.println(new CustomizablePromiseDecorator<>(CompletableTask.completed("", executorService).defaultAsyncOn(executorService), null).τ());
-        System.out.println(new CustomizablePromiseDecorator<>(Promises.success(11).defaultAsyncOn(executorService), null).τ());
-        System.out.println(new CustomizablePromiseDecorator<>(new CompletablePromise<Long>().defaultAsyncOn(executorService), null).τ());
+        System.out.println(new CustomizablePromiseDecorator<>(CompletableTask.completed("", executorService).defaultAsyncOn(executorService), null).α());
+        System.out.println(new CustomizablePromiseDecorator<>(Promises.success(11).defaultAsyncOn(executorService), null).α());
+        System.out.println(new CustomizablePromiseDecorator<>(new CompletablePromise<Long>().defaultAsyncOn(executorService), null).α());
         
         Promise<?> t = 
         Promises.success("11")
         //CompletableTask
           //  .supplyAsync(() -> "11", executorService)
             .dependent()
-            .as_(peek(p -> p.thenApply(Integer::parseInt)))
-            .as_(peek(System.out::println))
+            .asʹ(peek(p -> p.thenApply(Integer::parseInt)))
+            .asʹ(peek(System.out::println))
             .thenComposeAsync(v -> {
                 System.out.println("In compose " + v);
                 try {
@@ -140,11 +140,10 @@ public class J8Examples {
                     throw new CompletionException(ex);
                 }
             }, executorService, true); 
-        
         Thread.sleep(500);
         t.cancel(true);
         System.out.println("Is cancelled ? " + t.isCancelled());
-        
+       
         AsyncSemaphoreLock lock = AsyncSemaphoreLock.create(7, true);
         for (int i = 0; i < 10; i++) {
             int idx  = i;

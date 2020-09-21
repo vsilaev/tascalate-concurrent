@@ -62,7 +62,7 @@ public class CompletableFutureWrapper<T> extends CompletableFutureDecorator<T> {
     
     // Report self-origin
     @Override
-    public CompletionStage<T> τ() {
+    public CompletionStage<T> α() {
         return this;
     }
     

@@ -70,10 +70,10 @@ public interface DependentPromise<T> extends Promise<T> {
     
     @Override
     default <D> D as(Function<? super Promise<T>, D> decoratorFactory) {
-        return as_(decoratorFactory);
+        return asʹ(decoratorFactory);
     }
     
-    default <D> D as_(Function<? super DependentPromise<T>, D> decoratorFactory) {
+    default <D> D asʹ(Function<? super DependentPromise<T>, D> decoratorFactory) {
         return decoratorFactory.apply(this);
     }
     

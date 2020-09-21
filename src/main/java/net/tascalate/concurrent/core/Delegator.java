@@ -18,5 +18,5 @@ package net.tascalate.concurrent.core;
 import java.util.concurrent.CompletionStage;
 
 public interface Delegator<T> {
-    CompletionStage<T> τ();
+    CompletionStage<T> α();
 }

@@ -272,11 +272,12 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
         return cast(super.handleAsync(fn, executor));
     }
     
-    // Tau-operator -- the origin of origins
-    public CompletionStage<T> τ() {
+    // Alpha-operator -- the origin of origins
+    @Override
+    public CompletionStage<T> α() {
         CompletionStage<T> p = delegate;
         if (p instanceof Delegator) {
-            return delegator(p).τ();
+            return delegator(p).α();
         } else {
             // Default path -- unroll
             while (p instanceof AbstractCompletionStageDecorator) {
@@ -285,7 +286,7 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
                     (AbstractCompletionStageDecorator<T, ? extends CompletionStage<T>>)p;
                 p = ap.delegate;
                 if (p instanceof Delegator) {
-                    return delegator(p).τ();
+                    return delegator(p).α();
                 }
             }
             return p;

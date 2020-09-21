@@ -834,8 +834,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Del
 
     @Override
     public CompletableFuture<T> toCompletableFuture(boolean enlistOrigin) {
-        CompletionStage<T> tau = tauOf(delegate);
-        CompletableFuture<T> rootDelegate = tau instanceof CompletableFuture ? (CompletableFuture<T>)tau : null; 
+        CompletionStage<T> alpha = alphaOf(delegate);
+        CompletableFuture<T> rootDelegate = alpha instanceof CompletableFuture ? (CompletableFuture<T>)alpha : null; 
         CompletableFuture<T> result;
         if (enlistOrigin) {
             if (rootDelegate != null) {
@@ -866,8 +866,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Del
     }
     
     @Override
-    public CompletionStage<T> τ() {
-        return tauOf(delegate);
+    public CompletionStage<T> α() {
+        return alphaOf(delegate);
     }
     
     @Override
@@ -879,11 +879,11 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Del
         );
     }
     
-    private static <T> CompletionStage<T> tauOf(Promise<T> promise) {
+    private static <T> CompletionStage<T> alphaOf(Promise<T> promise) {
         if (promise instanceof Delegator) {
             @SuppressWarnings("unchecked")
             Delegator<T> delegator = (Delegator<T>)promise;
-            return delegator.τ();
+            return delegator.α();
         } else {
             return promise;
         }
