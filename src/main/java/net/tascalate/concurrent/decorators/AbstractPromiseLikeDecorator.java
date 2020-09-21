@@ -23,10 +23,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.core.Delegator;
 
 public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<T>>
     extends AbstractCompletionStageDecorator<T, D>
-    implements CompletionStage<T> {
+    implements CompletionStage<T>, Delegator<T> {
 
     protected AbstractPromiseLikeDecorator(D delegate) {
         super(delegate);
@@ -269,5 +270,30 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
     @Override
     public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
         return cast(super.handleAsync(fn, executor));
+    }
+    
+    // Tau-operator -- the origin of origins
+    public CompletionStage<T> τ() {
+        CompletionStage<T> p = delegate;
+        if (p instanceof Delegator) {
+            return delegator(p).τ();
+        } else {
+            // Default path -- unroll
+            while (p instanceof AbstractCompletionStageDecorator) {
+                @SuppressWarnings("unchecked")
+                AbstractCompletionStageDecorator<T, ? extends CompletionStage<T>> ap = 
+                    (AbstractCompletionStageDecorator<T, ? extends CompletionStage<T>>)p;
+                p = ap.delegate;
+                if (p instanceof Delegator) {
+                    return delegator(p).τ();
+                }
+            }
+            return p;
+        }
+    }
+    
+    @SuppressWarnings("unchecked")
+    private static <T> Delegator<T> delegator(CompletionStage<T> delegate) {
+        return (Delegator<T>)delegate;
     }
 }

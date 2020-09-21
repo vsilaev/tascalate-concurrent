@@ -55,6 +55,18 @@ public class CompletableFutureWrapper<T> extends CompletableFutureDecorator<T> {
     }
     
     @Override
+    public CompletableFuture<T> toCompletableFuture() {
+        // Return concrete subclass that neither completes nor cancels this wrapper
+        return (CompletableFuture<T>)delegate.thenApply(Function.identity());
+    }
+    
+    // Report self-origin
+    @Override
+    public CompletionStage<T> τ() {
+        return this;
+    }
+    
+    @Override
     protected <U> Promise<U> wrap(CompletionStage<U> original) {
         return new CompletableFutureWrapper<>((CompletableFuture<U>)original);
     }

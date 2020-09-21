@@ -112,6 +112,17 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         // Should pass this, not delegate - while delegate has invalid thenCompose impl.
         return new MinimalCompletionStage<>(this);
     }
+    
+    @Override
+    public CompletableFuture<T> toCompletableFuture() {
+        // Returns the delegate itself, so this CompletablePromise may be completed / cancelled
+        return delegate;
+    }
+    
+    @Override
+    public CompletionStage<T> τ() {
+        return delegate;
+    }
 
     @Override
     protected <U> CompletablePromise<U> wrap(CompletionStage<U> original) {

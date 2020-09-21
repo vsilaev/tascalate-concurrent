@@ -36,6 +36,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.core.Delegator;
 import net.tascalate.concurrent.decorators.AbstractPromiseDecorator; 
 
 /**
@@ -74,7 +75,7 @@ import net.tascalate.concurrent.decorators.AbstractPromiseDecorator;
  * @param <T>
  *   a type of the successfully resolved promise value    
  */
-public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
+public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Delegator<T> {
     protected final Promise<T> delegate;
     protected final CompletionStage<?>[] cancellableOrigins;
     protected final Set<PromiseOrigin> defaultEnlistOptions;
@@ -830,21 +831,61 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T> {
     public CompletableFuture<T> toCompletableFuture() {
         return toCompletableFuture(defaultEnlistOrigin());
     }
-    
+
     @Override
     public CompletableFuture<T> toCompletableFuture(boolean enlistOrigin) {
-        if (!enlistOrigin) {
-            return delegate.toCompletableFuture();
-        } else {
-            CompletableFuture<T> result = new CompletableFuture<T>() {
+        CompletionStage<T> tau = tauOf(delegate);
+        CompletableFuture<T> rootDelegate = tau instanceof CompletableFuture ? (CompletableFuture<T>)tau : null; 
+        CompletableFuture<T> result;
+        if (enlistOrigin) {
+            if (rootDelegate != null) {
+                // Use toCompletableFuture only if there is a delegate
+                CompletableFuture<T> defaultResult = delegate.toCompletableFuture();
+                if (rootDelegate == defaultResult) {
+                    return defaultResult;
+                }
+            }
+            result = new CompletableFuture<T>() {
                 @Override 
                 public boolean cancel(boolean mayInterruptIfRunning) {
                     ConfigurableDependentPromise.this.cancel(mayInterruptIfRunning);
                     return super.cancel(mayInterruptIfRunning);
                 }
             };
-            whenComplete((r, e) -> iif(null == e ? result.complete(r) : result.completeExceptionally(e)));
-            return result;
+        } else {
+            CompletableFuture<T> defaultResult = delegate.toCompletableFuture();
+            if (rootDelegate != defaultResult) {
+                // Assume if there is no rootDelegate or rootDelegate != rootDelegate.toCompletableFuture
+                // then toCompletableFuture returns stage that doesn't cancel original one
+                return defaultResult;
+            }
+            result = new CompletableFuture<>();
+        }
+        whenComplete((r, e) -> iif(null == e ? result.complete(r) : result.completeExceptionally(e)));
+        return result;
+    }
+    
+    @Override
+    public CompletionStage<T> τ() {
+        return tauOf(delegate);
+    }
+    
+    @Override
+    public String toString() {
+        return String.format(
+            "%s@%d[delegate=%s, enlistOptions=%s, cancellable=%s]", 
+            getClass().getSimpleName(), System.identityHashCode(this), 
+            delegate, this.defaultEnlistOptions, null == cancellableOrigins ? "{}" : Arrays.asList(cancellableOrigins)
+        );
+    }
+    
+    private static <T> CompletionStage<T> tauOf(Promise<T> promise) {
+        if (promise instanceof Delegator) {
+            @SuppressWarnings("unchecked")
+            Delegator<T> delegator = (Delegator<T>)promise;
+            return delegator.τ();
+        } else {
+            return promise;
         }
     }
     

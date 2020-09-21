@@ -32,6 +32,7 @@ import java.util.stream.Stream;
 
 import net.tascalate.concurrent.core.CompletionStageAPI;
 import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
+import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
 
@@ -105,6 +106,10 @@ public class J8Examples {
         .build();
         
         final TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(6, tf);
+        
+        System.out.println(new CustomizablePromiseDecorator<>(CompletableTask.completed("", executorService).defaultAsyncOn(executorService), null).τ());
+        System.out.println(new CustomizablePromiseDecorator<>(Promises.success(11).defaultAsyncOn(executorService), null).τ());
+        System.out.println(new CustomizablePromiseDecorator<>(new CompletablePromise<Long>().defaultAsyncOn(executorService), null).τ());
         
         Promise<?> t = 
         Promises.success("11")
