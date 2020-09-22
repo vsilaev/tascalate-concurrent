@@ -101,7 +101,8 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
 
     @Override 
     public Promise<T> onCancel(Runnable code) {
-        return wrap(delegate.onCancel(code));
+        Promise<T> result = delegate.onCancel(code);
+        return result == delegate ? this : wrap(result);
     }
     
     @Override

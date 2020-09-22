@@ -16,10 +16,11 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
-import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
-import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import static net.tascalate.concurrent.SharedFunctions.failure;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
+import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
+import static net.tascalate.concurrent.SharedFunctions.whenCancel;
+import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 
 import java.time.Duration;
 import java.util.Set;
@@ -99,9 +100,8 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         }
     }
     
-    // @Decorator
-    default Promise<T> onCancel(Runnable code) {
-        return new ExtraCancellationPromise<>(this, code).postConstruct();
+    default Promise<T> onCancel(Runnable action) {
+        return whenCancel(this, action);
     }
 
     default Promise<T> delay(long timeout, TimeUnit unit) {

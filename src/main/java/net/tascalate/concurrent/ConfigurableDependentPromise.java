@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.iif;
+import static net.tascalate.concurrent.SharedFunctions.whenCancel;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -37,8 +38,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.core.Decorator;
-import net.tascalate.concurrent.decorators.AbstractPromiseDecorator; 
-
 /**
  * 
  * <p>{@link DependentPromise} implementation, i.e. concrete wrapper that may keep track origin of this promise 
@@ -89,28 +88,6 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
         this.cancellableOrigins = cancellableOrigins;
     }
     
-    private DependentPromise<T> postConstruct() {
-        if (isEmptyArray(cancellableOrigins)) {
-            // Nothing to do
-        }
-        if (isCancelled()) {
-            // Wrapped over already cancelled Promise
-            // So result.cancel() has no effect
-            // and we have to cancel origins explicitly
-            // right after construction
-            cancelPromises(cancellableOrigins, true);
-        } else if (isDone()) {
-            // nothing to do
-        } else {
-            delegate.whenComplete((r, e) -> {
-                if (isCancelled()) {
-                    cancelPromises(cancellableOrigins, true); 
-                }
-            });
-        }        
-        return this;
-    }
-    
     public static <U> DependentPromise<U> from(Promise<U> source) {
         return from(source, PromiseOrigin.NONE);
     }
@@ -126,7 +103,8 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     private static <U> DependentPromise<U> doWrap(Promise<U> original, 
                                                   Set<PromiseOrigin> defaultEnlistOptions, 
                                                   CompletionStage<?>[] cancellableOrigins) {
-        if (isEmptyArray(cancellableOrigins)) {
+        boolean noOrigins = isEmptyArray(cancellableOrigins); 
+        if (noOrigins) {
             // Nothing to enlist additionally for this "original" instance
             if (original instanceof ConfigurableDependentPromise) {
                 ConfigurableDependentPromise<U> ioriginal = (ConfigurableDependentPromise<U>)original;
@@ -138,13 +116,9 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
         }
         
         return new ConfigurableDependentPromise<>(
-            original, defaultEnlistOptions, cancellableOrigins
-        ).postConstruct();
-    }
-    
-    @Override
-    public DependentPromise<T> onCancel(Runnable code) {
-        return new ExtraCancellationDependentPromise<>(this, code).postConstruct();
+            noOrigins ? original : whenCancel(original, () -> cancelPromises(cancellableOrigins, true)), 
+            defaultEnlistOptions, cancellableOrigins
+        );
     }
     
     // All delay overloads delegate to these methods
@@ -750,10 +724,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
         if (identicalSets(defaultEnlistOptions, this.defaultEnlistOptions)) {
             return this;
         } else {
-            return ConfigurableDependentPromise.from(
-                null == cancellableOrigins || cancellableOrigins.length == 0 ? delegate : cancellablePromiseOf(delegate), 
-                defaultEnlistOptions
-            );
+            return ConfigurableDependentPromise.from(delegate, defaultEnlistOptions);
         }
     }
 
@@ -802,31 +773,17 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     public boolean isCompletedExceptionally() {
         return delegate.isCompletedExceptionally();
     }
-    
+
     @Override
     public Promise<T> unwrap() {
-        if (null == cancellableOrigins || cancellableOrigins.length == 0) {
-            // No state collected, may optimize away own reference
-            return delegate;
-        } else {
-            return cancellablePromiseOf(delegate);
-        }
-    }
-
-    @Override
-    public Promise<T> raw() {
-        if (null == cancellableOrigins || cancellableOrigins.length == 0) {
-            // No state collected, may optimize away own reference
-            return delegate.raw();
-        } else {
-            return cancellablePromiseOf(delegate.raw());
-        }
+        return delegate;
     }
     
-    protected Promise<T> cancellablePromiseOf(Promise<T> original) {
-        return new UndecoratedCancellationPromise<>(original, cancellableOrigins);
+    @Override
+    public Promise<T> raw() {
+        return delegate.raw();
     }
-
+    
     @Override
     public CompletableFuture<T> toCompletableFuture() {
         return toCompletableFuture(defaultEnlistOrigin());
@@ -929,48 +886,5 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     
     private static boolean isEmptyArray(Object[] array) {
         return null == array || array.length == 0;
-    }
-
-    static class UndecoratedCancellationPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
-        private final CompletionStage<?>[] dependent;
-        UndecoratedCancellationPromise(Promise<T> original, CompletionStage<?>[] dependent) {
-            super(original);
-            this.dependent = dependent;
-        }
-        
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            if (super.cancel(mayInterruptIfRunning)) {
-                cancelPromises(dependent, mayInterruptIfRunning);
-                return true;
-            } else {
-                return false;
-            }
-        }
-        
-        @Override
-        public Promise<T> unwrap() {
-            return unwrap(Promise::unwrap);
-        }
-        
-        @Override
-        public Promise<T> raw() {
-            return unwrap(Promise::raw);
-        }
-
-        private Promise<T> unwrap(Function<Promise<T>, Promise<T>> fn) {
-            Promise<T> unwrapped = fn.apply(delegate);
-            if (unwrapped == delegate) {
-                return this;
-            } else {
-                return new UndecoratedCancellationPromise<>(unwrapped, dependent);
-            }   
-        }
-        
-        @Override
-        protected <U> Promise<U> wrap(CompletionStage<U> original) {
-            // No wrapping by definition
-            return (Promise<U>)original;
-        }
     }
 }

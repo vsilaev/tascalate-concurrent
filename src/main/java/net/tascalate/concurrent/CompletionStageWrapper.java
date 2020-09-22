@@ -131,7 +131,7 @@ public class CompletionStageWrapper<T>
         return from(stage, true);
     }
     
-    public static <T> Promise<T> from(CompletionStage<T> stage, boolean safePromise) {
+    public static <T> Promise<T> from(CompletionStage<T> stage, boolean strictPromise) {
         Promise<T> result;
         if (stage instanceof Future) {
             // If we can delegate blocking Future API...
@@ -140,14 +140,14 @@ public class CompletionStageWrapper<T>
             // Otherwise fallback to own implementation
             result = new CompletionStageWrapper<>(stage);
         }
-        return safePromise ? new SafePromise<>(result) : result;
+        return strictPromise ? new StrictPromise<>(result) : result;
     }
     
     // By default CompletableFuture.cancel() doesn't interrupt a promise from thenCompose(fn)!
     // Moreover, exceptionallyAsync and exceptionallyCompose[Async] doesn't play well with cancellation.
     // Pessimistically assume this "feature" for all CompletionStage impls. and fix this
-    static class SafePromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
-        SafePromise(Promise<T> delegate) {
+    static class StrictPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
+        StrictPromise(Promise<T> delegate) {
             super(delegate);
         }
 
@@ -165,7 +165,7 @@ public class CompletionStageWrapper<T>
 
         @Override
         protected <U> Promise<U> wrap(CompletionStage<U> original) {
-            return new SafePromise<>((Promise<U>)original);
+            return new StrictPromise<>((Promise<U>)original);
         }
         
         @Override

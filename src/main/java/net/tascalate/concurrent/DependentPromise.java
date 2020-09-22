@@ -88,7 +88,12 @@ public interface DependentPromise<T> extends Promise<T> {
     }
 
     @Override
-    DependentPromise<T> onCancel(Runnable code);
+    default DependentPromise<T> onCancel(Runnable action) {
+        // Safe here regardless of origins used
+        // Max is self-origin, but whenComplete used 
+        // when self is completed already
+        return SharedFunctions.whenCancel(this, action);
+    }
     
     @Override
     default DependentPromise<T> defaultAsyncOn(Executor executor) {
