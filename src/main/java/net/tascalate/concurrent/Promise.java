@@ -128,7 +128,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         CompletableFuture<Try<? super T>> delayed = new CompletableFuture<>();
         whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
         return this.dependent()
-                   .handle(Try.liftResult(), false)
+                   .handle(Try.lift(), false)
                    // Use *Async to execute on default "this" executor
                    .thenCombineAsync(delayed, selectFirst(), PromiseOrigin.ALL)
                    .thenCompose(Try::asPromise, true)
@@ -151,7 +151,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Promise<Try<T>> onTimeout = Timeouts.delayed(null, duration);
         DependentPromise<T> result = 
         this.dependent()
-            .handle(Try.liftResult(), false)
+            .handle(Try.lift(), false)
             // Use *Async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, v -> Try.doneOrTimeout(v, duration), PromiseOrigin.ALL)
             .thenCompose(Try::asPromise, true);
@@ -176,7 +176,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
         DependentPromise<T> result = 
         this.dependent()
-            .handle(Try.liftResult(), false)
+            .handle(Try.lift(), false)
             // Use *Async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.ALL)
             .thenCompose(Try::asPromise, true);
@@ -203,7 +203,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         
         DependentPromise<T> result = 
         this.dependent()
-            .handle(Try.liftResult(), false)
+            .handle(Try.lift(), false)
             .thenApply(SharedFunctions::supply, true)
             // Use *Async to execute on default "this" executor
             .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)

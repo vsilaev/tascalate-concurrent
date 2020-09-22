@@ -21,18 +21,18 @@ import java.util.concurrent.Callable;
 public interface RetryCallable<V, T> {
     V call(RetryContext<T> ctx) throws Exception;
     
-    public static <V, T> RetryCallable<V, T> of(Callable<? extends V> callable) {
+    public static <V, T> RetryCallable<V, T> from(Callable<? extends V> callable) {
         return ctx -> callable.call();
     }
     
-    public static RetryCallable<Void, Void> of(RetryRunnable runnable) {
+    public static RetryCallable<Void, Void> from(RetryRunnable runnable) {
         return ctx -> { 
             runnable.run(ctx); 
             return null; 
         };
     }
     
-    public static RetryCallable<Void, Void> of(Runnable runnable) {
-        return RetryCallable.of(RetryRunnable.of(runnable));
+    public static RetryCallable<Void, Void> from(Runnable runnable) {
+        return RetryCallable.from(RetryRunnable.from(runnable));
     }
 }

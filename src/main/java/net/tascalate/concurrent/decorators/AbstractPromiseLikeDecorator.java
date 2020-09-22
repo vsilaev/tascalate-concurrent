@@ -23,11 +23,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import net.tascalate.concurrent.Promise;
-import net.tascalate.concurrent.core.Delegator;
+import net.tascalate.concurrent.core.Decorator;
 
 public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<T>>
     extends AbstractCompletionStageDecorator<T, D>
-    implements CompletionStage<T>, Delegator<T> {
+    implements CompletionStage<T>, Decorator<T> {
 
     protected AbstractPromiseLikeDecorator(D delegate) {
         super(delegate);
@@ -276,8 +276,8 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
     @Override
     public CompletionStage<T> α() {
         CompletionStage<T> p = delegate;
-        if (p instanceof Delegator) {
-            return delegator(p).α();
+        if (p instanceof Decorator) {
+            return decorator(p).α();
         } else {
             // Default path -- unroll
             while (p instanceof AbstractCompletionStageDecorator) {
@@ -285,8 +285,8 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
                 AbstractCompletionStageDecorator<T, ? extends CompletionStage<T>> ap = 
                     (AbstractCompletionStageDecorator<T, ? extends CompletionStage<T>>)p;
                 p = ap.delegate;
-                if (p instanceof Delegator) {
-                    return delegator(p).α();
+                if (p instanceof Decorator) {
+                    return decorator(p).α();
                 }
             }
             return p;
@@ -294,7 +294,7 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
     }
     
     @SuppressWarnings("unchecked")
-    private static <T> Delegator<T> delegator(CompletionStage<T> delegate) {
-        return (Delegator<T>)delegate;
+    private static <T> Decorator<T> decorator(CompletionStage<T> delegate) {
+        return (Decorator<T>)delegate;
     }
 }

@@ -1010,19 +1010,19 @@ public final class Promises {
     public static Promise<Void> retry(Runnable codeBlock, Executor executor, 
                                       RetryPolicy<? super Void> retryPolicy) {
         
-        return retry(RetryRunnable.of(codeBlock), executor, retryPolicy);
+        return retry(RetryRunnable.from(codeBlock), executor, retryPolicy);
     }
     
     public static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, 
                                       RetryPolicy<? super Void> retryPolicy) {
         
-        return retry(RetryCallable.of(codeBlock), executor, retryPolicy.acceptNullResult());
+        return retry(RetryCallable.from(codeBlock), executor, retryPolicy.acceptNullResult());
     }
 
     public static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, 
                                        RetryPolicy<? super T> retryPolicy) {
         
-        return retry(RetryCallable.of(codeBlock), executor, retryPolicy);
+        return retry(RetryCallable.from(codeBlock), executor, retryPolicy);
     }
 
     public static <T extends C, C> Promise<T> retry(RetryCallable<T, C> codeBlock, Executor executor, 
@@ -1037,7 +1037,7 @@ public final class Promises {
     public static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
                                                RetryPolicy<? super T> retryPolicy) {
         
-        return retryOptional(RetryCallable.of(codeBlock), executor, retryPolicy);
+        return retryOptional(RetryCallable.from(codeBlock), executor, retryPolicy);
     }
     
     public static <T extends C, C> Promise<T> retryOptional(RetryCallable<Optional<T>, C> codeBlock, Executor executor, 
@@ -1050,7 +1050,7 @@ public final class Promises {
     public static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, 
                                              RetryPolicy<? super T> retryPolicy) {
         
-        return retryFuture(RetryCallable.of(invoker), retryPolicy);
+        return retryFuture(RetryCallable.from(invoker), retryPolicy);
     }
     
     public static <T extends C, C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> futureFactory, 

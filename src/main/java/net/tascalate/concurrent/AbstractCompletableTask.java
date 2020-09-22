@@ -89,7 +89,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         if (task.cancel(mayInterruptIfRunning)) {
-            onError(new CancellationException());
+            failure(new CancellationException());
             cancelOrigins(mayInterruptIfRunning);
             return true;
         } else {
@@ -130,11 +130,11 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         return callbackRegistry.isFailure();
     }
 
-    boolean onSuccess(T result) {
+    boolean success(T result) {
         return callbackRegistry.success(result);
     }
 
-    boolean onError(Throwable ex) {
+    boolean failure(Throwable ex) {
         return callbackRegistry.failure(ex);
     }
     
@@ -152,13 +152,13 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         @Override
         protected void set(T v) {
             super.set(v);
-            onSuccess(v);
+            success(v);
         };
 
         @Override
         protected void setException(Throwable t) {
             super.setException(t);
-            onError(t);
+            failure(t);
         };
     }
 
@@ -465,9 +465,9 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         // of Future-defined methods are functional.
         BiConsumer<R, Throwable> action = (result, failure) -> {
             if (failure == null) {
-                nextStage.onSuccess(result);
+                nextStage.success(result);
             } else {
-                nextStage.onError(forwardException(failure));
+                nextStage.failure(forwardException(failure));
             }
         };
         // only the first result is accepted by completion stage,

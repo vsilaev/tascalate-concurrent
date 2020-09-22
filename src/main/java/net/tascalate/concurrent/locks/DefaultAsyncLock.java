@@ -53,6 +53,17 @@ public class DefaultAsyncLock implements AsyncLock {
             head.acquire();
         }
     }
+    
+    @Override
+    public String toString() {
+        LockPromise head = waiters.peek();
+        boolean isAcquired = head != null & head.isDone();
+        int size = Math.max(0,  waiters.size() - (isAcquired ? 1 : 0));
+        return String.format(
+            "%s(acquired=%s, queueSize=%d)", 
+            getClass().getSimpleName(), isAcquired, size
+        );
+    }
 
     private class LockPromise extends CompletableFutureWrapper<Token> {
         private final AtomicBoolean released = new AtomicBoolean();

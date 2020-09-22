@@ -19,7 +19,7 @@ package net.tascalate.concurrent;
 public interface RetryRunnable {
     void run(RetryContext<Void> ctx);
     
-    public static RetryRunnable of(Runnable runnable) {
+    public static RetryRunnable from(Runnable runnable) {
         return ctx -> runnable.run();
     }
 }

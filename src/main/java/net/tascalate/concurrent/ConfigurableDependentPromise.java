@@ -36,7 +36,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import net.tascalate.concurrent.core.Delegator;
+import net.tascalate.concurrent.core.Decorator;
 import net.tascalate.concurrent.decorators.AbstractPromiseDecorator; 
 
 /**
@@ -75,7 +75,7 @@ import net.tascalate.concurrent.decorators.AbstractPromiseDecorator;
  * @param <T>
  *   a type of the successfully resolved promise value    
  */
-public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Delegator<T> {
+public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Decorator<T> {
     protected final Promise<T> delegate;
     protected final CompletionStage<?>[] cancellableOrigins;
     protected final Set<PromiseOrigin> defaultEnlistOptions;
@@ -880,10 +880,10 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Del
     }
     
     private static <T> CompletionStage<T> alphaOf(Promise<T> promise) {
-        if (promise instanceof Delegator) {
+        if (promise instanceof Decorator) {
             @SuppressWarnings("unchecked")
-            Delegator<T> delegator = (Delegator<T>)promise;
-            return delegator.α();
+            Decorator<T> decorator = (Decorator<T>)promise;
+            return decorator.α();
         } else {
             return promise;
         }

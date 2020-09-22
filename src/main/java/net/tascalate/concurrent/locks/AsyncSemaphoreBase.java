@@ -177,7 +177,7 @@ abstract class AsyncSemaphoreBase<T> {
     @Override
     public String toString() {
         return String.format(
-            "%s(totalPermits=%d, fair=%s, availablePermits=%d, queueSize=%d", 
+            "%s(totalPermits=%d, fair=%s, availablePermits=%d, queueSize=%d)", 
             getClass().getSimpleName(), totalPermits, fair, availablePermits.get(), waiters.size()
         );
     }

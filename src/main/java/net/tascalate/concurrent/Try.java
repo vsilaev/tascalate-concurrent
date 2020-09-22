@@ -92,7 +92,7 @@ abstract class Try<R> {
         return new Failure<R>(error);
     }
     
-    static <R> BiFunction<R, Throwable, Try<R>> liftResult() {
+    static <R> BiFunction<R, Throwable, Try<R>> lift() {
         return (result, error) -> null == error ? Try.success(result) : Try.failure(error);
     }
     
