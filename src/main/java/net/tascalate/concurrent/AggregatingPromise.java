@@ -181,7 +181,7 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
         }
     }
     
-    Promise<List<R>> postConstruct() {
+    Promise<List<R>> start() {
         int i = 0;
         for (CompletionStage<? extends T> promise : promises) {
             int idx = i++;

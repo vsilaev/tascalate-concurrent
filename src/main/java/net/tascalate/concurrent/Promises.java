@@ -990,7 +990,7 @@ public final class Promises {
             return transform(stage, singleResultMapper, Promises::wrapMultitargetException);
         } else {
             return ctr.create(minResultsCount, maxErrorsCount, cancelRemaining, promises)
-                      .postConstruct();
+                      .start();
         }
     }
     

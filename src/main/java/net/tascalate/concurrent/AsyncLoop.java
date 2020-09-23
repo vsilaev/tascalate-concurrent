@@ -35,10 +35,7 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         if (super.cancel(mayInterruptIfRunning)) {
-            CompletionStage<?> dependent = currentStage;
-            if (null != dependent) {
-                SharedFunctions.cancelPromise(dependent, mayInterruptIfRunning);
-            }
+            cancelCurrentStage(mayInterruptIfRunning);
             return true;
         } else {
             return false;
@@ -49,13 +46,13 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
         run(initialValue, null, null);
     }
     
-    private void run(T resolvedValue, Thread initialThread, AsyncLoop.IterationState<T> initialState) {
+    private void run(T resolvedValue, Thread initialThread, IterationState<T> initialState) {
         Thread currentThread = Thread.currentThread();
         if (currentThread.equals(initialThread) && initialState.running) {
             initialState.put(resolvedValue);
             return;
         }
-        AsyncLoop.IterationState<T> currentState = new AsyncLoop.IterationState<>();
+        IterationState<T> currentState = new IterationState<>();
         T currentValue = resolvedValue;
         try {
             do {
@@ -70,6 +67,11 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
                                 run(next, currentThread, currentState);
                             }
                         });
+                        if (isDone()) {
+                            // If race between this.cancel and this.run
+                            // Double-cancel is not an issue
+                            cancelCurrentStage(true);
+                        }
                     } else {
                         success(currentValue);
                         break;
@@ -82,6 +84,13 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
         } finally {
             currentState.running = false;
         }
+    }
+    
+    private void cancelCurrentStage(boolean mayInterruptIfRunning) {
+        CompletionStage<?> dependent = currentStage;
+        if (null != dependent) {
+            SharedFunctions.cancelPromise(dependent, mayInterruptIfRunning);
+        }        
     }
     
     private static final class IterationState<T> {
