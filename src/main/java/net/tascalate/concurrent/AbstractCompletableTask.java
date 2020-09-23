@@ -28,7 +28,6 @@ import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
 
-import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -66,23 +65,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         this.task = new StageTransition(action);
     }
     
-    private CompletionStage<?>[] cancellableOrigins;
-    private Object cancellableOriginsLock = new Object();
-    
-    protected void resetCancellableOrigins(CompletionStage<?>... origins) {
-        synchronized (cancellableOriginsLock) {
-            this.cancellableOrigins = origins; 
-        }
-    }
-    
-    protected void cancelOrigins(boolean mayInterruptIfRunning) {
-        synchronized (cancellableOriginsLock) {
-            if (null == cancellableOrigins) {
-                return;
-            }
-            Arrays.stream(cancellableOrigins).forEach(p -> cancelPromise(p, mayInterruptIfRunning)); 
-        }
-    }
+    private volatile CompletionStage<?> intermediateStage;
 
     abstract void fireTransition(Callable<T> code);
 
@@ -90,7 +73,10 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
     public boolean cancel(boolean mayInterruptIfRunning) {
         if (task.cancel(mayInterruptIfRunning)) {
             failure(new CancellationException());
-            cancelOrigins(mayInterruptIfRunning);
+            CompletionStage<?> s = intermediateStage;
+            if (null != s) {
+                cancelPromise(s, mayInterruptIfRunning);
+            }
             return true;
         } else {
             return false;
@@ -242,7 +228,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
         // Need to enlist tempStage while it is non-visible outside
         // and may not be used to interrupt fn.apply();
-        nextStage.resetCancellableOrigins(tempStage);
+        nextStage.intermediateStage = tempStage;
 
         // We must ALWAYS run through the execution
         // of nextStage.task when this nextStage is
@@ -257,10 +243,16 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             tempStage, 
             consumerAsFunction(r -> {
                 try {
-                    CompletionStage<U> returned = fn.apply(r);
                     // tempStage is completed successfully, so no sense
                     // to include it in cancellableOrigins
-                    // However, nextStage is in progress
+                    nextStage.intermediateStage = null;
+                    if (nextStage.isDone()) {
+                        // Was canceled by user code
+                        // Don't need to run anything
+                        return;
+                    }
+                    CompletionStage<U> returned = fn.apply(r);
+                    // nextStage is in progress
                     // IMPORTANT: it COULD be shared, but typically is not
                     // So in very rare case some nasty behavior MAY exist 
                     // if others depends on it
@@ -280,16 +272,15 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                     //} catch (InterruptedException ex) {
                     //}
                     
-                    nextStage.resetCancellableOrigins(returned);
+                    // Always assign before check for cancellation to avoid race
+                    nextStage.intermediateStage = returned;
                     if (nextStage.isCancelled()) {
-                        nextStage.cancelOrigins(true);
+                        cancelPromise(returned, true);
                     } else {
                         // Synchronous, while transition to tempStage is asynchronous already
                         returned.whenComplete(biConsumer(onResult, onError));
                     }
                 } catch (Throwable e) {
-                    // must-have if fn.apply above failed 
-                    nextStage.resetCancellableOrigins((CompletionStage<U>)null);
                     // no need to check nextStage.isCancelled()
                     // while there are no origins to cancel
                     // propagate error immediately
@@ -320,7 +311,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         AbstractCompletableTask<Void> tempStage = internalCreateCompletionStage(executor);
         AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
 
-        nextStage.resetCancellableOrigins(tempStage);
+        nextStage.intermediateStage = tempStage;
 
         Consumer<? super T> onResult = nextStage.runTransition(Function.identity());
         Consumer<? super Throwable> onError = nextStage.runTransition(AbstractCompletableTask::forwardException);
@@ -330,15 +321,20 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             consumerAsFunction(onResult),
             consumerAsFunction(error -> {
                 try {
+                    nextStage.intermediateStage = null;
+                    if (nextStage.isDone()) {
+                        // Was canceled by user code
+                        // Don't need to run anything
+                        return;
+                    }
                     CompletionStage<T> returned = fn.apply(error);
-                    nextStage.resetCancellableOrigins(returned);
+                    nextStage.intermediateStage = returned;
                     if (nextStage.isCancelled()) {
-                        nextStage.cancelOrigins(true);
+                        cancelPromise(returned, true);
                     } else {
                         returned.whenComplete(biConsumer(onResult, onError));
                     }
                 } catch (Throwable e) {
-                    nextStage.resetCancellableOrigins((CompletionStage<T>)null);
                     // In JDK 12 CompletionStage.composeExceptionally[Async] uses *.handle[Async]
                     // So overwrite returned error with the latest one - as in handle()
                     e.addSuppressed(error);

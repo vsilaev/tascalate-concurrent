@@ -87,6 +87,13 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
         this.cancellableOrigins = cancellableOrigins;
     }
     
+    protected ConfigurableDependentPromise<T> setup() {
+        if (!isEmptyArray(cancellableOrigins)) {
+            delegate.onCancel(() -> cancelPromises(cancellableOrigins, true));
+        }
+        return this;
+    }
+    
     public static <U> DependentPromise<U> from(Promise<U> source) {
         return from(source, PromiseOrigin.NONE);
     }
@@ -102,8 +109,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     private static <U> DependentPromise<U> doWrap(Promise<U> original, 
                                                   Set<PromiseOrigin> defaultEnlistOptions, 
                                                   CompletionStage<?>[] cancellableOrigins) {
-        boolean noOrigins = isEmptyArray(cancellableOrigins); 
-        if (noOrigins) {
+        if (isEmptyArray(cancellableOrigins)) {
             // Nothing to enlist additionally for this "original" instance
             if (original instanceof ConfigurableDependentPromise) {
                 ConfigurableDependentPromise<U> ioriginal = (ConfigurableDependentPromise<U>)original;
@@ -114,10 +120,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
             }
         }
         
-        return new ConfigurableDependentPromise<>(
-            noOrigins ? original : original.onCancel(() -> cancelPromises(cancellableOrigins, true)), 
-            defaultEnlistOptions, cancellableOrigins
-        );
+        return new ConfigurableDependentPromise<>(original, defaultEnlistOptions, cancellableOrigins).setup();
     }
     
     @Override

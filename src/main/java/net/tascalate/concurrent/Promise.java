@@ -100,9 +100,11 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onCancel(Runnable action) {
-        if (isCancelled()) {
-            action.run();
-        } else if (!isDone()) {
+        if (isDone()) {
+            if (isCancelled()) {
+                action.run();
+            }            
+        } else {
             exceptionally(__ -> {
                if (isCancelled()) {
                    action.run();

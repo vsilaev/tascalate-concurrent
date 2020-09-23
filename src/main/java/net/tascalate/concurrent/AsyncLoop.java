@@ -35,7 +35,10 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         if (super.cancel(mayInterruptIfRunning)) {
-            cancelCurrentStage(mayInterruptIfRunning);
+            CompletionStage<?> s = currentStage;
+            if (null != s) {
+                SharedFunctions.cancelPromise(s, mayInterruptIfRunning);
+            }  
             return true;
         } else {
             return false;
@@ -60,17 +63,25 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
                     if (isDone()) {
                         break;
                     } else if (loopCondition.test(currentValue)) {
-                        (currentStage = loopBody.apply(currentValue)).whenComplete((next, ex) -> {
-                            if (ex != null) {
-                                failure(ex);
-                            } else {
-                                run(next, currentThread, currentState);
-                            }
-                        });
+                        CompletionStage<T> returned = loopBody.apply(currentValue);
+                        // Assign before check to avoid race
+                        currentStage = returned;
+                        // isDone() is never slower than isCancel() -- 
+                        // actually, the test is for cancellation
+                        // but isDone() is ok.
                         if (isDone()) {
                             // If race between this.cancel and this.run
                             // Double-cancel is not an issue
-                            cancelCurrentStage(true);
+                            SharedFunctions.cancelPromise(returned, true);
+                            break;
+                        } else {
+                            returned.whenComplete((next, ex) -> {
+                                if (ex != null) {
+                                    failure(ex);
+                                } else {
+                                    run(next, currentThread, currentState);
+                                }
+                            });
                         }
                     } else {
                         success(currentValue);
@@ -84,13 +95,6 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
         } finally {
             currentState.running = false;
         }
-    }
-    
-    private void cancelCurrentStage(boolean mayInterruptIfRunning) {
-        CompletionStage<?> dependent = currentStage;
-        if (null != dependent) {
-            SharedFunctions.cancelPromise(dependent, mayInterruptIfRunning);
-        }        
     }
     
     private static final class IterationState<T> {
