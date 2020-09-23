@@ -110,19 +110,10 @@ abstract class Try<R> {
         };
     }
 
-
     @SuppressWarnings("unchecked")
     static <R> Try<R> nothing() {
         return (Try<R>)NOTHING;
     }
-
-    /*
-    @SuppressWarnings("unchecked")
-    static <T, E extends Throwable> T sneakyThrow(Throwable e) throws E {
-        throw (E) e;
-    }
-    */
-    
     
     private static final Try<Object> NOTHING = success(null); 
 }
