@@ -36,7 +36,7 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     }
     
     @Override
-    protected <U> DependentPromise<U> wrap(CompletionStage<U> original) {
+    protected <U> DependentPromise<U> wrapNew(CompletionStage<U> original) {
         return new ExecutorBoundDependentPromise<>((DependentPromise<U>)original, defaultExecutor);
     }
 

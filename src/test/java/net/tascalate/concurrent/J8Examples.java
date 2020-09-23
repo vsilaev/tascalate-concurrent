@@ -61,7 +61,7 @@ public class J8Examples {
         }
 
         @Override
-        protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
+        protected <U> CompletionStage<U> wrapNew(CompletionStage<U> original) {
             return new MyStage<>(original);
         }
         
@@ -362,7 +362,7 @@ public class J8Examples {
         // Suicidal task to close gracefully
         executorService.submit(() -> {
             try {
-                Thread.sleep(15000);
+                Thread.sleep(5000);
             } catch (Exception e) {
                 Thread.currentThread().interrupt();
             }

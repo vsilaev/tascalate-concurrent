@@ -80,8 +80,8 @@ public class CustomizableDependentPromiseDecorator<T> extends ExtendedDependentP
         return customizer.wrapArgument(original);
     }
     
+    @Override
     protected <U> DependentPromise<U> wrapResult(CompletionStage<U> original) {
         return new CustomizableDependentPromiseDecorator<>((DependentPromise<U>)original, customizer);
     }
-    
 }

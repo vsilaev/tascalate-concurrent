@@ -38,7 +38,7 @@ public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise
     }
     
     @Override
-    protected <U> Promise<U> wrap(CompletionStage<U> original) {
+    protected <U> Promise<U> wrapNew(CompletionStage<U> original) {
         return new ExecutorBoundPromise<>((Promise<U>)original, defaultExecutor);
     }
     

@@ -31,6 +31,8 @@ import net.tascalate.concurrent.delays.BoundedMinDelayPolicy;
 import net.tascalate.concurrent.delays.ExponentialDelayPolicy;
 import net.tascalate.concurrent.delays.FirstRetryNoDelayPolicy;
 import net.tascalate.concurrent.delays.FixedIntervalDelayPolicy;
+import net.tascalate.concurrent.delays.OnFailureNoDelayPolicy;
+import net.tascalate.concurrent.delays.OnSuccessNoDelayPolicy;
 import net.tascalate.concurrent.delays.ProportionalRandomDelayPolicy;
 import net.tascalate.concurrent.delays.UniformRandomDelayPolicy;
 
@@ -130,6 +132,14 @@ public interface DelayPolicy<T> {
 
     default DelayPolicy<T> withFirstRetryNoDelay() {
         return new FirstRetryNoDelayPolicy<>(this);
+    }
+    
+    default DelayPolicy<T> withOnFailureNoDelay() {
+        return new OnFailureNoDelayPolicy<>(this);
+    }
+    
+    default DelayPolicy<T> withOnSuccessNoDelay() {
+        return new OnSuccessNoDelayPolicy<>(this);
     }
     
     default <D extends DelayPolicy<T>> D withCusomizer(Function<? super DelayPolicy<T>, D> fn) {

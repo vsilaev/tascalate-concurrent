@@ -78,7 +78,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
     }
     
     public CompletablePromise<T> copy() {
-        CompletablePromise<T> result = wrap(new CompletableFuture<>());
+        CompletablePromise<T> result = wrapNew(new CompletableFuture<>());
         if (isDone()) {
             try {
                 result.complete(join());
@@ -125,7 +125,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
     }
 
     @Override
-    protected <U> CompletablePromise<U> wrap(CompletionStage<U> original) {
+    protected <U> CompletablePromise<U> wrapNew(CompletionStage<U> original) {
         return new CompletablePromise<>((CompletableFuture<U>)original);
     }
     
@@ -135,7 +135,7 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         }
 
         @Override
-        protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
+        protected <U> CompletionStage<U> wrapNew(CompletionStage<U> original) {
             return new MinimalCompletionStage<>(original);
         }
         

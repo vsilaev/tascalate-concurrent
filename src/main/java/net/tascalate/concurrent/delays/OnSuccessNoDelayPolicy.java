@@ -13,18 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent.decorators;
+package net.tascalate.concurrent.delays;
 
-import java.util.concurrent.CompletionStage;
+import java.time.Duration;
 
-public class CompletionStageDecorator<T> extends AbstractCompletionStageDecorator<T, CompletionStage<T>> {
+import net.tascalate.concurrent.DelayPolicy;
+import net.tascalate.concurrent.RetryContext;
+
+public class OnSuccessNoDelayPolicy<T> extends DelayPolicyWrapper<T> {
     
-    public CompletionStageDecorator(CompletionStage<T> delegate) {
-        super(delegate);
+    public OnSuccessNoDelayPolicy(DelayPolicy<? super T> target) {
+        super(target);
     }
 
     @Override
-    protected <U> CompletionStage<U> wrapNew(CompletionStage<U> original) {
-        return new CompletionStageDecorator<>(original);
+    public Duration delay(RetryContext<? extends T> context) {
+        return context.getLastError() == null ? Duration.ZERO : target.delay(context);
     }
 }

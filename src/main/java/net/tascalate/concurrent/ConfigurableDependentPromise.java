@@ -17,7 +17,6 @@ package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
 import static net.tascalate.concurrent.SharedFunctions.iif;
-import static net.tascalate.concurrent.SharedFunctions.whenCancel;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -116,9 +115,15 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
         }
         
         return new ConfigurableDependentPromise<>(
-            noOrigins ? original : whenCancel(original, () -> cancelPromises(cancellableOrigins, true)), 
+            noOrigins ? original : original.onCancel(() -> cancelPromises(cancellableOrigins, true)), 
             defaultEnlistOptions, cancellableOrigins
         );
+    }
+    
+    @Override
+    public DependentPromise<T> onCancel(Runnable action) {
+        delegate.onCancel(action);
+        return this;
     }
     
     // All delay overloads delegate to these methods

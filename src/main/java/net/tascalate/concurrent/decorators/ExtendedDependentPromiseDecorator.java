@@ -82,7 +82,7 @@ public class ExtendedDependentPromiseDecorator <T>
     }
     
     @Override
-    protected final <U> DependentPromise<U> wrap(CompletionStage<U> original) {
+    protected final <U> DependentPromise<U> wrapNew(CompletionStage<U> original) {
         return wrapResult(original);
     }    
     

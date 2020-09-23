@@ -30,7 +30,8 @@ class ExecutorBoundCompletionStage<T> extends CompletionStageDecorator<T> {
         this.defaultExecutor = defaultExecutor;
     }
 
-    protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
+    @Override
+    protected <U> CompletionStage<U> wrapNew(CompletionStage<U> original) {
         return new ExecutorBoundCompletionStage<>(original, defaultExecutor);
     }
 

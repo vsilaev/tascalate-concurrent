@@ -68,22 +68,7 @@ class SharedFunctions {
         result.completeExceptionally(errorSupplier.apply(value));
         return result;
     }
-    
-    static <T, D extends Promise<T>> D whenCancel(D promise, Runnable action) {
-        if (promise.isCancelled()) {
-            action.run();
-        } else if (promise.isDone()) {
-            //
-        } else {
-            promise.whenComplete((r, e) -> {
-               if (promise.isCancelled()) {
-                   action.run();
-               }
-            });
-        }
-        return promise;        
-    }
-    
+
     static boolean cancelPromise(CompletionStage<?> promise, boolean mayInterruptIfRunning) {
         if (promise instanceof Future) {
             Future<?> future = (Future<?>) promise;

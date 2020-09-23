@@ -67,7 +67,7 @@ public class CompletableFutureWrapper<T> extends CompletableFutureDecorator<T> {
     }
     
     @Override
-    protected <U> Promise<U> wrap(CompletionStage<U> original) {
+    protected <U> Promise<U> wrapNew(CompletionStage<U> original) {
         return new CompletableFutureWrapper<>((CompletableFuture<U>)original);
     }
 

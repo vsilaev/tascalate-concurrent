@@ -123,7 +123,7 @@ public class CompletionStageWrapper<T>
     }
 
     @Override
-    protected <U> Promise<U> wrap(CompletionStage<U> original) {
+    protected final <U> Promise<U> wrapNew(CompletionStage<U> original) {
         return Promises.from(original);
     }
 
@@ -164,7 +164,7 @@ public class CompletionStageWrapper<T>
         }
 
         @Override
-        protected <U> Promise<U> wrap(CompletionStage<U> original) {
+        protected <U> Promise<U> wrapNew(CompletionStage<U> original) {
             return new StrictPromise<>((Promise<U>)original);
         }
         

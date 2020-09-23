@@ -91,18 +91,14 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
     
     @Override
     public Promise<T> defaultAsyncOn(Executor executor) {
-        Promise<T> result = delegate.defaultAsyncOn(executor);
-        if (result == delegate) {
-            return this;
-        } else {
-            return wrap(result);
-        }
+        return wrap(delegate.defaultAsyncOn(executor));
     }
 
     @Override 
-    public Promise<T> onCancel(Runnable code) {
-        Promise<T> result = delegate.onCancel(code);
-        return result == delegate ? this : wrap(result);
+    public Promise<T> onCancel(Runnable action) {
+        //return wrap(delegate.onCancel(code)); -- also ok
+        delegate.onCancel(action);
+        return this;
     }
     
     @Override

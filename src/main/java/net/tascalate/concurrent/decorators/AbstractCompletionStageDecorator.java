@@ -44,7 +44,12 @@ abstract public class AbstractCompletionStageDecorator<T, D extends CompletionSt
         this.delegate = delegate;
     }
     
-    abstract protected <U> CompletionStage<U> wrap(CompletionStage<U> original);
+    @SuppressWarnings("unchecked")
+    protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
+        return delegate != original ? wrapNew(original) : (CompletionStage<U>)this;
+    }
+    
+    abstract protected <U> CompletionStage<U> wrapNew(CompletionStage<U> original);
 
     @Override
     public <U> CompletionStage<U> thenApply(Function<? super T, ? extends U> fn) {

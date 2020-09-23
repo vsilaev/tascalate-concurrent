@@ -82,7 +82,7 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     }
     
     @Override
-    protected final <U> Promise<U> wrap(CompletionStage<U> original) {
+    protected final <U> Promise<U> wrapNew(CompletionStage<U> original) {
         return wrapResult(original);
     }
     

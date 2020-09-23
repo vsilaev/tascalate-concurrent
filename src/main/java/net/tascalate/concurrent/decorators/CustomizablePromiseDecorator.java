@@ -77,6 +77,7 @@ public class CustomizablePromiseDecorator<T> extends ExtendedPromiseDecorator<T>
         return customizer.wrapArgument(original);
     }
     
+    @Override
     protected <U> Promise<U> wrapResult(CompletionStage<U> original) {
         return new CustomizablePromiseDecorator<>((Promise<U>)original, customizer);
     }

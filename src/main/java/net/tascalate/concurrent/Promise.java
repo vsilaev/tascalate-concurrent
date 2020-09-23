@@ -19,7 +19,6 @@ import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
 import static net.tascalate.concurrent.SharedFunctions.failure;
 import static net.tascalate.concurrent.SharedFunctions.selectFirst;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
-import static net.tascalate.concurrent.SharedFunctions.whenCancel;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 
 import java.time.Duration;
@@ -101,7 +100,17 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onCancel(Runnable action) {
-        return whenCancel(this, action);
+        if (isCancelled()) {
+            action.run();
+        } else if (!isDone()) {
+            exceptionally(__ -> {
+               if (isCancelled()) {
+                   action.run();
+               }
+               return null;
+            });
+        }
+        return this;
     }
 
     default Promise<T> delay(long timeout, TimeUnit unit) {

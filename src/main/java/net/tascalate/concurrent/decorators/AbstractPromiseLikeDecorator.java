@@ -32,8 +32,14 @@ public abstract class AbstractPromiseLikeDecorator<T, D extends CompletionStage<
     protected AbstractPromiseLikeDecorator(D delegate) {
         super(delegate);
     }
+
+    @Override
+    protected <U> Promise<U> wrap(CompletionStage<U> original) {
+        return (Promise<U>)super.wrap(original);
+    }
     
-    abstract protected <U> Promise<U> wrap(CompletionStage<U> original);
+    @Override
+    abstract protected <U> Promise<U> wrapNew(CompletionStage<U> original);
     
     private static <U> Promise<U> cast(CompletionStage<U> stage) {
         return (Promise<U>)stage;

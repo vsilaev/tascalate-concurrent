@@ -40,26 +40,21 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
     
     @Override
-    abstract protected <U> DependentPromise<U> wrap(CompletionStage<U> original);
+    protected <U> DependentPromise<U> wrap(CompletionStage<U> original) {
+        return (DependentPromise<U>)super.wrap(original);
+    }
+    
+    @Override
+    abstract protected <U> DependentPromise<U> wrapNew(CompletionStage<U> original);
     
     @Override
     public DependentPromise<T> dependent() {
-        DependentPromise<T> result = super.dependent();
-        if (result == delegate) {
-            return this;
-        } else {
-            return wrap(result);
-        }
+        return wrap(super.dependent());
     }
 
     @Override
     public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
-        DependentPromise<T> result = super.dependent(defaultEnlistOptions);
-        if (result == delegate) {
-            return this;
-        } else {
-            return wrap(result);
-        }
+        return wrap(super.dependent(defaultEnlistOptions));
     }
     
     @Override

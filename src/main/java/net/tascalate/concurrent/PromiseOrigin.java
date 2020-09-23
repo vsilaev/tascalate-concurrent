@@ -18,11 +18,13 @@ package net.tascalate.concurrent;
 import java.util.EnumSet;
 import java.util.Set;
 
+import static java.util.Collections.unmodifiableSet;
+
 public enum PromiseOrigin {
     THIS, PARAM;
     
-    public static Set<PromiseOrigin> ALL = EnumSet.of(THIS, PARAM);
-    public static Set<PromiseOrigin> NONE = EnumSet.noneOf(PromiseOrigin.class);
-    public static Set<PromiseOrigin> THIS_ONLY = EnumSet.of(THIS);
-    public static Set<PromiseOrigin> PARAM_ONLY = EnumSet.of(PARAM);
+    public static final Set<PromiseOrigin> ALL        = unmodifiableSet(EnumSet.of(THIS, PARAM));
+    public static final Set<PromiseOrigin> NONE       = unmodifiableSet(EnumSet.noneOf(PromiseOrigin.class));
+    public static final Set<PromiseOrigin> THIS_ONLY  = unmodifiableSet(EnumSet.of(THIS));
+    public static final Set<PromiseOrigin> PARAM_ONLY = unmodifiableSet(EnumSet.of(PARAM));
 }

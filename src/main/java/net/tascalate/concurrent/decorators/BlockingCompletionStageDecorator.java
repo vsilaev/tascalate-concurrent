@@ -29,7 +29,7 @@ public class BlockingCompletionStageDecorator<T, D extends CompletionStage<T> & 
     }
     
     @Override
-    protected <U> Promise<U> wrap(CompletionStage<U> original) {
+    protected <U> Promise<U> wrapNew(CompletionStage<U> original) {
         return new BlockingCompletionStageDecorator<>(cast(original));
     }
     

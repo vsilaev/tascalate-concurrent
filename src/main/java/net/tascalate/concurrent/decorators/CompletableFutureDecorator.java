@@ -36,6 +36,11 @@ public class CompletableFutureDecorator<T>
     }
 
     @Override
+    protected <U> Promise<U> wrapNew(CompletionStage<U> original) {
+        return new CompletableFutureDecorator<>((CompletableFuture<U>)original);
+    }
+
+    @Override
     public T getNow(T valueIfAbsent) {
         return delegate.getNow(valueIfAbsent);
     }
@@ -48,11 +53,6 @@ public class CompletableFutureDecorator<T>
     @Override
     public boolean isCompletedExceptionally() {
         return delegate.isCompletedExceptionally();
-    }
-
-    @Override
-    protected <U> Promise<U> wrap(CompletionStage<U> original) {
-        return new CompletableFutureDecorator<>((CompletableFuture<U>)original);
     }
 
 }

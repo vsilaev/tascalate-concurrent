@@ -142,7 +142,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> {
                 }
                 
                 @Override
-                protected <U> Promise<U> wrap(CompletionStage<U> original) {
+                protected <U> Promise<U> wrapNew(CompletionStage<U> original) {
                     return new EnforcedExecutorBoundPromise<>((Promise<U>)original);
                 }
                 
