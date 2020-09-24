@@ -190,7 +190,6 @@ public class TaskExecutors {
             super(executor, callable);
         }
 
-
         @Override
         public void run() {
             runTask();

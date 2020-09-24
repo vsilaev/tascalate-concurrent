@@ -34,102 +34,90 @@ public class TaskExecutorCompletionService<V> extends ExecutorCompletionService<
         super(wrapExecutor(executor));
     }
 
-    @SuppressWarnings("unchecked")
     public TaskExecutorCompletionService(TaskExecutorService executor,
                                          BlockingQueue<Promise<V>> completionQueue) {
-        super(wrapExecutor(executor), (BlockingQueue<Future<V>>)(BlockingQueue<?>)completionQueue);
+        super(wrapExecutor(executor), cast(completionQueue));
     }
 
+    @Override
     public Promise<V> submit(Callable<V> task) {
         return (Promise<V>)super.submit(task);
     }
 
+    @Override
     public Promise<V> submit(Runnable task, V result) {
         return (Promise<V>)super.submit(task, result);
     }
 
+    @Override
     public Promise<V> take() throws InterruptedException {
         return (Promise<V>)super.take();
     }
 
+    @Override
     public Promise<V> poll() {
         return (Promise<V>)super.poll();
     }
 
+    @Override
     public Promise<V> poll(long timeout, TimeUnit unit) throws InterruptedException {
         return (Promise<V>)super.poll(timeout, unit);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <V> BlockingQueue<Future<V>> cast(BlockingQueue<? extends Future<V>> queue) {
+        return (BlockingQueue<Future<V>>)queue;
     }
     
     private static Executor wrapExecutor(Executor executor) {
         if (executor instanceof TaskExecutorService && executor instanceof AbstractExecutorService) {
             return executor;
         } else {
-            return new GenericExecutorWrapper(executor);
-        }
-    }
+            return new AbstractExecutorService() {
+                private volatile boolean terminated;
 
-    static class GenericExecutorWrapper extends AbstractExecutorService {
-        protected final Executor delegate;
-        
-        GenericExecutorWrapper(Executor delegate) {
-            this.delegate = delegate;
-        }
+                @Override
+                public void execute(Runnable command) {
+                    executor.execute(command);
+                }
+                
+                @Override
+                protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
+                    return newTaskFor(Executors.callable(runnable, value));
+                }
 
-        @Override
-        public void shutdown() {
-        }
+                @Override
+                protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+                    return TaskExecutors.newRunnablePromise(this, callable);
+                }                
+                
+                // Just no-ops to fulfill ExecutorService  contract
+                @Override
+                public void shutdown() {
+                    terminated = true;
+                }
 
-        @Override
-        public List<Runnable> shutdownNow() {
-            return Collections.emptyList();
-        }
+                @Override
+                public List<Runnable> shutdownNow() {
+                    terminated = true;
+                    return Collections.emptyList();
+                }
 
-        @Override
-        public boolean isShutdown() {
-            return false;
-        }
+                @Override
+                public boolean isShutdown() {
+                    return terminated;
+                }
 
-        @Override
-        public boolean isTerminated() {
-            return false;
-        }
+                @Override
+                public boolean isTerminated() {
+                    return terminated;
+                }
 
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-            return false;
+                @Override
+                public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+                    return true;
+                }
+            };
         }
-
-        @Override
-        public void execute(Runnable command) {
-            delegate.execute(command);
-        }
-        
-        /*
-        @Override
-        public <T> Promise<T> submit(Callable<T> task) {
-            return (Promise<T>)super.submit(task);
-        }
-
-        @Override
-        public <T> Promise<T> submit(Runnable task, T result) {
-            return (Promise<T>)super.submit(task, result);
-        }
-
-        @Override
-        public Promise<?> submit(Runnable task) {
-            return (Promise<?>)super.submit(task);
-        }
-        */
-        
-        @Override
-        protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
-            return newTaskFor(Executors.callable(runnable, value));
-        }
-
-        @Override
-        protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
-            return TaskExecutors.newRunnablePromise(this, callable);
-        }
-
     }
 }
