@@ -33,6 +33,9 @@ import java.util.function.Predicate;
 /**
  * Helper class to create a concrete {@link Promise} subclass as an
  * implementation from scratch.
+ * <p>All calls are delegated to the asynchronus methods (*Async) with 
+ * explicit {@link Executor} parameter.
+ * 
  * @author vsilaev
  *
  * @param <T>

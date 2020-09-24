@@ -23,9 +23,9 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.iif;
 import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
-import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
 
 import java.util.concurrent.Callable;
@@ -42,7 +42,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * Base superclass for both root and intermediate {@link Promise}-s that
@@ -53,7 +52,8 @@ import java.util.function.Predicate;
  * @param <T>
  *   a type of the successfully executed task result   
  */
-abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements Promise<T> {
+abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T> 
+                                          implements Promise<T> {
 
     private final CallbackRegistry<T> callbackRegistry = new CallbackRegistry<>();
     protected final RunnableFuture<T> task;
@@ -148,78 +148,74 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         };
     }
 
+    // Override thenApplyAsync and exceptionallyAsync just to minimize amount of wrappers
+    // Otherwise delegation to handleAsync (in superclass) works perfect
     @Override
     public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
-        AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
-        addCallbacks(nextStage, fn, AbstractCompletableTask::forwardException, executor);
-        return nextStage;
+        return addCallbacks(
+            internalCreateCompletionStage(executor), 
+            r -> {
+                try {
+                    return fn.apply(r);
+                } catch (Throwable e) {
+                    return forwardException(e);
+                }
+            }, 
+            forwardException(), 
+            executor
+        );
+    }
+    
+    @Override
+    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
+        // Symmetrical with thenApplyAsync
+        return addCallbacks(
+            internalCreateCompletionStage(executor), 
+            Function.identity(), 
+            e -> {
+                try {
+                    return fn.apply(e);
+                } catch (Throwable t) {
+                    if (t != e) {
+                        t.addSuppressed(e);
+                    }
+                    return forwardException(t);
+                }
+            }, 
+            executor
+        );
     }
 
     @Override
-    public Promise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor) {
-        return thenApplyAsync(consumerAsFunction(action), executor);
-    }
-
-    @Override
-    public Promise<Void> thenRunAsync(Runnable action, Executor executor) {
-        return thenApplyAsync(runnableAsFunction(action), executor);
-    }
-
-    @Override
-    public <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other,
-                                              BiFunction<? super T, ? super U, ? extends V> fn, 
-                                              Executor executor) {
-
-        return thenCompose(result1 -> other.thenApplyAsync(result2 -> fn.apply(result1, result2), executor));
-    }
-
-    @Override
-    public <U> Promise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
-                                                 BiConsumer<? super T, ? super U> action, 
-                                                 Executor executor) {
-        return thenCombineAsync(other,
-                // transform BiConsumer to BiFunction
-                (t, u) -> {
-                    action.accept(t, u);
-                    return null;
-                }, executor);
-    }
-
-    @Override
-    public Promise<Void> runAfterBothAsync(CompletionStage<?> other, 
-                                           Runnable action, 
-                                           Executor executor) {
-        return thenCombineAsync(other,
-                // transform Runnable to BiFunction
-                (t, r) -> {
-                    action.run();
-                    return null;
-                }, executor);
-    }
-
-    @Override
-    public <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
-                                             Function<? super T, U> fn,
-                                             Executor executor) {
-
-        return doApplyToEitherAsync(this, other, fn, executor);
-    }
-
-    @Override
-    public Promise<Void> acceptEitherAsync(CompletionStage<? extends T> other,
-                                           Consumer<? super T> action,
-                                           Executor executor) {
-
-        return applyToEitherAsync(other, consumerAsFunction(action), executor);
-    }
-
-    @Override
-    public Promise<Void> runAfterEitherAsync(CompletionStage<?> other, 
-                                             Runnable action, 
-                                             Executor executor) {
-        
-        return doApplyToEitherAsync(this, other, runnableAsFunction(action), executor);
-    }
+    public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
+        return addCallbacks(
+            internalCreateCompletionStage(executor), 
+            result -> {
+                try {
+                    return fn.apply(result, null);
+                } catch (Throwable e) {
+                    // CompletableFuture wraps exception here
+                    // Copying this behavior
+                    return forwardException(e);
+                }
+            },
+            // exceptions are handled in regular way
+            failure -> {
+                try {
+                    return fn.apply(null, failure);
+                } catch (Throwable e) {
+                    // CompletableFuture handle[Async](BiFunction)
+                    // allows to overwrite exception for resulting stage.
+                    // Copying this behavior but enlist suppressed failure
+                    if (e != failure) {
+                        e.addSuppressed(failure);
+                    }
+                    return forwardException(e);
+                }
+            },
+            executor
+        );
+    }    
 
     @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
@@ -236,12 +232,12 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         // Success path, just return value
         Consumer<? super U> onResult = nextStage.runTransition(Function.identity());
         // Failure path, just re-throw exception
-        Consumer<? super Throwable> onError = nextStage.runTransition(AbstractCompletableTask::forwardException);
+        Consumer<? super Throwable> onError = nextStage.runTransition(forwardException());
 
         // Important -- tempStage is the target here
         addCallbacks(
             tempStage, 
-            consumerAsFunction(r -> {
+            r -> {
                 try {
                     // tempStage is completed successfully, so no sense
                     // to include it in cancellableOrigins
@@ -249,7 +245,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                     if (nextStage.isDone()) {
                         // Was canceled by user code
                         // Don't need to run anything
-                        return;
+                        return null;
                     }
                     CompletionStage<U> returned = fn.apply(r);
                     // nextStage is in progress
@@ -284,19 +280,12 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                     // synchronous, while transition to tempStage is asynchronous already
                     onError.accept(e);  
                 }
-            }), 
+                return null;
+            }, 
             consumerAsFunction(onError),
             executor
         );
 
-        return nextStage;
-    }
-
-    @Override
-    public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
-        // Symmetrical with thenApplyAsync
-        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
-        addCallbacks(nextStage, Function.identity(), fn, executor);
         return nextStage;
     }
 
@@ -311,20 +300,20 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         nextStage.intermediateStage = tempStage;
 
         Consumer<? super T> onResult = nextStage.runTransition(Function.identity());
-        Consumer<? super Throwable> onError = nextStage.runTransition(AbstractCompletableTask::forwardException);
+        Consumer<? super Throwable> onError = nextStage.runTransition(forwardException());
 
         addCallbacks(
             tempStage, 
             consumerAsFunction(onResult),
-            consumerAsFunction(error -> {
+            failure -> {
                 try {
                     nextStage.intermediateStage = null;
                     if (nextStage.isDone()) {
                         // Was canceled by user code
                         // Don't need to run anything
-                        return;
+                        return null;
                     }
-                    CompletionStage<T> returned = fn.apply(error);
+                    CompletionStage<T> returned = fn.apply(failure);
                     nextStage.intermediateStage = returned;
                     if (nextStage.isCancelled()) {
                         cancelPromise(returned, true);
@@ -334,26 +323,23 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                 } catch (Throwable e) {
                     // In JDK 12 CompletionStage.composeExceptionally[Async] uses *.handle[Async]
                     // So overwrite returned error with the latest one - as in handle()
-                    e.addSuppressed(error);
+                    if (e != failure) {
+                        e.addSuppressed(failure);
+                    }
                     onError.accept(e);  
                 }
-            }), 
+                return null;
+            }, 
             executor
         );
 
         return nextStage;
     }
-    
-    @Override
-    public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
-        return thenApplyAsync(r -> predicate.test(r) ? r : forwardException(errorSupplier.apply(r)), executor);
-    }
 
     @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
-        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
-        addCallbacks(
-            nextStage, 
+        return addCallbacks(
+            internalCreateCompletionStage(executor), 
             result -> {
                 try {
                     action.accept(result, null);
@@ -373,49 +359,19 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
                     // unlike as in handle[Async](BiFunction)
                     // Preserve this behavior, but let us add at least 
                     // suppressed exception
-                    failure.addSuppressed(e);
+                    if (e != failure) {
+                        failure.addSuppressed(e);
+                    }
                 }
                 return forwardException(failure);
             }, 
             executor
         );
-        return nextStage;
-    }
-
-    @Override
-    public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
-        AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
-        addCallbacks(
-            nextStage, 
-            result -> {
-                try {
-                    return fn.apply(result, null);
-                } catch (Throwable e) {
-                    // CompletableFuture wraps exception here
-                    // Copying this behavior
-                    return forwardException(e);
-                }
-            },
-            // exceptions are handled in regular way
-            failure -> {
-                try {
-                    return fn.apply(null, failure);
-                } catch (Throwable e) {
-                    // CompletableFuture handle[Async](BiFunction)
-                    // allows to overwrite exception for resulting stage.
-                    // Copying this behavior but enlist suppressed failure
-                    e.addSuppressed(failure);
-                    return forwardException(e);
-                }
-            },
-            executor
-        );
-        return nextStage;
     }
 
     @Override
     public CompletableFuture<T> toCompletableFuture() {
-        CompletableFuture<T> completableFuture = new CompletableFuture<>();
+        CompletableFuture<T> result = new CompletableFuture<>();
         // nextStage is CompletableFuture rather than AbstractCompletableTask
         // so trigger completion on ad-hoc runnable rather than on
         // nextStage.task
@@ -423,29 +379,32 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
             try {
                 c.call();
             } catch (Throwable ex) {
-                completableFuture.completeExceptionally(ex);
+                result.completeExceptionally(ex);
             }
         };
         addCallbacks(
             setup, 
-            consumerAsFunction(completableFuture::complete),
-            consumerAsFunction(completableFuture::completeExceptionally), 
+            r -> op(result.complete(r)),
+            e -> op(result.completeExceptionally(e)), 
             SAME_THREAD_EXECUTOR
         );
-        return completableFuture;
+        return result;
     }
-
-    abstract protected <U> AbstractCompletableTask<U> createCompletionStage(Executor executor);
+    
+    private static <T> T op(boolean v) {
+        return null;
+    }
 
     /**
      * This method exists just to reconcile generics when called from
      * {@link #runAfterEitherAsync} which has unexpected type of parameter
      * "other". The alternative is to ignore compiler warning.
      */
-    private <R, U> Promise<U> doApplyToEitherAsync(CompletionStage<? extends R> first,
-                                                   CompletionStage<? extends R> second, 
-                                                   Function<? super R, U> fn, 
-                                                   Executor executor) {
+    @Override
+    protected <R, U> Promise<U> doApplyToEitherAsync(CompletionStage<? extends R> first,
+                                                     CompletionStage<? extends R> second, 
+                                                     Function<? super R, U> fn, 
+                                                     Executor executor) {
 
         AbstractCompletableTask<R> nextStage = internalCreateCompletionStage(executor);
 
@@ -456,13 +415,9 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
 
         // In certain sense, nextStage here is bogus: neither
         // of Future-defined methods are functional.
-        BiConsumer<R, Throwable> action = (result, failure) -> {
-            if (failure == null) {
-                nextStage.success(result);
-            } else {
-                nextStage.failure(forwardException(failure));
-            }
-        };
+        BiConsumer<R, Throwable> action = (r, e) -> iif(
+            e == null ? nextStage.success(r) : nextStage.failure(forwardException(e))
+        );
         // only the first result is accepted by completion stage,
         // the other one is ignored
         first.whenComplete(action);
@@ -470,6 +425,8 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
 
         return nextStage.thenApplyAsync(fn, executor);
     }
+
+    abstract protected <U> AbstractCompletableTask<U> createCompletionStage(Executor executor);
 
     private <U> AbstractCompletableTask<U> internalCreateCompletionStage(Executor executor) {
         // Preserve default async executor, or use user-supplied executor as default
@@ -481,20 +438,6 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         return u -> fireTransition(() -> converter.apply(u)); 
     }
 
-    private static <V, R> Function<V, R> consumerAsFunction(Consumer<? super V> action) {
-        return result -> {
-            action.accept(result);
-            return null;
-        };
-    }
-
-    private static <R> Function<R, Void> runnableAsFunction(Runnable action) {
-        return result -> {
-            action.run();
-            return null;
-        };
-    }
-    
     private static <U, V> BiConsumer<U, V> biConsumer(Consumer<? super U> onResult, Consumer<? super V> onError) {
         return (u, v) -> {
             if (null == v) {
@@ -505,20 +448,21 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapter<T> implements P
         };
     }
 
-    private static <U> U forwardException(Throwable e) {
-        throw wrapCompletionException(e);
-    }
-    
     private static ExecutionException rewrapExecutionException(ExecutionException ex) {
-        return wrapExecutionException( unwrapCompletionException(unwrapExecutionException(ex)) );
+        return wrapExecutionException( 
+                   unwrapCompletionException(
+                       unwrapExecutionException(ex)
+                   )
+               );
     }    
 
-    private <U> void addCallbacks(AbstractCompletableTask<U> targetStage,
-                                  Function<? super T, ? extends U> successCallback, 
-                                  Function<Throwable, ? extends U> failureCallback,
-                                  Executor executor) {
+    private <U> AbstractCompletableTask<U> addCallbacks(AbstractCompletableTask<U> targetStage,
+                                                        Function<? super T, ? extends U> successCallback, 
+                                                        Function<Throwable, ? extends U> failureCallback,
+                                                        Executor executor) {
         
         addCallbacks(targetStage::fireTransition, successCallback, failureCallback, executor);
+        return targetStage;
     }
 
     private <U> void addCallbacks(Consumer<? super Callable<U>> stageTransition,
