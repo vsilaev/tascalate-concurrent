@@ -57,12 +57,22 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
 
     private final CallbackRegistry<T> callbackRegistry = new CallbackRegistry<>();
     protected final RunnableFuture<T> task;
-    protected final Callable<T> action;
 
     protected AbstractCompletableTask(Executor defaultExecutor, Callable<T> action) {
         super(defaultExecutor);
-        this.action = action;
-        this.task = new StageTransition(action);
+        this.task = new FutureTask<T>(action) {
+            @Override
+            protected void set(T v) {
+                super.set(v);
+                success(v);
+            };
+
+            @Override
+            protected void setException(Throwable t) {
+                super.setException(t);
+                failure(t);
+            };
+        };
     }
     
     private volatile CompletionStage<?> intermediateStage;
@@ -127,25 +137,6 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     @Override
     public String toString() {
         return String.format("%s@%d[%s]", getClass().getSimpleName(), System.identityHashCode(this), task);
-    }
-
-    class StageTransition extends FutureTask<T>
-                          implements CompletableFuture.AsynchronousCompletionTask {
-        StageTransition(Callable<T> callable) {
-            super(callable);
-        }
-
-        @Override
-        protected void set(T v) {
-            super.set(v);
-            success(v);
-        };
-
-        @Override
-        protected void setException(Throwable t) {
-            super.setException(t);
-            failure(t);
-        };
     }
 
     // Override thenApplyAsync and exceptionallyAsync just to minimize amount of wrappers

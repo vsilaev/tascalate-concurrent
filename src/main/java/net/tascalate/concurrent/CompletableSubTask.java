@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 class CompletableSubTask<T> extends AbstractCompletableTask<T> {
 
-    static class DelegatingCallable<T> implements Callable<T> {
+    private static class DelegatingCallable<T> implements Callable<T> {
         private final AtomicReference<Callable<T>> delegateRef = new AtomicReference<>();
 
         void setup(Callable<T> delegate) {
@@ -48,15 +48,21 @@ class CompletableSubTask<T> extends AbstractCompletableTask<T> {
         }
 
     }
+    
+    private final DelegatingCallable<T> action;
 
     CompletableSubTask(Executor executor) {
-        super(executor, new DelegatingCallable<>());
+        this(executor, new DelegatingCallable<>());
+    }
+    
+    private CompletableSubTask(Executor executor, DelegatingCallable<T> action) {
+        super(executor, action);
+        this.action = action;
     }
 
     @Override
-    void fireTransition(Callable<T> code) {
-        DelegatingCallable<T> transitionCall = (DelegatingCallable<T>) action;
-        transitionCall.setup(code);
+    final void fireTransition(Callable<T> code) {
+        action.setup(code);
         task.run();
     }
 
