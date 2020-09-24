@@ -43,7 +43,10 @@ public final class CancelMethodsCache {
     }
     
     private static final Cache<Class<?>, Cancellation> CANCEL_METHODS = new Cache<>();
-    private static final Cancellation NO_CANCELATION = (p, b) -> false;
+    private static final Cancellation NO_CANCELATION = (p, b) -> {
+        System.err.println("Cancellation is not supported for promise " + p);
+        return false;
+    };
     private static final Function<Class<?>, Cancellation> LOOKUP_CANCEL_METHOD = c -> {
         Stream<Function<Class<?>, ExceptionalCancellation>> options = Stream.of(
             CancelMethodsCache::cancelInterruptibleMethodOf,     
@@ -115,6 +118,7 @@ public final class CancelMethodsCache {
                 if ((parent.getModifiers() & Modifier.PUBLIC) != 0) {
                     return parent;
                 } else {
+                    // Visibility can't be reduced, so no need to check superclasses
                     return null;
                 }
             } catch (NoSuchMethodException ex) {
