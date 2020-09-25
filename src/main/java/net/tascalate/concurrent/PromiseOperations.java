@@ -76,22 +76,22 @@ public class PromiseOperations {
     
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
         tryApply(Function<? super R, ? extends T> fn) {
-        return resourcePromise -> Promises.tryApply(resourcePromise, fn);
+        return p -> unwrap(Promises.tryApply(p.dependent(PromiseOrigin.ALL), fn));
     }
     
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
         tryApplyEx(Function<? super R, ? extends T> fn) {
-        return resourcePromise -> Promises.tryApplyEx(resourcePromise, fn);
+        return p -> unwrap(Promises.tryApplyEx(p.dependent(PromiseOrigin.ALL), fn));
     }
     
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
         tryCompose(Function<? super R, ? extends CompletionStage<T>> fn) {
-        return resourcePromise -> Promises.tryCompose(resourcePromise, fn);
+        return p -> unwrap(Promises.tryCompose(p.dependent(PromiseOrigin.ALL), fn));
     }
 
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
         tryComposeEx(Function<? super R, ? extends CompletionStage<T>> fn) {
-        return resourcePromise -> Promises.tryComposeEx(resourcePromise, fn);
+        return p -> unwrap(Promises.tryComposeEx(p.dependent(PromiseOrigin.ALL), fn));
     }
     
     public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> 
@@ -138,5 +138,9 @@ public class PromiseOperations {
                      .thenCompose(values -> 
                          Promises.partitioned(values, batchSize, spawner, downstream, downstreamExecutor), true)
                      .unwrap();
+    }
+    
+    private static <T> Promise<T> unwrap(Promise<T> p) {
+        return p.unwrap();
     }
 }

@@ -127,153 +127,145 @@ public final class Promises {
         return asyncLoop;  
     }
     
-    public static <T, R extends AutoCloseable> Promise<T> tryApply(CompletionStage<R> resourcePromise,
+    public static <T, R extends AutoCloseable> Promise<T> tryApply(CompletionStage<R> stage,
                                                                    Function<? super R, ? extends T> fn) {
-        return tryApply(from(resourcePromise), fn);
+        return tryApply(from(stage), fn);
     }
     
-    public static <T, R extends AutoCloseable> Promise<T> tryApply(Promise<R> resourcePromise,
+    public static <T, R extends AutoCloseable> Promise<T> tryApply(Promise<R> p,
                                                                    Function<? super R, ? extends T> fn) {
-        return 
-        resourcePromise.dependent()
-                       .thenApply(r -> {
-                            try (R resource = r) {
-                                return (T)fn.apply(resource);
-                            } catch (RuntimeException | Error rte) {
-                                throw rte;
-                            } catch (Throwable ex) {
-                                throw new CompletionException(ex);
-                            }
-                        }, true)
-                       .unwrap();
+        return p.thenApply(r -> {
+                    try (R resource = r) {
+                        return (T)fn.apply(resource);
+                    } catch (RuntimeException | Error rte) {
+                        throw rte;
+                    } catch (Throwable ex) {
+                        throw new CompletionException(ex);
+                    }
+                });
     }
 
-    public static <T, R extends AsyncCloseable> Promise<T> tryApplyEx(CompletionStage<R> resourcePromise,
+    public static <T, R extends AsyncCloseable> Promise<T> tryApplyEx(CompletionStage<R> stage,
                                                                       Function<? super R, ? extends T> fn) {
-        return tryApplyEx(from(resourcePromise), fn);
+        return tryApplyEx(from(stage), fn);
     }
     
-    public static <T, R extends AsyncCloseable> Promise<T> tryApplyEx(Promise<R> resourcePromise,
+    public static <T, R extends AsyncCloseable> Promise<T> tryApplyEx(Promise<R> p,
                                                                       Function<? super R, ? extends T> fn) {
-        return 
-        resourcePromise.dependent()
-                       .thenCompose(resource -> {
-                           T result;
-                           try {
-                               result = fn.apply(resource);
-                           } catch (Throwable actionException) {
-                               try {
-                                   // Use dependent here?
-                                   return resource.close().thenCompose(__ -> failure(actionException));
-                               } catch (Throwable onClose) {
-                                   actionException.addSuppressed(onClose);
-                                   return failure(onClose);
-                               }
-                           }
+        return p.thenCompose(resource -> {
+                   T result;
+                   try {
+                       result = fn.apply(resource);
+                   } catch (Throwable actionException) {
+                       try {
+                           // Use dependent here?
+                           return resource.close().thenCompose(__ -> failure(actionException));
+                       } catch (Throwable onClose) {
+                           actionException.addSuppressed(onClose);
+                           return failure(onClose);
+                       }
+                   }
                            
-                           try {
-                               // Use dependent here?
-                               return resource.close().thenApply(__ -> result);
-                           } catch (Throwable onClose) {
-                               return failure(onClose);
-                           }
-
-                       }, true)
-                       .unwrap();
+                   try {
+                       // Use dependent here?
+                       return resource.close().thenApply(__ -> result);
+                   } catch (Throwable onClose) {
+                       return failure(onClose);
+                   }
+               });
     }
     
-    public static <T, R extends AutoCloseable> Promise<T> tryCompose(CompletionStage<R> resourcePromise,
+    public static <T, R extends AutoCloseable> Promise<T> tryCompose(CompletionStage<R> stage,
                                                                      Function<? super R, ? extends CompletionStage<T>> fn) {
-        return tryCompose(from(resourcePromise), fn);
+        return tryCompose(from(stage), fn);
     }
 
-    public static <T, R extends AutoCloseable> Promise<T> tryCompose(Promise<R> resourcePromise,
+    public static <T, R extends AutoCloseable> Promise<T> tryCompose(Promise<R> p,
                                                                      Function<? super R, ? extends CompletionStage<T>> fn) {
-        return
-        resourcePromise.dependent()
-                       .thenCompose(resource -> {
-                           CompletionStage<T> action;
-                           try {
-                               action = fn.apply(resource);
-                           } catch (Throwable composeException) {
-                               try {
-                                   resource.close();
-                               } catch (Exception onClose) {
-                                   composeException.addSuppressed(onClose);
-                               }
-                               return failure(composeException);
-                           }
+        return p.thenCompose(resource -> {
+                   CompletionStage<T> action;
+                   try {
+                       action = fn.apply(resource);
+                   } catch (Throwable composeException) {
+                       try {
+                           resource.close();
+                       } catch (Exception onClose) {
+                           composeException.addSuppressed(onClose);
+                       }
+                       return failure(composeException);
+                   }
 
-                           CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
-                           action.whenComplete((actionResult, actionException) -> {
-                               try {
-                                   resource.close();
-                               } catch (Throwable onClose) {
-                                   if (null != actionException) {
-                                       actionException.addSuppressed(onClose);
-                                       result.failure(actionException);
-                                   } else {
-                                       result.failure(onClose);
-                                   }
-                                   // DONE WITH ERROR ON CLOSE
-                                   return;
-                               }
-                               // CLOSE OK
-                               result.complete(actionResult, actionException);
-                           });
-                           return result.onCancel(() -> cancelPromise(action, true));
-                       }, true)
-                       .unwrap();        
+                   CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
+                   action.whenComplete((actionResult, actionException) -> {
+                       try {
+                           resource.close();
+                       } catch (Throwable onClose) {
+                           if (null != actionException) {
+                               actionException.addSuppressed(onClose);
+                               result.failure(actionException);
+                           } else {
+                               result.failure(onClose);
+                           }
+                           // DONE WITH ERROR ON CLOSE
+                           return;
+                       }
+                       // CLOSE OK
+                       result.complete(actionResult, actionException);
+                   });
+                   return result.onCancel(() -> cancelPromise(action, true));
+               });        
     }
     
-    public static <T, R extends AsyncCloseable> Promise<T> tryComposeEx(Promise<R> resourcePromise,
+    public static <T, R extends AsyncCloseable> Promise<T> tryComposeEx(CompletionStage<R> stage,
                                                                         Function<? super R, ? extends CompletionStage<T>> fn) {
-        return
-        resourcePromise.dependent()
-                       .thenCompose(resource -> {
-                           CompletionStage<T> action;
-                           try {
-                               action = fn.apply(resource);
-                           } catch (Throwable composeException) {
-                               try {
-                                   // Use dependent here?
-                                   return resource.close().thenCompose(__ -> failure(composeException));
-                               } catch (Throwable onClose) {
-                                   composeException.addSuppressed(onClose);
-                                   return failure(onClose);
-                               }                               
-                           }
+        return tryComposeEx(from(stage), fn);
+    }
+    
+    public static <T, R extends AsyncCloseable> Promise<T> tryComposeEx(Promise<R> p,
+                                                                        Function<? super R, ? extends CompletionStage<T>> fn) {
+        return p.thenCompose(resource -> {
+                   CompletionStage<T> action;
+                   try {
+                       action = fn.apply(resource);
+                   } catch (Throwable composeException) {
+                       try {
+                           // Use dependent here?
+                           return resource.close().thenCompose(__ -> failure(composeException));
+                       } catch (Throwable onClose) {
+                           composeException.addSuppressed(onClose);
+                           return failure(onClose);
+                       }                               
+                   }
 
-                           CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
-                           action.whenComplete((actionResult, actionException) -> {
-                               CompletionStage<?> afterClose;
-                               try {
-                                   afterClose = resource.close();
-                               } catch (Throwable onClose) {
-                                   if (null != actionException) {
-                                       actionException.addSuppressed(onClose);
-                                       result.failure(actionException);
-                                   } else {
-                                       result.failure(onClose);
-                                   }
-                                   // DONE WITH ERROR ON ASYNC CLOSE
-                                   return;
+                   CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
+                   action.whenComplete((actionResult, actionException) -> {
+                       CompletionStage<?> afterClose;
+                       try {
+                           afterClose = resource.close();
+                       } catch (Throwable onClose) {
+                           if (null != actionException) {
+                               actionException.addSuppressed(onClose);
+                               result.failure(actionException);
+                           } else {
+                               result.failure(onClose);
+                           }
+                           // DONE WITH ERROR ON ASYNC CLOSE
+                           return;
+                       }
+                       // ASYNC CLOSE INVOKE OK
+                       afterClose.whenComplete((__, onClose) -> {
+                           if (null != actionException) {
+                               if (null != onClose) {
+                                   actionException.addSuppressed(onClose);
                                }
-                               // ASYNC CLOSE INVOKE OK
-                               afterClose.whenComplete((__, onClose) -> {
-                                   if (null != actionException) {
-                                       if (null != onClose) {
-                                           actionException.addSuppressed(onClose);
-                                       }
-                                       result.failure(actionException);
-                                   } else {
-                                       result.complete(actionResult, onClose);
-                                   }
-                               });
-                           });
-                           return result.onCancel(() -> cancelPromise(action, true));
-                       }, true)
-                       .unwrap();
+                               result.failure(actionException);
+                           } else {
+                               result.complete(actionResult, onClose);
+                           }
+                       });
+                   });
+                   return result.onCancel(() -> cancelPromise(action, true));
+               });
     }
     
     public static <T, A, R> Promise<R> partitioned(Iterable<? extends T> values, 
