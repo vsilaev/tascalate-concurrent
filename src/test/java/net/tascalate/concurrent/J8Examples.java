@@ -234,9 +234,7 @@ public class J8Examples {
         //Promise<Object> k = CompletableTask.supplyAsync(() -> {throw new RuntimeException();}, executorService);
         //Promise<Object> k = Promises.success("ABC");
         //Promise<Object> k = Promises.failure(new RuntimeException());
-        k.dependent().delay(Duration.ofMillis(1), true).whenComplete((r, e) -> System.out.println(Thread.currentThread() + " ==> " + r + ", " + e));
-        
-
+        k.dependent().delay(Duration.ofMillis(50), true, true).whenComplete((r, e) -> System.out.println(Thread.currentThread() + " ==> " + r + ", " + e));
         
         Promise<Object> k1 = CompletableTask.supplyAsync(() -> produceStringSlow("-onTimeout1"), executorService);
         k1.onTimeout("ALTERNATE1", Duration.ofMillis(50))

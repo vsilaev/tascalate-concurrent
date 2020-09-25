@@ -17,6 +17,7 @@ package net.tascalate.concurrent;
 
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 class PromiseHelper {
@@ -86,5 +87,17 @@ class PromiseHelper {
         return
         h.thenCompose(e -> e.isLeft() ? p : h.thenComposeAsync(in -> fn.apply(in.right()), executor), true)
          .unwrap();         
+    }
+    
+    
+    static <T, U> BiConsumer<T, U> timeoutsCleanup(Promise<T> self, Promise<?> timeout, boolean cancelOnTimeout) {
+        return (_1, _2) -> {
+            // Result comes from timeout and cancel-on-timeout is set
+            // If both are done then cancel has no effect anyway
+            if (cancelOnTimeout && timeout.isDone() && !timeout.isCancelled()) {
+                self.cancel(true);
+            }
+            timeout.cancel(true);
+        };
     }
 }

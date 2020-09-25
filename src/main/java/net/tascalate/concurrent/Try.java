@@ -25,6 +25,7 @@ abstract class Try<R> {
 
     abstract R done();
     abstract boolean isSuccess();
+    abstract boolean isCancel();
     abstract Promise<R> asPromise();
     
     static final class Success<R> extends Try<R> {
@@ -49,6 +50,11 @@ abstract class Try<R> {
         boolean isSuccess() {
             return true;
         }
+        
+        @Override
+        boolean isCancel() {
+            return false;
+        }        
     }
     
     static final class Failure<R> extends Try<R> {
@@ -61,9 +67,6 @@ abstract class Try<R> {
         
         @Override
         R done() {
-            /*
-            return sneakyThrow(error);
-            */
             if (error instanceof Error) {
                 throw (Error)error;
             } else if (error instanceof CancellationException) {
@@ -82,6 +85,13 @@ abstract class Try<R> {
         boolean isSuccess() {
             return false;
         }
+        
+        @Override
+        boolean isCancel() {
+            Throwable ex = SharedFunctions.unwrapCompletionException(error);
+            return ex instanceof CancellationException;
+        }        
+
     }
     
     static <R> Try<R> success(R result) {

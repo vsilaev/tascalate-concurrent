@@ -24,7 +24,6 @@ import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -136,14 +135,15 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
                     .unwrap()
             );
         }
-        CompletableFuture<Try<? super T>> delayed = new CompletableFuture<>();
-        whenComplete(Timeouts.configureDelay(this, delayed, duration, delayOnError));
-        return this.dependent()
-                   .handle(Try.lift(), false)
-                   // Use *Async to execute on default "this" executor
-                   .thenCombineAsync(delayed, selectFirst(), PromiseOrigin.ALL)
-                   .thenCompose(Try::asPromise, true)
-                   .unwrap();
+        DependentPromise<Try<T>> h = dependent().handle(Try.lift(), false);
+        return h.thenCompose(t -> t.isSuccess() || !(isCancelled() || t.isCancel()) ?
+           // "this" is already completed promise here (in both cases)
+           // Use *Async to execute on default "this" executor
+           h.thenCombineAsync(Timeouts.delay(duration), (_1, _2) -> join(), PromiseOrigin.PARAM_ONLY)
+           :
+           this, 
+           true
+        ).unwrap();
     }
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit) {
@@ -167,7 +167,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             .applyToEitherAsync(onTimeout, v -> Try.doneOrTimeout(v, duration), PromiseOrigin.ALL)
             .thenCompose(Try::asPromise, true);
         
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        result.whenComplete(PromiseHelper.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.unwrap();
     }
     
@@ -192,7 +192,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             .applyToEitherAsync(onTimeout, Function.identity(), PromiseOrigin.ALL)
             .thenCompose(Try::asPromise, true);
 
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        result.whenComplete(PromiseHelper.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.unwrap();
     }
     
@@ -220,7 +220,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             .applyToEitherAsync(onTimeout, Supplier::get, PromiseOrigin.ALL)
             .thenCompose(Try::asPromise, true);
         
-        result.whenComplete(Timeouts.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
+        result.whenComplete(PromiseHelper.timeoutsCleanup(this, onTimeout, cancelOnTimeout));
         return result.unwrap();
     }
     

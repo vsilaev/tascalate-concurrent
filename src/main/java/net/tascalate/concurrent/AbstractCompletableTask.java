@@ -382,9 +382,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
         return result;
     }
     
-    private static <T> T op(boolean v) {
-        return null;
-    }
+    private static <T> T op(boolean v) { return null; }
 
     /**
      * This method exists just to reconcile generics when called from

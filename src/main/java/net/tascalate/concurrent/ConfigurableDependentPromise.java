@@ -865,7 +865,12 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     }
     
     private CompletionStage<?>[] originAndParam(CompletionStage<?> param, Set<PromiseOrigin> enlistOptions) {
-        final CompletionStage<?>[] result = new CompletionStage<?>[enlistOptions.size()];
+        int size = enlistOptions.size();
+        if (size == 0) {
+            return null;
+        }
+        
+        CompletionStage<?>[] result = new CompletionStage<?>[size];
         int idx = 0;
         if (enlistOptions.contains(PromiseOrigin.THIS)) {
             result[idx++] = this;

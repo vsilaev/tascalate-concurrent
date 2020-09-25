@@ -18,13 +18,11 @@ package net.tascalate.concurrent;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 
 class Timeouts {
     
@@ -101,33 +99,6 @@ class Timeouts {
     
     static Duration toDuration(long delay, TimeUnit timeUnit) {
         return Duration.of(delay, toChronoUnit(timeUnit));
-    }
-    
-    static <T, U> BiConsumer<T, U> timeoutsCleanup(Promise<T> self, Promise<?> timeout, boolean cancelOnTimeout) {
-        return (r, e) -> {
-            // Result comes from timeout and cancel-on-timeout is set
-            // If both are done then cancel has no effect anyway
-            if (cancelOnTimeout && timeout.isDone() && !timeout.isCancelled()) {
-                self.cancel(true);
-            }
-            timeout.cancel(true);
-        };
-    }
-    
-    static <T, E extends Throwable> BiConsumer<T, E> configureDelay(Promise<? extends T> self, 
-                                                                    CompletableFuture<Try<? super T>> delayed, 
-                                                                    Duration duration, 
-                                                                    boolean delayOnError) {
-        return (result, error) -> {
-            if (error == null || (delayOnError && !self.isCancelled())) {
-                Promise<?> timeout = delay(duration);
-                delayed.whenComplete( (r, e) -> timeout.cancel(true) );
-                timeout.whenComplete( (r, e) -> delayed.complete(Try.nothing()) );
-            } else {
-                // when error and should not delay on error
-                delayed.complete(Try.nothing());
-            }
-        };
     }
     
     private static ChronoUnit toChronoUnit(TimeUnit unit) { 
