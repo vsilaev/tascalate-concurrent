@@ -74,6 +74,7 @@ public class MultitargetException extends Exception {
     
     @Override
     public String toString() {
+        // Exclude getMessage / getLocalizedMessage to avoid infinite recursion
         return getClass().getName();
     }
     
@@ -86,15 +87,11 @@ public class MultitargetException extends Exception {
     
     void printDetails(PrintWriter w, Set<Throwable> visited) {
         visited.add(this);
-        w.println(toStringSafe());
+        w.println(this);
         printExceptions(w, (ex, padding) -> {
             PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
             if (visited.contains(ex)) {
-                String message = ex instanceof MultitargetException ? 
-                    ((MultitargetException)ex).toStringSafe() 
-                    : 
-                    ex.toString();
-                pw.println("\t[CIRCULAR REFERENCE:" + message + "]");
+                pw.println("\t[CIRCULAR REFERENCE:" + ex + "]");
             } else {
                 if (ex instanceof MultitargetException) {
                     ((MultitargetException)ex).printDetails(pw, visited);
@@ -121,18 +118,14 @@ public class MultitargetException extends Exception {
         
         //super.printStackTrace(s);
         // Print our stack trace
-        s.println(toStringSafe());
+        s.println(this);
         for (StackTraceElement trace : getStackTrace())
             s.println("\tat " + trace);
         
         printExceptions(s, (ex, padding) -> {
             PrintStream ps = new PrintStream(new PaddedOutputStream(s, padding));
             if (visited.contains(ex)) {
-                String message = ex instanceof MultitargetException ? 
-                    ((MultitargetException)ex).toStringSafe() 
-                    : 
-                    ex.toString();
-                ps.println("\t[CIRCULAR REFERENCE:" + message + "]");
+                ps.println("\t[CIRCULAR REFERENCE:" + ex + "]");
             } else {
                 if (ex instanceof MultitargetException) {
                     ((MultitargetException)ex).printExceptions(ps, visited);
@@ -154,18 +147,14 @@ public class MultitargetException extends Exception {
         
         //super.printStackTrace(s);
         // Print our stack trace
-        w.println(toStringSafe());
+        w.println(this);
         for (StackTraceElement trace : getStackTrace())
             w.println("\tat " + trace);
         
         printExceptions(w, (ex, padding) -> {
             PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
             if (visited.contains(ex)) {
-                String message = ex instanceof MultitargetException ? 
-                    ((MultitargetException)ex).toStringSafe() 
-                    : 
-                    ex.toString();
-                pw.println("\t[CIRCULAR REFERENCE:" + message + "]");
+                pw.println("\t[CIRCULAR REFERENCE:" + ex + "]");
             } else {
                 if (ex instanceof MultitargetException) {
                     ((MultitargetException)ex).printExceptions(pw, visited);
@@ -205,10 +194,6 @@ public class MultitargetException extends Exception {
         } else {
             nestedExceptionPrinter.accept(ex);
         }
-    }
-    
-    String toStringSafe() {
-        return getClass().getName();
     }
     
     private static <T> Set<T> newDejavueSet() {
