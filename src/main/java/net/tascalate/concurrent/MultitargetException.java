@@ -18,14 +18,16 @@ package net.tascalate.concurrent;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
-
+import java.io.StringWriter;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class MultitargetException extends Exception {
     private final static long serialVersionUID = 1L;
@@ -37,6 +39,25 @@ public class MultitargetException extends Exception {
             Collections.emptyList() 
             : 
             Collections.unmodifiableList(exceptions);
+        List<Throwable> causes = this.exceptions
+                                     .stream()
+                                     .filter(Objects::nonNull)
+                                     .collect(Collectors.toList());
+        
+        // Need to report back internal details in some standard way
+        // If there is a single error - then it's the cause
+        // Otherwie no dedicated cause and a list of suppressed exceptions
+        switch (causes.size()) {
+            case 0: 
+                break;
+            case 1:
+                initCause(causes.get(0));
+                break;
+            default:
+                for (Throwable cause : causes) {
+                    addSuppressed(cause);
+                }
+        }
     }
 
     public List<Throwable> getExceptions() {
@@ -52,25 +73,107 @@ public class MultitargetException extends Exception {
     }
     
     @Override
-    public void printStackTrace(PrintStream s) {
-        synchronized (s) {
-            super.printStackTrace(s);
-            printExceptions(s, (ex, padding) -> {
-                PrintStream ps = new PrintStream(new PaddedOutputStream(s, padding)); 
-                ex.printStackTrace(ps);       
-            });
-        }
+    public String toString() {
+        return getClass().getName();
     }
     
     @Override
-    public void printStackTrace(PrintWriter w) {
-        synchronized (w) {
-            super.printStackTrace(w);
-            printExceptions(w, (ex, padding) -> {
-                PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
-                ex.printStackTrace(pw);          
-            });
+    public String getMessage() {
+        StringWriter w = new StringWriter();
+        printDetails(new PrintWriter(w), newDejavueSet());
+        return w.toString();
+    }
+    
+    void printDetails(PrintWriter w, Set<Throwable> visited) {
+        visited.add(this);
+        w.println(toStringSafe());
+        printExceptions(w, (ex, padding) -> {
+            PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
+            if (visited.contains(ex)) {
+                String message = ex instanceof MultitargetException ? 
+                    ((MultitargetException)ex).toStringSafe() 
+                    : 
+                    ex.toString();
+                pw.println("\t[CIRCULAR REFERENCE:" + message + "]");
+            } else {
+                if (ex instanceof MultitargetException) {
+                    ((MultitargetException)ex).printDetails(pw, visited);
+                } else {
+                    pw.println(ex.toString());
+                }
+            }
+        });        
+        
+    }
+    
+    public void printExceptions() {
+        printExceptions(System.err);
+    }
+    
+    public void printExceptions(PrintStream s) {
+        synchronized (s) {
+            printExceptions(s, newDejavueSet());
         }
+    }
+    
+    void printExceptions(PrintStream s, Set<Throwable> visited) {
+        visited.add(this);
+        
+        //super.printStackTrace(s);
+        // Print our stack trace
+        s.println(toStringSafe());
+        for (StackTraceElement trace : getStackTrace())
+            s.println("\tat " + trace);
+        
+        printExceptions(s, (ex, padding) -> {
+            PrintStream ps = new PrintStream(new PaddedOutputStream(s, padding));
+            if (visited.contains(ex)) {
+                String message = ex instanceof MultitargetException ? 
+                    ((MultitargetException)ex).toStringSafe() 
+                    : 
+                    ex.toString();
+                ps.println("\t[CIRCULAR REFERENCE:" + message + "]");
+            } else {
+                if (ex instanceof MultitargetException) {
+                    ((MultitargetException)ex).printExceptions(ps, visited);
+                } else {
+                    ex.printStackTrace(ps);
+                }
+            }
+        });
+    }
+    
+    public void printExceptions(PrintWriter w) {
+        synchronized (w) {
+            printExceptions(w, newDejavueSet());
+        }
+    }
+    
+    void printExceptions(PrintWriter w, Set<Throwable> visited) {
+        visited.add(this);
+        
+        //super.printStackTrace(s);
+        // Print our stack trace
+        w.println(toStringSafe());
+        for (StackTraceElement trace : getStackTrace())
+            w.println("\tat " + trace);
+        
+        printExceptions(w, (ex, padding) -> {
+            PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
+            if (visited.contains(ex)) {
+                String message = ex instanceof MultitargetException ? 
+                    ((MultitargetException)ex).toStringSafe() 
+                    : 
+                    ex.toString();
+                pw.println("\t[CIRCULAR REFERENCE:" + message + "]");
+            } else {
+                if (ex instanceof MultitargetException) {
+                    ((MultitargetException)ex).printExceptions(pw, visited);
+                } else {
+                    ex.printStackTrace(pw);
+                }
+            }
+        });
     }
     
     private <O extends Appendable> void printExceptions(O out, BiConsumer<Throwable, String> nestedExceptionPrinter) {
@@ -102,6 +205,14 @@ public class MultitargetException extends Exception {
         } else {
             nestedExceptionPrinter.accept(ex);
         }
+    }
+    
+    String toStringSafe() {
+        return getClass().getName();
+    }
+    
+    private static <T> Set<T> newDejavueSet() {
+        return Collections.newSetFromMap(new IdentityHashMap<T, Boolean>());        
     }
     
     private static final String NEW_LINE = System.lineSeparator();

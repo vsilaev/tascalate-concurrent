@@ -1,14 +1,24 @@
 package net.tascalate.concurrent;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 public class TestMultitargetExceptionTraces {
 
     
     public static void main(String[] argv) {
-        Exception e = err();
+        MultitargetException e = (MultitargetException)err();
+        //Throwable e = outer().initCause(err());
         //e.printStackTrace(new PrintWriter(System.err, true));
         e.printStackTrace();
+        System.out.println("--------------");
+        System.out.println(e.getLocalizedMessage());
+        System.out.println("--------------");
+        e.printExceptions();
+    }
+    
+    static Exception outer() {
+        return new IOException("Invalid user input");
     }
     
     static Exception err() {
@@ -23,13 +33,13 @@ public class TestMultitargetExceptionTraces {
             a(), null, 
             new MultitargetException(Arrays.asList(c(), b()))
         ));
-        e.fillInStackTrace();
+        //e.fillInStackTrace();
         return e;
     }
     
     static Throwable a() {
         Exception e = new IllegalArgumentException("Something wrong", b());
-        e.fillInStackTrace();
+        //e.fillInStackTrace();
         return e;
     }
     
@@ -43,7 +53,7 @@ public class TestMultitargetExceptionTraces {
     
     static Throwable b_2() {
         Throwable e = new NoSuchMethodError("Data not found");
-        e.fillInStackTrace();
+        //e.fillInStackTrace();
         return e;
     }
     
@@ -57,7 +67,7 @@ public class TestMultitargetExceptionTraces {
     
     static Exception c_2() {
         Exception e = new IllegalStateException("State is forbidden");
-        e.fillInStackTrace();
+        //e.fillInStackTrace();
         return e;
     }
 
