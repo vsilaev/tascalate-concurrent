@@ -156,18 +156,20 @@ public final class Promises {
                    T result;
                    try {
                        result = fn.apply(resource);
-                   } catch (Throwable actionException) {
+                   } catch (Throwable onAction) {
                        try {
-                           // Use dependent here?
-                           return resource.close().thenCompose(__ -> failure(actionException));
+                           // Don't use dependent here
+                           // So resource.close() is never cancellable
+                           return resource.close().thenCompose(__ -> failure(onAction));
                        } catch (Throwable onClose) {
-                           actionException.addSuppressed(onClose);
+                           onClose.addSuppressed(onAction);
                            return failure(onClose);
                        }
                    }
                            
                    try {
-                       // Use dependent here?
+                       // Don't use dependent here
+                       // So resource.close() is never cancellable
                        return resource.close().thenApply(__ -> result);
                    } catch (Throwable onClose) {
                        return failure(onClose);
@@ -186,31 +188,27 @@ public final class Promises {
                    CompletionStage<T> action;
                    try {
                        action = fn.apply(resource);
-                   } catch (Throwable composeException) {
+                   } catch (Throwable onAction) {
                        try {
                            resource.close();
+                           return failure(onAction);
                        } catch (Exception onClose) {
-                           composeException.addSuppressed(onClose);
+                           onClose.addSuppressed(onAction);
+                           return failure(onClose);
                        }
-                       return failure(composeException);
                    }
 
                    CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
                    action.whenComplete((actionResult, actionException) -> {
                        try {
                            resource.close();
+                           result.complete(actionResult, actionException);
                        } catch (Throwable onClose) {
                            if (null != actionException) {
-                               actionException.addSuppressed(onClose);
-                               result.failure(actionException);
-                           } else {
-                               result.failure(onClose);
+                               onClose.addSuppressed(actionException);
                            }
-                           // DONE WITH ERROR ON CLOSE
-                           return;
+                           result.failure(onClose);
                        }
-                       // CLOSE OK
-                       result.complete(actionResult, actionException);
                    });
                    return result.onCancel(() -> cancelPromise(action, true));
                });        
@@ -227,42 +225,37 @@ public final class Promises {
                    CompletionStage<T> action;
                    try {
                        action = fn.apply(resource);
-                   } catch (Throwable composeException) {
+                   } catch (Throwable onAction) {
                        try {
-                           // Use dependent here?
-                           return resource.close().thenCompose(__ -> failure(composeException));
+                           // Don't use dependent here
+                           // So resource.close() is never cancellable
+                           return resource.close().thenCompose(__ -> failure(onAction));
                        } catch (Throwable onClose) {
-                           composeException.addSuppressed(onClose);
+                           onClose.addSuppressed(onAction);
                            return failure(onClose);
                        }                               
                    }
 
                    CompletableFutureWrapper<T> result = new CompletableFutureWrapper<>();
                    action.whenComplete((actionResult, actionException) -> {
-                       CompletionStage<?> afterClose;
                        try {
-                           afterClose = resource.close();
+                           CompletionStage<?> afterClose = resource.close();
+                           afterClose.whenComplete((__, onClose) -> {
+                               if (null == onClose) {
+                                   result.complete(actionResult, actionException);
+                               } else {
+                                   if (null != actionException) {
+                                       onClose.addSuppressed(actionException);
+                                   }
+                                   result.failure(onClose);
+                               }
+                           });
                        } catch (Throwable onClose) {
                            if (null != actionException) {
-                               actionException.addSuppressed(onClose);
-                               result.failure(actionException);
-                           } else {
-                               result.failure(onClose);
+                               onClose.addSuppressed(actionException);
                            }
-                           // DONE WITH ERROR ON ASYNC CLOSE
-                           return;
+                           result.failure(onClose);
                        }
-                       // ASYNC CLOSE INVOKE OK
-                       afterClose.whenComplete((__, onClose) -> {
-                           if (null != actionException) {
-                               if (null != onClose) {
-                                   actionException.addSuppressed(onClose);
-                               }
-                               result.failure(actionException);
-                           } else {
-                               result.complete(actionResult, onClose);
-                           }
-                       });
                    });
                    return result.onCancel(() -> cancelPromise(action, true));
                });
