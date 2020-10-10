@@ -18,7 +18,6 @@ package net.tascalate.concurrent;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -34,7 +33,8 @@ public class MultitargetException extends Exception {
 
     private final List<Throwable> exceptions;
 
-    public MultitargetException(List<Throwable> exceptions) {
+    public MultitargetException(String message, List<Throwable> exceptions) {
+        super(message);
         this.exceptions = exceptions == null ? 
             Collections.emptyList() 
             : 
@@ -66,41 +66,6 @@ public class MultitargetException extends Exception {
     
     Optional<Throwable> getFirstException() {
         return exceptions.stream().filter(Objects::nonNull).findFirst();
-    }
-
-    public static MultitargetException of(final Throwable exception) {
-        return new MultitargetException(Collections.singletonList(exception));
-    }
-    
-    @Override
-    public String toString() {
-        // Exclude getMessage / getLocalizedMessage to avoid infinite recursion
-        return getClass().getName();
-    }
-    
-    @Override
-    public String getMessage() {
-        StringWriter w = new StringWriter();
-        printDetails(new PrintWriter(w), newDejavueSet());
-        return w.toString();
-    }
-    
-    void printDetails(PrintWriter w, Set<Throwable> visited) {
-        visited.add(this);
-        w.println(this);
-        printExceptions(w, (ex, padding) -> {
-            PrintWriter pw = new PrintWriter(new PaddedWriter(w, padding), true); 
-            if (visited.contains(ex)) {
-                pw.println("\t[CIRCULAR REFERENCE:" + ex + "]");
-            } else {
-                if (ex instanceof MultitargetException) {
-                    ((MultitargetException)ex).printDetails(pw, visited);
-                } else {
-                    pw.println(ex.toString());
-                }
-            }
-        });        
-        
     }
     
     public void printExceptions() {

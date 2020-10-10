@@ -423,16 +423,14 @@ public final class Promises {
                     
                 } catch (RuntimeException | Error ex) {
                     if (null != e) {
-                        e.addSuppressed(ex);
-                    } else {
-                        throw ex;
+                        ex.addSuppressed(e);
                     }
+                    throw ex;
                 } catch (Exception ex) {
                     if (null != e) {
-                        e.addSuppressed(ex);
-                    } else {
-                        throw new CompletionException(ex);
+                        ex.addSuppressed(e);
                     }
+                    throw new CompletionException(ex);
                 }
             }, true);
         } else {
@@ -1186,7 +1184,10 @@ public final class Promises {
         if (exception instanceof MultitargetException) {
             return (MultitargetException)exception;
         } else {
-            return MultitargetException.of(exception);
+            return new MultitargetException(
+                "Aggregated promise was completed exceptionally (1 out of 1)", 
+                Collections.singletonList(exception)
+            );
         }
     }
     

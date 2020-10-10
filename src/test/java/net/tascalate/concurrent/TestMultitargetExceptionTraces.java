@@ -11,9 +11,9 @@ public class TestMultitargetExceptionTraces {
         //Throwable e = outer().initCause(err());
         //e.printStackTrace(new PrintWriter(System.err, true));
         e.printStackTrace();
-        System.out.println("--------------");
-        System.out.println(e.getLocalizedMessage());
-        System.out.println("--------------");
+        System.err.println("--------------");
+        System.err.println(e.getLocalizedMessage());
+        System.err.println("--------------");
         e.printExceptions();
     }
     
@@ -26,12 +26,12 @@ public class TestMultitargetExceptionTraces {
     }
     
     static Exception err_1() {
-        MultitargetException e = new MultitargetException(Arrays.asList(
+        MultitargetException e = new MultitargetException("First message", Arrays.asList(
             null, 
             null, 
             b(), null, 
             a(), null, 
-            new MultitargetException(Arrays.asList(c(), b()))
+            new MultitargetException("Another message", Arrays.asList(c(), b()))
         ));
         //e.fillInStackTrace();
         return e;

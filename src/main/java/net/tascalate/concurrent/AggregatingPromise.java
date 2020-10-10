@@ -175,7 +175,15 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
                         cancelPromises();
                     }
                     
-                    failure(new MultitargetException(errors));
+                    failure(new MultitargetException(
+                        String.format(
+                            c == 1 ? 
+                            "Aggregated promise was completed exceptionally (1 out of %d)"
+                            :
+                            "Aggregated promises were completed exceptionally (%2$d out of %1$d)",
+                            promises.size(), c), 
+                        errors
+                    ));
                 }
             }
         }
