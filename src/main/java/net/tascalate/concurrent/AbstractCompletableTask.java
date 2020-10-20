@@ -163,14 +163,14 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
         return addCallbacks(
             internalCreateCompletionStage(executor), 
             Function.identity(), 
-            e -> {
+            failure -> {
                 try {
-                    return fn.apply(e);
-                } catch (Throwable t) {
-                    if (t != e) {
-                        t.addSuppressed(e);
+                    return fn.apply(failure);
+                } catch (Throwable e) {
+                    if (e != failure) {
+                        e.addSuppressed(failure);
                     }
-                    return forwardException(t);
+                    return forwardException(e);
                 }
             }, 
             executor

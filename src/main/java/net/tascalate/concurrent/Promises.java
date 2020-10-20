@@ -16,6 +16,7 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import static net.tascalate.concurrent.SharedFunctions.iif;
 
 import java.time.Duration;
@@ -162,8 +163,8 @@ public final class Promises {
                            // So resource.close() is never cancellable
                            return resource.close().thenCompose(__ -> failure(onAction));
                        } catch (Throwable onClose) {
-                           onClose.addSuppressed(onAction);
-                           return failure(onClose);
+                           onAction.addSuppressed(onClose);
+                           return failure(onAction);
                        }
                    }
                            
@@ -193,8 +194,8 @@ public final class Promises {
                            resource.close();
                            return failure(onAction);
                        } catch (Exception onClose) {
-                           onClose.addSuppressed(onAction);
-                           return failure(onClose);
+                           onAction.addSuppressed(onClose);
+                           return failure(onAction);
                        }
                    }
 
@@ -204,10 +205,7 @@ public final class Promises {
                            resource.close();
                            result.complete(actionResult, actionException);
                        } catch (Throwable onClose) {
-                           if (null != actionException) {
-                               onClose.addSuppressed(actionException);
-                           }
-                           result.failure(onClose);
+                           completeExceptionally(result, actionException, onClose);
                        }
                    });
                    return result.onCancel(() -> cancelPromise(action, true));
@@ -231,8 +229,8 @@ public final class Promises {
                            // So resource.close() is never cancellable
                            return resource.close().thenCompose(__ -> failure(onAction));
                        } catch (Throwable onClose) {
-                           onClose.addSuppressed(onAction);
-                           return failure(onClose);
+                           onAction.addSuppressed(onClose);
+                           return failure(onAction);
                        }                               
                    }
 
@@ -244,17 +242,11 @@ public final class Promises {
                                if (null == onClose) {
                                    result.complete(actionResult, actionException);
                                } else {
-                                   if (null != actionException) {
-                                       onClose.addSuppressed(actionException);
-                                   }
-                                   result.failure(onClose);
+                                   completeExceptionally(result, actionException, onClose);
                                }
                            });
                        } catch (Throwable onClose) {
-                           if (null != actionException) {
-                               onClose.addSuppressed(actionException);
-                           }
-                           result.failure(onClose);
+                           completeExceptionally(result, actionException, onClose);
                        }
                    });
                    return result.onCancel(() -> cancelPromise(action, true));
@@ -300,7 +292,7 @@ public final class Promises {
             parallelStep1(values, batchSize, spawner, downstream)
             .dependent()
             .thenApply(downstream.finisher().compose(IndexedStep::payload), true)
-            .as(onCloseSource(null != source? source : values))
+            .asʹ(maybeClosingSource(null != source? source : values))
             .unwrap();
     }
 
@@ -314,7 +306,7 @@ public final class Promises {
             parallelStep2(values, batchSize, spawner, downstream, downstreamExecutor)
             .dependent()
             .thenApplyAsync(downstream.finisher().compose(IndexedStep::payload), downstreamExecutor, true)
-            .as(onCloseSource(null != source? source : values))
+            .asʹ(maybeClosingSource(null != source? source : values))
             .unwrap();
     }
     
@@ -416,21 +408,17 @@ public final class Promises {
         return initial ? insertion : downstream.combiner().apply(current, insertion);
     }
     
-    private static <T> Function<Promise<T>, Promise<T>> onCloseSource(Object source) {
+    private static <T> Function<DependentPromise<T>, DependentPromise<T>> maybeClosingSource(Object source) {
         if (source instanceof AutoCloseable) {
-            return p -> p.dependent().whenComplete((r, e) -> {
-                try (AutoCloseable o = (AutoCloseable)source) {
-                    
-                } catch (RuntimeException | Error ex) {
-                    if (null != e) {
-                        ex.addSuppressed(e);
-                    }
-                    throw ex;
+            return p -> p.whenComplete((r, e) -> {
+                try {
+                    ((AutoCloseable)source).close();
                 } catch (Exception ex) {
                     if (null != e) {
-                        ex.addSuppressed(e);
+                        e.addSuppressed(ex);
+                    } else {
+                        throw wrapCompletionException(ex);
                     }
-                    throw new CompletionException(ex);
                 }
             }, true);
         } else {
@@ -1203,6 +1191,15 @@ public final class Promises {
         /*
         throw new IllegalArgumentException(message);        
         */
+    }
+    
+    private static <T> void completeExceptionally(CompletableFutureWrapper<T> result, Throwable actionException, Throwable onClose) {
+        if (null != actionException) {
+            actionException.addSuppressed(onClose);
+            result.failure(actionException);
+        } else {
+            result.failure(onClose);
+        }        
     }
     
     private static <K, T> List<? extends CompletionStage<? extends T>> 
