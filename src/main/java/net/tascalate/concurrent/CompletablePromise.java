@@ -16,8 +16,11 @@
 package net.tascalate.concurrent;
 
 import static net.tascalate.concurrent.SharedFunctions.iif;
+import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
+import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -66,14 +69,19 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
             // defaultExecutor might be changed in ad-hoc manner via subclassing
             // let us take back to the actual default executor
             return result.dependent()
-                         .thenApplyAsync(Function.identity()) 
+                         .thenApplyAsync(Function.identity(), true) 
                          .unwrap();
         }
     }
     
     public Promise<T> completeAsync(Supplier<? extends T> supplier, Executor executor) {
         Promise<T> result = CompletableTask.submit(supplier::get, executor);
-        result.whenComplete((r, e) -> iif(null == e ? success(r) : failure(e)));
+        result.whenComplete((r, e) -> {
+            // Complete only if transition was not cancelled
+            if (!result.isCancelled()) {
+                complete(r, unwrapCompletionException(e));
+            }
+        });
         return result;
     }
     
@@ -82,8 +90,12 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         if (isDone()) {
             try {
                 result.complete(join());
-            } catch (Exception ex) {
+            } catch (CompletionException ex) {
+                // Don't unwrap according API docs
                 result.completeExceptionally(ex);
+            } catch (Throwable ex) {
+                // Wrap for CancellationException and unexpected exceptions
+                result.completeExceptionally(wrapCompletionException(ex));
             }
             return result;
         } else {
@@ -98,8 +110,12 @@ public class CompletablePromise<T> extends CompletableFutureWrapper<T> {
         if (isDone()) {
             try {
                 result.success(join());
-            } catch (Exception ex) {
+            } catch (CompletionException ex) {
+                // Don't unwrap according API docs
                 result.failure(ex);
+            } catch (Throwable ex) {
+                // Wrap for CancellationException and unexpected exceptions
+                result.failure(wrapCompletionException(ex));
             }
             return result;            
         } else {

@@ -144,7 +144,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     @Override
     public <U> Promise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
         return addCallbacks(
-            internalCreateCompletionStage(executor), 
+            newSubTask(executor), 
             r -> {
                 try {
                     return fn.apply(r);
@@ -161,7 +161,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
         // Symmetrical with thenApplyAsync
         return addCallbacks(
-            internalCreateCompletionStage(executor), 
+            newSubTask(executor), 
             Function.identity(), 
             failure -> {
                 try {
@@ -180,7 +180,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     @Override
     public <U> Promise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
         return addCallbacks(
-            internalCreateCompletionStage(executor), 
+            newSubTask(executor), 
             result -> {
                 try {
                     return fn.apply(result, null);
@@ -211,8 +211,8 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     @Override
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
 
-        AbstractCompletableTask<Void> tempStage = internalCreateCompletionStage(executor);
-        AbstractCompletableTask<U> nextStage = internalCreateCompletionStage(executor);
+        AbstractCompletableTask<Void> tempStage = newSubTask(executor);
+        AbstractCompletableTask<U> nextStage = newSubTask(executor);
         // Need to enlist tempStage while it is non-visible outside
         // and may not be used to interrupt fn.apply();
         nextStage.intermediateStage = tempStage;
@@ -285,8 +285,8 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         // Symmetrical with thenComposeAsync
         // See comments for thenComposeAsync -- all are valid here, this is just a different path in Either (left vs right)
-        AbstractCompletableTask<Void> tempStage = internalCreateCompletionStage(executor);
-        AbstractCompletableTask<T> nextStage = internalCreateCompletionStage(executor);
+        AbstractCompletableTask<Void> tempStage = newSubTask(executor);
+        AbstractCompletableTask<T> nextStage = newSubTask(executor);
 
         nextStage.intermediateStage = tempStage;
 
@@ -330,7 +330,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     @Override
     public Promise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
         return addCallbacks(
-            internalCreateCompletionStage(executor), 
+            newSubTask(executor), 
             result -> {
                 try {
                     action.accept(result, null);
@@ -363,26 +363,9 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     @Override
     public CompletableFuture<T> toCompletableFuture() {
         CompletableFuture<T> result = new CompletableFuture<>();
-        // nextStage is CompletableFuture rather than AbstractCompletableTask
-        // so trigger completion on ad-hoc runnable rather than on
-        // nextStage.task
-        Consumer<Callable<T>> setup = c -> {
-            try {
-                c.call();
-            } catch (Throwable ex) {
-                result.completeExceptionally(ex);
-            }
-        };
-        addCallbacks(
-            setup, 
-            r -> op(result.complete(r)),
-            e -> op(result.completeExceptionally(e)), 
-            SAME_THREAD_EXECUTOR
-        );
+        whenComplete((r, e) -> iif(e == null ? result.complete(r) : result.completeExceptionally(e)));
         return result;
     }
-    
-    private static <T> T op(boolean v) { return null; }
 
     /**
      * This method exists just to reconcile generics when called from
@@ -395,7 +378,7 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
                                                      Function<? super R, U> fn, 
                                                      Executor executor) {
 
-        AbstractCompletableTask<R> nextStage = internalCreateCompletionStage(executor);
+        AbstractCompletableTask<R> nextStage = newSubTask(executor);
 
         // Next stage is not exposed to the client, so we can
         // short-circuit its initiation - just fire callbacks
@@ -416,8 +399,8 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
     }
 
     abstract protected <U> AbstractCompletableTask<U> createCompletionStage(Executor executor);
-
-    private <U> AbstractCompletableTask<U> internalCreateCompletionStage(Executor executor) {
+    
+    private <U> AbstractCompletableTask<U> newSubTask(Executor executor) {
         // Preserve default async executor, or use user-supplied executor as default
         // But don't let SAME_THREAD_EXECUTOR to be a default async executor
         return createCompletionStage(executor == SAME_THREAD_EXECUTOR ? getDefaultExecutor() : executor);
@@ -450,16 +433,8 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
                                                         Function<Throwable, ? extends U> failureCallback,
                                                         Executor executor) {
         
-        addCallbacks(targetStage::fireTransition, successCallback, failureCallback, executor);
+        callbackRegistry.addCallbacks(targetStage, successCallback, failureCallback, executor);
         return targetStage;
-    }
-
-    private <U> void addCallbacks(Consumer<? super Callable<U>> stageTransition,
-                                  Function<? super T, ? extends U> successCallback, 
-                                  Function<Throwable, ? extends U> failureCallback,
-                                  Executor executor) {
-        
-        callbackRegistry.addCallbacks(stageTransition, successCallback, failureCallback, executor);
     }
 
 }

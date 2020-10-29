@@ -22,25 +22,24 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 class CallbackRegistry<T> {
-    private State<T> state = InitialState.instance();
-
     private final Object mutex = new Object();
-
+    private State<T> state = InitialState.instance();
+    
     /**
      * Adds the given callbacks to this registry.
      */
-    <U> void addCallbacks(Consumer<? super Callable<U>> stageTransition,
+    <U> void addCallbacks(AbstractCompletableTask<U> target,
                           Function<? super T, ? extends U> successCallback, 
                           Function<Throwable, ? extends U> failureCallback,
                           Executor executor) {
@@ -49,11 +48,8 @@ class CallbackRegistry<T> {
         Objects.requireNonNull(failureCallback, "'failureCallback' must not be null");
         Objects.requireNonNull(executor, "'executor' must not be null");
 
-        @SuppressWarnings("unchecked")
-        Consumer<? super Callable<?>> typedTransition = (Consumer<? super Callable<?>>)stageTransition;
-
         synchronized (mutex) {
-            state = state.addCallbacks(typedTransition, successCallback, failureCallback, executor);
+            state = state.addCallbacks(target, successCallback, failureCallback, executor);
         }
     }
 
@@ -114,11 +110,11 @@ class CallbackRegistry<T> {
      * State of the registry. All subclasses are meant to be used form a
      * synchronized block and are NOT thread safe on their own.
      */
-    private static abstract class State<S> {
-        protected abstract State<S> addCallbacks(Consumer<? super Callable<?>> stageTransition,
-                                                 Function<? super S, ?> successCallback, 
-                                                 Function<Throwable, ?> failureCallback, 
-                                                 Executor executor);
+    static abstract class State<S> {
+        protected abstract <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
+                                                     Function<? super S, ? extends U> successCallback, 
+                                                     Function<Throwable, ? extends U> failureCallback, 
+                                                     Executor executor);
 
         protected State<S> getSuccessState(S result) {
             throw new IllegalStateException("success method should not be called multiple times");
@@ -147,17 +143,17 @@ class CallbackRegistry<T> {
      * Result is not known yet and no callbacks registered. Using shared
      * instance so we do not allocate instance where it may not be needed.
      */
-    private static class InitialState<S> extends State<S> {
+    static class InitialState<S> extends State<S> {
         private static final InitialState<Object> instance = new InitialState<>();
 
         @Override
-        protected State<S> addCallbacks(Consumer<? super Callable<?>> stageTransition,
-                                        Function<? super S, ?> successCallback, 
-                                        Function<Throwable, ?> failureCallback, 
-                                        Executor executor) {
+        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
+                                            Function<? super S, ? extends U> successCallback, 
+                                            Function<Throwable, ? extends U> failureCallback, 
+                                            Executor executor) {
             
             IntermediateState<S> intermediateState = new IntermediateState<>();
-            intermediateState.addCallbacks(stageTransition, successCallback, failureCallback, executor);
+            intermediateState.addCallbacks(target, successCallback, failureCallback, executor);
             return intermediateState;
         }
 
@@ -177,7 +173,7 @@ class CallbackRegistry<T> {
         }
 
         @SuppressWarnings("unchecked")
-        private static <T> State<T> instance() {
+        static <T> State<T> instance() {
             return (State<T>) instance;
         }
     }
@@ -185,16 +181,22 @@ class CallbackRegistry<T> {
     /**
      * Result is not known yet.
      */
-    private static class IntermediateState<S> extends State<S> {
-        private final Queue<CallbackHolder<? super S>> callbacks = new LinkedList<>();
+    static class IntermediateState<S> extends State<S> {
+        private final Collection<BiConsumer<? super S, ? super Throwable>> callbacks = new LinkedList<>();
 
         @Override
-        protected State<S> addCallbacks(Consumer<? super Callable<?>> stageTransition,
-                                        Function<? super S, ?> successCallback, 
-                                        Function<Throwable, ?> failureCallback, 
-                                        Executor executor) {
+        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
+                                            Function<? super S, ? extends U> successCallback, 
+                                            Function<Throwable, ? extends U> failureCallback, 
+                                            Executor executor) {
             
-            callbacks.add(new CallbackHolder<>(stageTransition, successCallback, failureCallback, executor));
+            callbacks.add((r, e) -> {
+                if (null == e) {
+                    callCallback(target, successCallback, r, executor);
+                } else {
+                    callCallback(target, failureCallback, e, executor);
+                }
+            });
             return this;
         }
 
@@ -205,10 +207,8 @@ class CallbackRegistry<T> {
 
         @Override
         protected void callSuccessCallbacks(S result) {
-            // no need to remove callbacks from the queue, this instance will be
-            // thrown away at once
-            for (CallbackHolder<? super S> callback : callbacks) {
-                callback.callSuccessCallback(result);
+            for (BiConsumer<? super S, ? super Throwable> callback : callbacks) {
+                callback.accept(result, null);
             }
         }
 
@@ -219,10 +219,8 @@ class CallbackRegistry<T> {
 
         @Override
         protected void callFailureCallbacks(Throwable failure) {
-            // no need to remove callbacks from the queue, this instance will be
-            // thrown away at once
-            for (CallbackHolder<? super S> callback : callbacks) {
-                callback.callFailureCallback(failure);
+            for (BiConsumer<? super S, ? super Throwable> callback : callbacks) {
+                callback.accept(null, failure);
             }
         }
 
@@ -235,20 +233,19 @@ class CallbackRegistry<T> {
     /**
      * Holds the result.
      */
-    private static final class SuccessState<S> extends State<S> {
+    static final class SuccessState<S> extends State<S> {
         private final S result;
 
-        private SuccessState(S result) {
+        SuccessState(S result) {
             this.result = result;
         }
 
         @Override
-        protected State<S> addCallbacks(Consumer<? super Callable<?>> stageTransition,
-                                        Function<? super S, ?> successCallback, 
-                                        Function<Throwable, ?> failureCallback, 
-                                        Executor executor) {
-            
-            callCallback(stageTransition, successCallback, result, executor);
+        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
+                                            Function<? super S, ? extends U> successCallback, 
+                                            Function<Throwable, ? extends U> failureCallback, 
+                                            Executor executor) {
+            callCallback(target, successCallback, result, executor);
             return this;
         }
     }
@@ -256,20 +253,19 @@ class CallbackRegistry<T> {
     /**
      * Holds the failure.
      */
-    private static final class FailureState<S> extends State<S> {
+    static final class FailureState<S> extends State<S> {
         private final Throwable failure;
 
-        private FailureState(Throwable failure) {
+        FailureState(Throwable failure) {
             this.failure = failure;
         }
 
         @Override
-        protected State<S> addCallbacks(Consumer<? super Callable<?>> stageTransition,
-                                        Function<? super S, ?> successCallback, 
-                                        Function<Throwable, ?> failureCallback, 
-                                        Executor executor) {
-            
-            callCallback(stageTransition, failureCallback, failure, executor);
+        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
+                                            Function<? super S, ? extends U> successCallback, 
+                                            Function<Throwable, ? extends U> failureCallback, 
+                                            Executor executor) {
+            callCallback(target, failureCallback, failure, executor);
             return this;
         }
         
@@ -278,47 +274,21 @@ class CallbackRegistry<T> {
         }
     }
 
-    private static final class CallbackHolder<S> {
-        private final Consumer<? super Callable<?>> stageTransition;
-        private final Function<? super S, ?> successCallback;
-        private final Function<Throwable, ?> failureCallback;
-        private final Executor executor;
-
-        private CallbackHolder(Consumer<? super Callable<?>> stageTransition,
-                               Function<? super S, ?> successCallback, 
-                               Function<Throwable, ?> failureCallback, 
-                               Executor executor) {
-
-            this.stageTransition = stageTransition;
-            this.successCallback = successCallback;
-            this.failureCallback = failureCallback;
-            this.executor = executor;
-        }
-
-        void callSuccessCallback(S result) {
-            callCallback(stageTransition, successCallback, result, executor);
-        }
-
-        void callFailureCallback(Throwable failure) {
-            callCallback(stageTransition, failureCallback, failure, executor);
-        }
-    }
-
-    private static <S, U> void callCallback(Consumer<? super Callable<?>> stageTransition,
-                                            Function<? super S, ? extends U> callback, 
-                                            S value,  
-                                            Executor executor) {
+    static <T, U> void callCallback(AbstractCompletableTask<U> target,
+                                    Function<? super T, ? extends U> callback, 
+                                    T value,  
+                                    Executor executor) {
 
         Callable<U> callable = () -> callback.apply(value);
         try {
-            executor.execute( (AsyncTask)() -> stageTransition.accept(callable) );
+            executor.execute( (AsyncTask)() -> target.fireTransition(callable) );
         } catch (RejectedExecutionException ex) {
             // Propagate error in-place
             Callable<U> propagateError = () -> { throw ex; };
-            stageTransition.accept(propagateError);
+            target.fireTransition(propagateError);
         }
     }
-    
+
     @FunctionalInterface
     static interface AsyncTask extends Runnable, CompletableFuture.AsynchronousCompletionTask {}
 

@@ -78,6 +78,17 @@ class SharedFunctions {
                                      .apply(promise, mayInterruptIfRunning);
         }
     }
+    
+    static <T, U> Function<T, U> applyAndCancel(Function<T, U> fn, boolean cancel, Promise<?> target) {
+        if (cancel) {
+            return fn.andThen(u -> {
+               target.cancel(true); 
+               return u; 
+            });
+        } else {
+            return fn;
+        }
+    }
 
     @SuppressWarnings("unchecked")
     static <U, V> BiFunction<U, V, U> selectFirst() {

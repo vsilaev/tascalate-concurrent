@@ -155,7 +155,11 @@ public class J8Examples {
                     return "Value" + idx;
                     }, executorService)                    
                 )).whenComplete((r, e) -> {
-                    if (null != e) onError(e); else System.out.println("Result of " + idx + " is " + r);
+                    if (null != e) {
+                        System.out.println("Error of " + idx + " is " + e);
+                    } else {
+                        System.out.println("Result of " + idx + " is " + r);
+                    }
                 }); 
         }
         

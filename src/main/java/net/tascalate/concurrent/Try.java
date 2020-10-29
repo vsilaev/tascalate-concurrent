@@ -18,7 +18,6 @@ package net.tascalate.concurrent;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 abstract class Try<R> {
@@ -101,13 +100,16 @@ abstract class Try<R> {
     static <R> Try<R> failure(Throwable error) {
         return new Failure<R>(error);
     }
-    
-    static <R> BiFunction<R, Throwable, Try<R>> lift() {
-        return (result, error) -> null == error ? Try.success(result) : Try.failure(error);
+
+    static <R> Try<R> handle(R result, Throwable error, Promise<?> timeout) {
+        if (null != timeout) {
+            timeout.cancel(true);
+        }
+        return null == error ? Try.success(result) : Try.failure(error);
     }
     
     static <T> Try<T> doneOrTimeout(Try<T> result, Duration duration) {
-        return null != result ? result: Try.failure(new TimeoutException("Timeout after " + duration));
+        return null != result ? result : Try.failure(new TimeoutException("Timeout after " + duration));
     }
     
     static <R> Supplier<Try<R>> call(Supplier<? extends R> supplier) {

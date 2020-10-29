@@ -46,7 +46,7 @@ class Timeouts {
         return result.onCancel(() -> timeout.cancel(true));
     }
     
-    /**
+    /*
      * Creates a promise that is resolved after delay specified
      * @param delay
      * the duration of timeout
@@ -55,6 +55,7 @@ class Timeouts {
      * @return
      * the new promise
      */
+    /*
     static Promise<Duration> delay(long delay, TimeUnit timeUnit) {
         return delay( toDuration(delay, timeUnit) );
     }
@@ -62,11 +63,12 @@ class Timeouts {
     static <T> Promise<T> delayed(T value, long delay, TimeUnit timeUnit) {
         return delayed(value, toDuration(delay, timeUnit));
     }
+    */
     
     static <T> Promise<T> delayed(T value, Duration duration) {
         return delay(duration).dependent().thenApply(d -> value, true);        
     }
-
+    
     /**
      * Creates a promise that is resolved erronously with {@link TimeoutException} after delay specified
      * @param duration
@@ -84,7 +86,7 @@ class Timeouts {
         return result.onCancel(() -> timeout.cancel(true));
     }
 
-    /**
+    /*
      * Creates a promise that is resolved erronously with {@link TimeoutException} after delay specified
      * @param delay
      * the duration of timeout
@@ -92,10 +94,12 @@ class Timeouts {
      * the time unit of the delay
      * @return
      * the new promise
-     */    
+     */
+    /*
     static <T> Promise<T> failAfter(long delay, TimeUnit timeUnit) {
         return failAfter( toDuration(delay, timeUnit) );
     }
+    */
     
     static Duration toDuration(long delay, TimeUnit timeUnit) {
         return Duration.of(delay, toChronoUnit(timeUnit));
