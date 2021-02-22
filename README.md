@@ -257,6 +257,8 @@ public Promise<DataStructure> loadData(String url) {
 }
 ```
 
+Attention: just calling `dependent()` on the `Promise` is not enough to change the behavior of the "default" `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc methods defined in `CompletionStage` - you have to use overloaded form with either `boolean` or `Set<PromiseOrigin>` last parameter _explicitly_. This is the intentional design decision: just recall, that the `Promise` returned in the example above can be used by the client code to create _independent_ promises (as per `CompletionStage` API), so the library has to follow the rule of the least surprise.
+
 ## 4. Overriding default asynchronous executor
 One of the pitfalls of the `CompletableFuture` implementation is how it works with default asynchronous executor. Consider the following example:
 ```java
