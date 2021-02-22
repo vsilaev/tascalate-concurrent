@@ -103,7 +103,7 @@ public class InterruptibleAdHoc {
         //ResponseEntity<String> result = proxy.uri(url).get();
         Object content;
         byte[] buff = new byte[128_000];
-        try (InputStream in = Channels.newInputStream(FileChannel.open(Paths.get("E:/Downloads/Music - FLAC/Parov Stelar (FLAC).part3.rar"), StandardOpenOption.READ))) {
+        try (InputStream in = Channels.newInputStream(FileChannel.open(Paths.get("E:/Downloads/LargeFile.rar"), StandardOpenOption.READ))) {
             while (in.read(buff) > 0) {
                 
             };
