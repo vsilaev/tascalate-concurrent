@@ -17,6 +17,7 @@ module net.tascalate.concurrent {
     exports net.tascalate.concurrent;
     exports net.tascalate.concurrent.decorators;
     exports net.tascalate.concurrent.delays;
-    exports net.tascalate.concurrent.var;
+    exports net.tascalate.concurrent.io;
     exports net.tascalate.concurrent.locks;
+    exports net.tascalate.concurrent.var;
 }
