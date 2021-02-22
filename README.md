@@ -259,6 +259,29 @@ public Promise<DataStructure> loadData(String url) {
 
 Attention: just calling `dependent()` on the `Promise` is not enough to change the behavior of the "default" `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc methods defined in `CompletionStage` - you have to use overloaded form with either `boolean` or `Set<PromiseOrigin>` last parameter _explicitly_. This is the intentional design decision: just recall, that the `Promise` returned in the example above can be used by the client code to create _independent_ promises (as per `CompletionStage` API), so the library has to follow the rule of the least surprise.
 
+Below are 2 examples (wrong and right) to to re-iterate the statement above in Java code.
+Wrong code to cancel whole chain:
+```java
+Promise<Xml> xml = CompletableTask.supplyAsync( () -> loadXml(url) )
+Promise<Data> data = xml.dependent()
+                        .thenApplyAsync( xml -> parseXml(xml) );  // Not overloaded method - 
+                                                                  // no "true" as the last parameter
+...
+// This cancels only "data" promise, but will not cancel "xml" promise
+data.cancel(true);
+```
+Right code to cancel whole chain:
+```java
+Promise<Xml> xml = CompletableTask.supplyAsync( () -> loadXml(url) )
+Promise<Data> data = xml.dependent()
+                        .thenApplyAsync( xml -> parseXml(xml), true );  // Overloaded method - 
+                                                                        // "true" as last parameter means 
+                                                                        // enlist "origin" promise for cancellation
+...
+// This cancels both "data" promise AND the "xml" promise (if it's not completed yet)
+data.cancel(true);
+```
+
 ## 4. Overriding default asynchronous executor
 One of the pitfalls of the `CompletableFuture` implementation is how it works with default asynchronous executor. Consider the following example:
 ```java
