@@ -87,10 +87,10 @@ abstract public class AbstractAsyncServerSocketChannel<S extends AbstractAsyncSe
     }
     */
     
-    public Promise<AsyncSocketChannel> accept() {
+    public Promise<C> accept() {
         Promise<AsynchronousSocketChannel> promise = (Promise<AsynchronousSocketChannel>)delegate.accept();
         return promise.dependent()
-                      .thenApply(AsyncSocketChannel::new, true)
+                      .thenApply(this::wrap, true)
                       .unwrap();
     }
     
