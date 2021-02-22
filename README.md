@@ -282,7 +282,49 @@ Promise<Data> data = xml.dependent()
 data.cancel(true);
 ```
 
-## 4. Overriding default asynchronous executor
+So far so good. And following `CompletionStage` API contract is good, no doubt. But what if you have to create locally a chain of 10 stages? 30 stages? It's both pretty borring and error-prone to put additional parameters to enforce overloaded method(s) usage. And error-prone means just this -- it's pretty easy to forget type "true" as the latest parameter and break the cancellation chain. Tascalate Concurrent provides an option to handle this edge case: use overloaded form of `dependent()` method - `dependent(Set<PromiseOrigin>)`. Here is an example from the real-life issue raised in real life project:
+```java
+Promise<?> myPromise = 
+CompletableTask.supplyAsync(() -> candidate, pool)
+               .dependent(PromiseOrigin.ALL) //Key point - alter the behavior of CompletionStage API methds
+               .thenApplyAsync(CheckIp::doWork)
+               .thenApplyAsync(CheckType::doWork)
+               .thenApplyAsync(CheckExclusion::doWork)
+               .thenApplyAsync(AssignEntity::doWork)
+               .thenCombineAsync(collectedStatsPromise, this:combineWithStats) // <-- pay attention here
+               .thenApplyAsync(DecideWmi::doWork)
+               .thenApplyAsync(ObtainWmiConnection::doWork)
+               .thenApplyAsync(ObtainRegistryWmiConnection::doWork)
+               .thenApplyAsync(RunCompliance::doWork)
+               .thenApplyAsync(DecideComplianceResult::doWork)
+               .thenApplyAsync(CreateAlert::doWork)
+               .thenApplyAsync(ApplyFailureManager::doWork)
+               .thenApplyAsync(ApplyDisconnectManager::doWork)
+               .thenApplyAsync(EnforceCompliance::doWork)
+               .exceptionally(ExceptionHandlerService::handle);
+```
+Unlike the conservative form of the `dependent()` decorator, the overloaded `dependent(PromiseOrigin.ALL)` will enlist ALL the promises mentioned by composition methods as _dependent_ and will cancel them when `myPromise` is cancelled. Even the `collectedStatsPromise` that is passed from outside! Everything enlisted will form a single block of cancellation. Btw, if you don't need to cancel `collectedStatsPromise` above use `dependent(PromiseOrigin.THIS_ONLY)` decorator - it doesn't enlist "side-passed" promises.
+
+Well, but what about obeying `CompletionStage` contract? Is it still safe to return `myPromise` to clients that are unwaware of its overwritten behavior? It's not. You should revert the effect of the `dependent(PromiseOrigin.ALL)` decorator before passing `myPromise` outside:
+```java
+public Promise<?> forkWmiProcessingChain(Promise<Stats collectedStatsPromise) {
+  Promise<?> myPromise = 
+  CompletableTask.supplyAsync(() -> candidate, pool)
+                 .dependent(PromiseOrigin.ALL) 
+                 .thenApplyAsync(CheckIp::doWork)
+                 .thenApplyAsync(CheckType::doWork)
+                 ...
+                 .exceptionally(ExceptionHandlerService::handle);
+  return myPromise.undecorate(); // or myPromise.raw() in this case               
+}
+```
+
+The final operator in the function above - `undecorate()` removes the latest decorator applied, the `dependent(...)`. Looking ahead, I should mention that `raw()` will remove _all_ the decorators applied. Yes, there are several possible - and the `dependent(...)` is just one of them. In the next chapters we discuss `defaultAsyncOn` decorator and later you will see custom decorators (the ones not directly bound to the `Promise` API as methods).
+
+## 4. Wait! Wait! It's not cancellable!!!
+TDB - BlockingIO, usage of `java.nio` vs `java.io`, interrupting compute-intensive code.
+
+## 5. Overriding default asynchronous executor
 One of the pitfalls of the `CompletableFuture` implementation is how it works with default asynchronous executor. Consider the following example:
 ```java
 CompletionStage<String> p1 = CompletableFuture.supplyAsync(this::produceValue, executorInitial);
@@ -339,7 +381,7 @@ Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorS
 ```
 The `dataPromise` returned may be cancelled later and `loadDataInterruptibly` will be interrupted if not completed by that time.
 
-## 5. Timeouts
+## 6. Timeouts
 Any robust application requires certain level of functionality, that handles situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) the library fills the gap in this functionality with timeout-related stuff.
 
 An application developer now has the following options to control execution time of the `Promise` (declared in `Promise` interface itself):
@@ -494,7 +536,7 @@ static Promise<Duration> delay(Duration duration, Executor executor);
 ```
 Notice, that in Java 9+ a different approach is chosen to implement delays - there is no corresponding operation defined for the `CompletableFuture` object and you should use delayed `Executor`. Please read documentation on the [CompletableFuture.delayedExecutor](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#delayedExecutor-long-java.util.concurrent.TimeUnit-java.util.concurrent.Executor-) method for details.
 
-## 6. Combining several CompletionStage-s.
+## 7. Combining several CompletionStage-s.
 The utility class `Promises` provides a rich set of methods to combine several `CompletionStage`-s, that lefts limited functionality of `CompletableFuter.allOf / anyOf` far behind:
 1. The library works with any `CompletionStage` implementation without resorting to converting arguments to `CompletableFuture` first (and `CompletionStage.toCompletableFuture` is an optional operation, at least it's documented so in Java 8).
 2. It's possible to pass either an array or a `List` of `CompletionStage`-s as arguments.
@@ -553,7 +595,7 @@ The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
 2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
 
-## 7. Polling and asynchronous retry functionality
+## 8. Polling and asynchronous retry functionality
 Once you departure from the pure algebraic calculations to the unreliable terrain of the I/O-related functionality you have to deal with failures. Network outage, insuffcient disk space, overloaded third-party servers, exhausted database connection pools - these and many similar infrastructure failures is what application have to cope with flawlessly. And many of the aforementioned issues are temporal by the nature, so it makes sense to re-try after small delay and keep fingers crossed that this time everything will run smoothly. So this is the primary use-case for the retry functionality, or better yet -- asynchronous retry functionality, while all we want our applications be as scalable as possible.
 
 Another related area is polling functionality - unlike infrastructure failures these are sporadic, polling is built-in in certain asynchronous protocol communications. Say, an application sends an HTTP request to generate a report and waits for the known file on FTP server. There is no "asynchronous reply" expected from the third-party server, and the application has to `poll` periodically till the file will be available.
@@ -594,8 +636,13 @@ But before discussing it, it's necessary to explain a difference in each pair of
 1. Contextless retriable operations are captured as `Runnable` or `Callable` lambdas - they behaves the same for every iteration, and hence do not need a context.
 2. Methods with `RetryRunnable` and `RetryCallable` are contextual and may dynamically alter their behavior for the given iteration depending on the context passed. The `RetryContext` provides provides all necessary iteration-specific information. 
 
+## 9. Partitioned processing of promises
+TBD - discuss `Promises.partitioned`
 
-## 8. Context variables & contextual Promises
+## 10. Stackless sequential processing of promises
+TBD - discuss `Promises.loop(...)`
+
+## 11. Context variables & contextual Promises
 
 **WARNING** This part of API will be refactored in the upcoming release 0.9.0.
 
@@ -647,9 +694,17 @@ httpRequest.raw()
            });
 ```
 
-## 9. Decorators for CompletionStage / CompletableFuture / Promise
+## 12. Asynchronous locks
+TBD -- `net.tascalate.concurrent.locks`
 
-## 10. Extensions to ExecutorService API
+## 13. Asynchronous try-with-resources
+TBD -- `Promises.tryApply` and `Promises.tryCompose`
+
+## 14. Asynchronous I/O extensions
+
+## 15. Decorators for CompletionStage / CompletableFuture / Promise
+
+## 16. Extensions to ExecutorService API
 
 It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
 
