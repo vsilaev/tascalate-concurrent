@@ -432,6 +432,8 @@ HttpURLConnection conn = (HttpURLConnection)(new URL(url).openConnection());
 BlockingIO.register(conn::disconnect);
 ```
 
+`BlockingIO` is a late addition to the Tascalate Concurrent, it's available only since version [0.9.5](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.5).
+
 Unfortunately, it's necessary to put this statement straight at the end: if the blocking API is hidden behind third-party library code (like Spring RestTemplate) then you are out of luck - Tascalate Concurrent will not support true interruptions in this scenario. 
 
 ## 5. Overriding default asynchronous executor

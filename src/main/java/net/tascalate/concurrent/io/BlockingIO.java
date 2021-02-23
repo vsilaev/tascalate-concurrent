@@ -15,8 +15,8 @@
  */
 package net.tascalate.concurrent.io;
 
-import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
@@ -30,7 +30,7 @@ final public class BlockingIO {
     private final static ThreadLocal<Interruptible> CURRENT = new ThreadLocal<>();
 
     final static class Interruptible {
-        private final List<AutoCloseable> closeables = new LinkedList<>();
+        private final List<AutoCloseable> closeables = new CopyOnWriteArrayList<>();
         private final BlockingThreadSelector selector = new BlockingThreadSelector(this::interrupted);
 
         final Interruptible enter() {
@@ -52,17 +52,27 @@ final public class BlockingIO {
 
         void interrupted() {
             for (AutoCloseable closeable : closeables) {
-                try {
-                    closeable.close();
-                } catch (Exception ex) {
-
-                }
+                close(closeable);
             }
             closeables.clear();
         }
 
         void enlist(AutoCloseable closeOnInterruption) {
             closeables.add(closeOnInterruption);
+            // For possible race - check for thread interruption after addition to the list
+            // This way closeOnInterruption.close() might be called twice in worst case, 
+            // but it will be always called at least once (in case of interruption)
+            if (Thread.currentThread().isInterrupted()) {
+                close(closeOnInterruption);
+            }
+        }
+        
+        private static void close(AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception ex) {
+
+            }            
         }
     }
 
