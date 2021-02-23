@@ -349,9 +349,9 @@ for (int i = 0; i < SOME_LARGE_SIZE; i++) {
 }
 ```
 
-It's up to library user to select how often to check the flag: there are always trade-offs between overhead for regular execution time (when execution is not cancelled) and the delay before thread react on cancellation. In the example above the check may be moved from inner loop to the outer loop - this will speed-up normal execution path but the code will react on cancellation with delay.
+It's up to library user to select how often to check the flag: there are always trade-offs between overhead for regular execution time (when execution is not cancelled) and the delay before thread react on cancellation. In the example above the check may be moved from the inner loop to the outer loop - this will speed-up normal execution path but the code will react on the cancellation with delay.
 
-Some API provides good built-in points for checks of early exits, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor). Here you can just put checks in `previsitDirectory` / `visitFile`:
+Some API provides good built-in points to check for early exit, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor). Here you can just put checks in `previsitDirectory` / `visitFile`:
 
 ```java
 @Test
@@ -363,7 +363,8 @@ public void testReallife() throws Exception {
     try {
       Files.walkFileTree(Paths.get("d:/"), new FileVisitor<>() {
         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-          System.out.printf("[%d ms] [%s] Task#%d: visiting dir %s%n", time.current(), Thread.currentThread(), id, dir);
+          System.out.printf("[%d ms] [%s] Task#%d: visiting dir %s%n", 
+                            time.current(), Thread.currentThread(), id, dir);
           if (Thread.currentThread().isInterrupted()) {
             // STOP when interrupted
             return FileVisitResult.TERMINATE;
@@ -385,7 +386,7 @@ public void testReallife() throws Exception {
 
 2. You are using old blocking API of `java.io.InputStream` or `java.net.URLConnection`
 Probably, your code uses old blocking streams from `java.io` like `java.io.FileInputStream` or `SocketInputStream` opened from `java.net.Socket`. Or you are using `java.net.URLConnection`. Or outdated blocking Apache HTTP Client. These all prevents running thread from termination once interrupted -- all of these API-s are blocking and do not react on interruptions. The options are:
-- If you are using some third-party synchronous networking library then try to replace it with asynchronous version. For HTTP protocol there is a plenty of options like AsyncHttpClient and OkHttp. Both returns `CompletableFuture` as operation results and therefore could be easily plugged with the rest of Tascalate Concurrent code.
+- If you are using some third-party synchronous networking library then try to replace it with the asynchronous version. For HTTP protocol there is a plenty of options like AsyncHttpClient and OkHttp. Both returns `CompletableFuture` as operation results and therefore could be easily plugged with the rest of Tascalate Concurrent code.
 - If you are using blocking file API try to replace it with NIO version, it's the best option:
 
 ```java
@@ -400,7 +401,8 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 ...
 try (InputStream in = 
-  Channels.newInputStream(FileChannel.open(Paths.get("E:/Downloads/LargeFile.rar"), StandardOpenOption.READ)))) {
+  Channels.newInputStream(FileChannel.open(Paths.get("E:/Downloads/LargeFile.rar"), 
+                                           StandardOpenOption.READ)))) {
 ... // Work with input stream
 } 
 // Same could be done for sockets
@@ -423,7 +425,7 @@ Promise<?> promise = CompletableTask.supplyAsync(
 ...
 promise.cancel(true);
 ```
-`BlockingIO.interruptible(...)` can wrap as interruptible all the functional interfaces used in `CompletionStage` / `Promise` API. The parameter to the `BlockingIO.register` should be any implementation of `java.lang.Closeable` that will be closed on thread interruption. For `InputStream` or `OutputStream` is just the stream itself. For `java.net.HttpUrlConnection` you can use
+`BlockingIO.interruptible(...)` can wrap as interruptible all the functional interfaces used in `CompletionStage` / `Promise` API. The parameter to the `BlockingIO.register` should be any implementation of `java.lang.Closeable` that will be closed on thread interruption. For `InputStream` or `OutputStream` it is just the stream itself. For `java.net.HttpUrlConnection` you can use
 
 ```java
 HttpURLConnection conn = (HttpURLConnection)(new URL(url).openConnection());
