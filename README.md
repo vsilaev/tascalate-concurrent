@@ -328,12 +328,13 @@ One of the most common complains in the issue tracker of Tascalate Concurrent pr
 
 Is library broken? No. Is user code correct? Well, yes. But library code and user code do not cooperate well to really cancel asynchronous execution.
 
-The promise returned from `CompletableTask` methods like `supplyAsync` / `runAsync` as well as any derived `Promise` (via `thenApply` or `thenRun`) does the following to things:
+The promise returned from `CompletableTask` methods like `supplyAsync` / `runAsync` as well as any derived `Promise` (via `thenApply` or `thenRun`) does the following two things:
 1. Set own state to _cancelled_ and let transitions to any dependent promises run (same as `CompletableFuture`)
 2. Interrupt the current `Thread` via `Thread.currentThread().interrupt()` (unlike `CompletableFuture`)
 
 And it's responsibility of the user code - all of these `Runnable`, `Consumer<T>` and `Function<T,R>` passed - to react on the `Thread.currentThread().isInterrupted()` flag. Let us consider typical scenarios.
-1. User code is a computational code and do not use I/O
+1. User code is a computational code and do not use I/O.
+
 In this case you have to put explicit checks for `Thread.currentThread().isInterrupted()` to break execution via either breaking loops, early returns or throwing exception:
 
 ```java
@@ -350,7 +351,7 @@ for (int i = 0; i < SOME_LARGE_SIZE; i++) {
 
 It's up to library user to select how often to check the flag: there are always trade-offs between overhead for regular execution time (when execution is not cancelled) and the delay before thread react on cancellation. In the example above the check may be moved from inner loop to the outer loop - this will speed-up normal execution path but the code will react on cancellation with delay.
 
-Some API provides good built-in points for checks of early exits, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files#walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor). Here you can just put checks in `previsitDirectory` / `visitFile`:
+Some API provides good built-in points for checks of early exits, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor). Here you can just put checks in `previsitDirectory` / `visitFile`:
 
 ```java
 @Test
