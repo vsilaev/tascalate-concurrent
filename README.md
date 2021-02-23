@@ -351,7 +351,7 @@ for (int i = 0; i < SOME_LARGE_SIZE; i++) {
 
 It's up to library user to select how often to check the flag: there are always trade-offs between overhead for regular execution time (when execution is not cancelled) and the delay before thread react on cancellation. In the example above the check may be moved from the inner loop to the outer loop - this will speed-up normal execution path but the code will react on the cancellation with delay.
 
-Some API provides good built-in points to check for early exit, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor). Here you can just put checks in `previsitDirectory` / `visitFile`:
+Some API provides good built-in points to check for early exit, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor)). Here you can just put checks in `previsitDirectory` / `visitFile`:
 
 ```java
 @Test
