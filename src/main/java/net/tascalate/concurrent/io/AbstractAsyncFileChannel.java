@@ -29,7 +29,7 @@ public class AbstractAsyncFileChannel<F extends AbstractAsyncFileChannel<F>>
     
     private final AsynchronousFileChannel delegate;
     
-    AbstractAsyncFileChannel(AsynchronousFileChannel delegate) {
+    protected AbstractAsyncFileChannel(AsynchronousFileChannel delegate) {
         this.delegate = delegate;
     }
     

@@ -29,7 +29,7 @@ import net.tascalate.concurrent.TaskExecutorService;
 
 public class AsyncFileChannel extends AbstractAsyncFileChannel<AsyncFileChannel> {
     
-    AsyncFileChannel(AsynchronousFileChannel delegate) {
+    protected AsyncFileChannel(AsynchronousFileChannel delegate) {
         super(delegate);
     }
     

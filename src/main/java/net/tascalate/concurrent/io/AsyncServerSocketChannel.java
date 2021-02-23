@@ -22,7 +22,7 @@ import java.util.Objects;
 
 public class AsyncServerSocketChannel extends AbstractAsyncServerSocketChannel<AsyncServerSocketChannel, AsyncSocketChannel> {
     
-    AsyncServerSocketChannel(AsynchronousServerSocketChannel delegate) {
+    protected AsyncServerSocketChannel(AsynchronousServerSocketChannel delegate) {
         super(delegate);
     }
     

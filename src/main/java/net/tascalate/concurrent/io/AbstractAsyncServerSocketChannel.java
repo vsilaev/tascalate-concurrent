@@ -32,7 +32,7 @@ abstract public class AbstractAsyncServerSocketChannel<S extends AbstractAsyncSe
     implements AsyncChannel, NetworkChannel {
     
     private final AsynchronousServerSocketChannel delegate;
-    AbstractAsyncServerSocketChannel(AsynchronousServerSocketChannel delegate) {
+    protected AbstractAsyncServerSocketChannel(AsynchronousServerSocketChannel delegate) {
         /*super(delegate.provider());*/
         this.delegate = delegate;
     }

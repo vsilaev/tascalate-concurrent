@@ -28,8 +28,8 @@ import net.tascalate.concurrent.TaskExecutors;
 public class AsyncChannelGroup extends AsynchronousChannelGroup {
     private final AsynchronousChannelGroup delegate;
     
-    AsyncChannelGroup(AsynchronousChannelProvider provider, AsynchronousChannelGroup delegate) {
-        super(provider);
+    AsyncChannelGroup(AsynchronousChannelGroup delegate) {
+        super(delegate.provider());
         this.delegate = delegate;
     }
     
@@ -44,7 +44,7 @@ public class AsyncChannelGroup extends AsynchronousChannelGroup {
     public static AsyncChannelGroup withThreadPool(TaskExecutorService executor, int initialSize) throws IOException {
         Objects.requireNonNull(executor, "Executor should be specified");
         AsynchronousChannelProvider provider = AsynchronousChannelProvider.provider();
-        return new AsyncChannelGroup(provider, provider.openAsynchronousChannelGroup(executor, initialSize));
+        return new AsyncChannelGroup(provider.openAsynchronousChannelGroup(executor, initialSize));
     }
 
     public boolean isShutdown() {

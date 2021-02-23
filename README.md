@@ -259,8 +259,9 @@ public Promise<DataStructure> loadData(String url) {
 
 Attention: just calling `dependent()` on the `Promise` is not enough to change the behavior of the "default" `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc methods defined in `CompletionStage` - you have to use overloaded form with either `boolean` or `Set<PromiseOrigin>` last parameter _explicitly_. This is the intentional design decision: just recall, that the `Promise` returned in the example above can be used by the client code to create _independent_ promises (as per `CompletionStage` API), so the library has to follow the rule of the least surprise.
 
-Below are 2 examples (wrong and right) to to re-iterate the statement above in Java code.
-Wrong code to cancel whole chain:
+Below are 2 examples (wrong and right) to re-iterate the statement above in Java code.
+
+Wrong code to cancel the whole chain:
 ```java
 Promise<Xml> xml = CompletableTask.supplyAsync( () -> loadXml(url) )
 Promise<Data> data = xml.dependent()
@@ -270,19 +271,20 @@ Promise<Data> data = xml.dependent()
 // This cancels only "data" promise, but will not cancel "xml" promise
 data.cancel(true);
 ```
-Right code to cancel whole chain:
+Right code to cancel the whole chain:
 ```java
 Promise<Xml> xml = CompletableTask.supplyAsync( () -> loadXml(url) )
 Promise<Data> data = xml.dependent()
                         .thenApplyAsync( xml -> parseXml(xml), true );  // Overloaded method - 
                                                                         // "true" as last parameter means 
-                                                                        // enlist "origin" promise for cancellation
+                                                                        // enlist "origin" promise 
+                                                                        // for cancellation
 ...
 // This cancels both "data" promise AND the "xml" promise (if it's not completed yet)
 data.cancel(true);
 ```
 
-So far so good. And following `CompletionStage` API contract is good, no doubt. But what if you have to create locally a chain of 10 stages? 30 stages? It's both pretty borring and error-prone to put additional parameters to enforce overloaded method(s) usage. And error-prone means just this -- it's pretty easy to forget type "true" as the latest parameter and break the cancellation chain. Tascalate Concurrent provides an option to handle this edge case: use overloaded form of `dependent()` method - `dependent(Set<PromiseOrigin>)`. Here is an example from the real-life issue raised in real life project:
+So far so good. And following `CompletionStage` API contract is good, no doubt. But what if you have to create locally a chain of 10 stages? 30 stages? It's both pretty boring and error-prone to put additional parameters to enforce overloaded method(s) usage. And error-prone means just this -- it's pretty easy to forget to type "true" as the latest parameter and break the cancellation chain. Tascalate Concurrent provides an option to handle this edge case: use overloaded form of `dependent()` method - `dependent(Set<PromiseOrigin>)`. Here is an example from the real-life issue raised in the real-life project:
 ```java
 Promise<?> myPromise = 
 CompletableTask.supplyAsync(() -> candidate, pool)
@@ -303,9 +305,9 @@ CompletableTask.supplyAsync(() -> candidate, pool)
                .thenApplyAsync(EnforceCompliance::doWork)
                .exceptionally(ExceptionHandlerService::handle);
 ```
-Unlike the conservative form of the `dependent()` decorator, the overloaded `dependent(PromiseOrigin.ALL)` will enlist ALL the promises mentioned by composition methods as _dependent_ and will cancel them when `myPromise` is cancelled. Even the `collectedStatsPromise` that is passed from outside! Everything enlisted will form a single block of cancellation. Btw, if you don't need to cancel `collectedStatsPromise` above use `dependent(PromiseOrigin.THIS_ONLY)` decorator - it doesn't enlist "side-passed" promises.
+Unlike the conservative form of the `dependent()` decorator, the overloaded `dependent(PromiseOrigin.ALL)` will enlist ALL the promises mentioned by composition methods as _dependent_ and will cancel them when `myPromise` is cancelled. Even the `collectedStatsPromise` that is passed from outside! Everything enlisted will form a single block of cancellation. By the way, if you don't need to cancel `collectedStatsPromise` above use `dependent(PromiseOrigin.THIS_ONLY)` decorator - it doesn't enlist "side-passed" promises.
 
-Well, but what about obeying `CompletionStage` contract? Is it still safe to return `myPromise` to clients that are unwaware of its overwritten behavior? It's not. You should revert the effect of the `dependent(PromiseOrigin.ALL)` decorator before passing `myPromise` outside:
+Well, but what about obeying `CompletionStage` contract? Is it still safe to return `myPromise` to clients that are unaware of its overwritten behavior? It's not. You should revert the effect of the `dependent(PromiseOrigin.ALL)` decorator before passing `myPromise` outside:
 ```java
 public Promise<?> forkWmiProcessingChain(Promise<Stats collectedStatsPromise) {
   Promise<?> myPromise = 
@@ -315,11 +317,11 @@ public Promise<?> forkWmiProcessingChain(Promise<Stats collectedStatsPromise) {
                  .thenApplyAsync(CheckType::doWork)
                  ...
                  .exceptionally(ExceptionHandlerService::handle);
-  return myPromise.undecorate(); // or myPromise.raw() in this case               
+  return myPromise.unwrap(); // or myPromise.raw() in this case               
 }
 ```
 
-The final operator in the function above - `undecorate()` removes the latest decorator applied, the `dependent(...)`. Looking ahead, I should mention that `raw()` will remove _all_ the decorators applied. Yes, there are several possible - and the `dependent(...)` is just one of them. In the next chapters we discuss `defaultAsyncOn` decorator and later you will see custom decorators (the ones not directly bound to the `Promise` API as methods).
+The final operator in the function above - `unwrap()` removes the latest decorator applied, the `dependent(...)`. Looking ahead, I should mention that `raw()` will remove _all_ the decorators applied. Yes, there are several possible - and the `dependent(...)` is just one of them. In the next chapters we discuss `defaultAsyncOn` decorator and later you will see custom decorators (the ones not directly bound to the `Promise` API as methods).
 
 ## 4. Wait! Wait! It's not cancellable!!!
 TDB - BlockingIO, usage of `java.nio` vs `java.io`, interrupting compute-intensive code.

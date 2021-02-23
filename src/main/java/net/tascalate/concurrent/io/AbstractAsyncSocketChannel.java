@@ -32,7 +32,7 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
     
     private final AsynchronousSocketChannel delegate;
     
-    AbstractAsyncSocketChannel(AsynchronousSocketChannel delegate) {
+    protected AbstractAsyncSocketChannel(AsynchronousSocketChannel delegate) {
         super(delegate.provider());
         this.delegate = delegate;
     }
