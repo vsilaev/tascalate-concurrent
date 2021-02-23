@@ -324,7 +324,112 @@ public Promise<?> forkWmiProcessingChain(Promise<Stats collectedStatsPromise) {
 The final operator in the function above - `unwrap()` removes the latest decorator applied, the `dependent(...)`. Looking ahead, I should mention that `raw()` will remove _all_ the decorators applied. Yes, there are several possible - and the `dependent(...)` is just one of them. In the next chapters we discuss `defaultAsyncOn` decorator and later you will see custom decorators (the ones not directly bound to the `Promise` API as methods).
 
 ## 4. Wait! Wait! It's not cancellable!!!
-TDB - BlockingIO, usage of `java.nio` vs `java.io`, interrupting compute-intensive code.
+One of the most common complains in the issue tracker of Tascalate Concurrent project is a variation of the report "code is not cancelled when requested". The symptoms are typical: `Promise` is cancelled, any dependent `Promise`-s are completed exceptionally (as expected) but threads keep running till the end of the code submitted to an executor. So the primary promise of the library is broken: execution is not interrupted.
+
+Is library broken? No. Is user code correct? Well, yes. But library code and user code do not cooperate well to really cancel asynchronous execution.
+
+The promise returned from `CompletableTask` methods like `supplyAsync` / `runAsync` as well as any derived `Promise` (via `thenApply` or `thenRun`) does the following to things:
+1. Set own state to _cancelled_ and let transitions to any dependent promises run (same as `CompletableFuture`)
+2. Interrupt the current `Thread` via `Thread.currentThread().interrupt()` (unlike `CompletableFuture`)
+
+And it's responsibility of the user code - all of these `Runnable`, `Consumer<T>` and `Function<T,R>` passed - to react on the `Thread.currentThread().isInterrupted()` flag. Let us consider typical scenarios.
+1. User code is a computational code and do not use I/O
+In this case you have to put explicit checks for `Thread.currentThread().isInterrupted()` to break execution via either breaking loops, early returns or throwing exception:
+
+```java
+outer:
+for (int i = 0; i < SOME_LARGE_SIZE; i++) {
+  for (int j = 0; j < SOME_EVEN_LARGER_SIZE; j++) {
+    if (Thread.currentThread().isInterrupted()) {
+      break outer;
+    }
+    // some calcs here
+  }
+}
+```
+
+It's up to library user to select how often to check the flag: there are always trade-offs between overhead for regular execution time (when execution is not cancelled) and the delay before thread react on cancellation. In the example above the check may be moved from inner loop to the outer loop - this will speed-up normal execution path but the code will react on cancellation with delay.
+
+Some API provides good built-in points for checks of early exits, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files#walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor). Here you can just put checks in `previsitDirectory` / `visitFile`:
+
+```java
+@Test
+@SuppressWarnings("unchecked")
+public void testReallife() throws Exception {
+  ElapsedTime time = new ElapsedTime();
+  Executor executor = Executors.getDefaultExecutor();
+  Promise<Void> promise = CompletableTask.runAsync(() -> {
+    try {
+      Files.walkFileTree(Paths.get("d:/"), new FileVisitor<>() {
+        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+          System.out.printf("[%d ms] [%s] Task#%d: visiting dir %s%n", time.current(), Thread.currentThread(), id, dir);
+          if (Thread.currentThread().isInterrupted()) {
+            // STOP when interrupted
+            return FileVisitResult.TERMINATE;
+          } else {
+            return FileVisitResult.CONTINUE;
+          }
+        }
+
+      public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {...}
+      public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {...}
+      public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {...}
+  }, executor);
+  Thread.sleep(3000);
+  System.out.printf("[%d ms] canceling%n", time.current());
+  promise.cancel(true);
+  assertCanceled(promise);
+}
+```
+
+2. You are using old blocking API of `java.io.InputStream` or `java.net.URLConnection`
+Probably, your code uses old blocking streams from `java.io` like `java.io.FileInputStream` or `SocketInputStream` opened from `java.net.Socket`. Or you are using `java.net.URLConnection`. Or outdated blocking Apache HTTP Client. These all prevents running thread from termination once interrupted -- all of these API-s are blocking and do not react on interruptions. The options are:
+- If you are using some third-party synchronous networking library then try to replace it with asynchronous version. For HTTP protocol there is a plenty of options like AsyncHttpClient and OkHttp. Both returns `CompletableFuture` as operation results and therefore could be easily plugged with the rest of Tascalate Concurrent code.
+- If you are using blocking file API try to replace it with NIO version, it's the best option:
+
+```java
+try (InputStream in = new FileInputStream("E:/Downloads/LargeFile.rar")) {
+... // Work with input stream
+}
+
+==>
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+...
+try (InputStream in = 
+  Channels.newInputStream(FileChannel.open(Paths.get("E:/Downloads/LargeFile.rar"), StandardOpenOption.READ)))) {
+... // Work with input stream
+} 
+// Same could be done for sockets
+```
+- If don't like to use new NIO API, but sources with blocking IO may be altered, then `BlockingIO` class provided by Tascalate Concurrent can help:
+
+```java
+Promise<?> promise = CompletableTask.supplyAsync(
+  BlockingIO.interruptible( // Wrap Supplier into interruptible Supplier
+    () -> {
+      // Register InputStream after creation as interruption target
+      try (InputStream in = BlockingIO.register(new FileInputStream("E:/Downloads/LargeFile.rar"))) {
+        ... // Work with input stream
+      } catch (IOException ex) {
+        throw new RuntimeException(ex);
+      } 
+    }
+  )
+);
+...
+promise.cancel(true);
+```
+`BlockingIO.interruptible(...)` can wrap as interruptible all the functional interfaces used in `CompletionStage` / `Promise` API. The parameter to the `BlockingIO.register` should be any implementation of `java.lang.Closeable` that will be closed on thread interruption. For `InputStream` or `OutputStream` is just the stream itself. For `java.net.HttpUrlConnection` you can use
+
+```java
+HttpURLConnection conn = (HttpURLConnection)(new URL(url).openConnection());
+BlockingIO.register(conn::disconnect);
+```
+
+Unfortunately, it's necessary to put this statement straight at the end: if the blocking API is hidden behind third-party library code (like Spring RestTemplate) then you are out of luck - Tascalate Concurrent will not support true interruptions in this scenario. 
 
 ## 5. Overriding default asynchronous executor
 One of the pitfalls of the `CompletableFuture` implementation is how it works with default asynchronous executor. Consider the following example:

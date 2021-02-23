@@ -63,7 +63,7 @@ public class InterruptBlockingIO {
         Object content;
         try {
             HttpURLConnection conn = (HttpURLConnection)(new URL(url).openConnection());
-            BlockingIO.register(() -> conn.disconnect());
+            BlockingIO.register(conn::disconnect);
             content = conn.getContent();
             System.out.println("Called " + url);
         } catch (IOException ex) {
