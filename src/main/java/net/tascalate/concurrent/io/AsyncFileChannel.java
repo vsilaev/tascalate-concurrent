@@ -24,8 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-
-import net.tascalate.concurrent.TaskExecutorService;
+import java.util.concurrent.ExecutorService;
 
 public class AsyncFileChannel extends AbstractAsyncFileChannel<AsyncFileChannel> {
     
@@ -33,7 +32,7 @@ public class AsyncFileChannel extends AbstractAsyncFileChannel<AsyncFileChannel>
         super(delegate);
     }
     
-    public static AsyncFileChannel open(Path file, TaskExecutorService executor, OpenOption... options) throws IOException {
+    public static AsyncFileChannel open(Path file, ExecutorService executor, OpenOption... options) throws IOException {
         Set<OpenOption> set;
         if (options.length == 0) {
             set = Collections.emptySet();
@@ -45,7 +44,7 @@ public class AsyncFileChannel extends AbstractAsyncFileChannel<AsyncFileChannel>
     }
 
     public static AsyncFileChannel open(Path file,
-                                        TaskExecutorService executor,
+                                        ExecutorService executor,
                                         Set<? extends OpenOption> options,
                                         FileAttribute<?>... attrs) throws IOException {
         Objects.requireNonNull(executor, "Executor should be specified");

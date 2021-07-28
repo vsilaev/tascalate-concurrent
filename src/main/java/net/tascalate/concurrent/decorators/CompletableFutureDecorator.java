@@ -21,7 +21,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 
 import net.tascalate.concurrent.Promise;
-import net.tascalate.concurrent.decorators.AbstractFutureDecorator;
 
 public class CompletableFutureDecorator<T> 
     extends AbstractFutureDecorator<T, CompletableFuture<T>> 

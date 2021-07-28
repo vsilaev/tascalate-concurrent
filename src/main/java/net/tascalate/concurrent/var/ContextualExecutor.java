@@ -18,16 +18,13 @@ package net.tascalate.concurrent.var;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-public class ContextualExecutor<D extends Executor> extends ContextualObject implements Executor {
+class ContextualExecutor<D extends Executor> implements Executor {
     protected final D delegate;
+    protected final Contextualization ctxz;
     
-    protected ContextualExecutor(D delegate, 
-                                 List<ContextVar<?>> contextVars, 
-                                 ContextTrampoline.Propagation propagation, 
-                                 List<Object> capturedContext) {
-        
-        super(contextVars, propagation, capturedContext);
+    ContextualExecutor(D delegate, Contextualization ctxz) {
         this.delegate = delegate;
+        this.ctxz = ctxz;
     }
     
     @Override
@@ -35,13 +32,13 @@ public class ContextualExecutor<D extends Executor> extends ContextualObject imp
         delegate.execute(contextualRunnable(command));
     }
 
-    protected Runnable contextualRunnable(Runnable original) {
+    Runnable contextualRunnable(Runnable original) {
         return () -> {
-            List<Object> originalContext = applyCapturedContext(); 
+            List<Object> originalContext = ctxz.enter(); 
             try {
                 original.run();
             } finally {
-                restoreContext(originalContext);
+                ctxz.exit(originalContext);
             }            
         };
     }

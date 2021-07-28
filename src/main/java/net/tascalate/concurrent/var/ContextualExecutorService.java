@@ -25,16 +25,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-public class ContextualExecutorService<D extends ExecutorService> 
+class ContextualExecutorService<D extends ExecutorService> 
     extends ContextualExecutor<D> 
     implements ExecutorService {
     
-    protected ContextualExecutorService(D delegate, 
-                                        List<ContextVar<?>> contextVars, 
-                                        ContextTrampoline.Propagation propagation, 
-                                        List<Object> capturedContext) {
-        
-        super(delegate, contextVars, propagation, capturedContext);
+    ContextualExecutorService(D delegate, Contextualization ctxz) {
+        super(delegate, ctxz);
     }
 
     @Override
@@ -103,13 +99,13 @@ public class ContextualExecutorService<D extends ExecutorService>
         return tasks.stream().map(this::contextualCallable).collect(Collectors.toList());
     }
     
-    protected <T> Callable<T> contextualCallable(Callable<T> original) {
+    <T> Callable<T> contextualCallable(Callable<T> original) {
         return () -> {
-            List<Object> originalContext = applyCapturedContext(); 
+            List<Object> originalContext = ctxz.enter(); 
             try {
                 return original.call();
             } finally {
-                restoreContext(originalContext);
+                ctxz.exit(originalContext);
             }
         };
     }

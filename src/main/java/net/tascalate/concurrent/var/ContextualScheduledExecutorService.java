@@ -15,22 +15,17 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-public class ContextualScheduledExecutorService<D extends ScheduledExecutorService> 
+class ContextualScheduledExecutorService<D extends ScheduledExecutorService> 
     extends ContextualExecutorService<D> 
     implements ScheduledExecutorService {
     
-    protected ContextualScheduledExecutorService(D delegate, 
-                                                 List<ContextVar<?>> contextVars, 
-                                                 ContextTrampoline.Propagation propagation, 
-                                                 List<Object> capturedContext) {
-        
-        super(delegate, contextVars, propagation, capturedContext);
+    ContextualScheduledExecutorService(D delegate, Contextualization ctxz) {
+        super(delegate, ctxz);
     }
 
     @Override

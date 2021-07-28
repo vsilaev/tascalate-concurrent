@@ -16,6 +16,7 @@
 package net.tascalate.concurrent.io;
 
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -25,9 +26,16 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.DependentPromise;
+import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.decorators.CustomizableDependentPromiseDecorator;
+import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
+import net.tascalate.concurrent.decorators.PromiseCustomizer;
+
 final public class BlockingIO {
     
     private final static ThreadLocal<Interruptible> CURRENT = new ThreadLocal<>();
+    private final static PromiseCustomizer INTERRUPTIBLE_PROMISE_CUSTOMIZER = new InterruptiblePromiseCustomizer();
 
     final static class Interruptible {
         private final List<AutoCloseable> closeables = new CopyOnWriteArrayList<>();
@@ -97,6 +105,18 @@ final public class BlockingIO {
         };
     }
     
+    public static <V> Callable<V> interruptibleCall(Callable<V> action) {
+        Interruptible current = new Interruptible();
+        return () -> {
+            Interruptible previous = current.enter();
+            try {
+                return action.call();
+            } finally {
+                current.exit(previous);
+            }            
+        };
+    }
+    
     public static <T> Supplier<T> interruptible(Supplier<T> action) {
         Interruptible current = new Interruptible();
         return () -> {
@@ -121,7 +141,7 @@ final public class BlockingIO {
         };
     }
     
-    public static <T,U> BiConsumer<T,U> interruptible(BiConsumer<T,U> action) {
+    public static <T, U> BiConsumer<T,U> interruptible(BiConsumer<T, U> action) {
         Interruptible current = new Interruptible();
         return (t,u) -> {
             Interruptible previous = current.enter();
@@ -133,7 +153,7 @@ final public class BlockingIO {
         };
     }
 
-    public static <T,R> Function<T,R> interruptible(Function<T,R> action) {
+    public static <T, R> Function<T, R> interruptible(Function<T, R> action) {
         Interruptible current = new Interruptible();
         return v -> {
             Interruptible previous = current.enter();
@@ -145,7 +165,7 @@ final public class BlockingIO {
         };
     }
     
-    public static <T,U,R> BiFunction<T,U,R> interruptible(BiFunction<T,U,R> action) {
+    public static <T, U, R> BiFunction<T, U, R> interruptible(BiFunction<T, U, R> action) {
         Interruptible current = new Interruptible();
         return (t,u) -> {
             Interruptible previous = current.enter();
@@ -179,5 +199,16 @@ final public class BlockingIO {
                 current.exit(previous);
             }            
         };
+    }
+    
+    public static <T> Function<Promise<T>, Promise<T>> interruptiblePromises() {
+        return p -> p instanceof DependentPromise ?
+            new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, INTERRUPTIBLE_PROMISE_CUSTOMIZER)
+            :
+            new CustomizablePromiseDecorator<>(p, INTERRUPTIBLE_PROMISE_CUSTOMIZER);
+    }
+    
+    public <T> Function<DependentPromise<T>, DependentPromise<T>> interruptiblePromisesʹ() {
+        return p -> new CustomizableDependentPromiseDecorator<>(p, INTERRUPTIBLE_PROMISE_CUSTOMIZER);
     }
 }

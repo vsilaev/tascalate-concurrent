@@ -16,6 +16,7 @@
 package net.tascalate.concurrent.io;
 
 import java.io.IOException;
+import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.util.Objects;
@@ -26,7 +27,7 @@ public class AsyncServerSocketChannel extends AbstractAsyncServerSocketChannel<A
         super(delegate);
     }
     
-    public static AsyncServerSocketChannel open(AsyncChannelGroup group) throws IOException {
+    public static AsyncServerSocketChannel open(AsynchronousChannelGroup group) throws IOException {
         Objects.requireNonNull(group, "ChannelGroup should be specified");
         return new AsyncServerSocketChannel(AsynchronousServerSocketChannel.open(group));
     }

@@ -15,19 +15,25 @@
  */
 package net.tascalate.concurrent.io;
 
-import java.io.IOException;
-import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.util.Objects;
+import java.nio.channels.CompletionHandler;
 
-public class AsyncSocketChannel extends AbstractAsyncSocketChannel<AsyncSocketChannel> {
+import net.tascalate.concurrent.CompletablePromise;
+
+class AsyncResult<V> extends CompletablePromise<V> {
     
-    protected AsyncSocketChannel(AsynchronousSocketChannel delegate) {
-        super(delegate);
+    final CompletionHandler<V, Object> handler = new CompletionHandler<V, Object>() {
+        @Override
+        public void completed(final V result, final Object attachment) {
+            success(result);
+        }
+
+        @Override
+        public void failed(Throwable exc, Object attachment) {
+            failure(exc);     
+        }
+    };
+
+    AsyncResult() {
     }
     
-    public static AsyncSocketChannel open(AsynchronousChannelGroup group) throws IOException {
-        Objects.requireNonNull(group, "ChannelGroup should be specified");
-        return new AsyncSocketChannel(AsynchronousSocketChannel.open(group));
-    }
 }

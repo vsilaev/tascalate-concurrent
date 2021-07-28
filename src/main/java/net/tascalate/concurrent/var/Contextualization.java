@@ -19,14 +19,14 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-abstract class ContextualObject {
+class Contextualization {
     private final List<ContextVar<?>> contextVars;
     private final ContextTrampoline.Propagation propagation;
     private final List<Object> capturedContext;
     
-    protected ContextualObject(List<ContextVar<?>> contextVars, 
-                               ContextTrampoline.Propagation propagation, 
-                               List<Object> capturedContext) {
+    Contextualization(List<ContextVar<?>> contextVars, 
+                      ContextTrampoline.Propagation propagation, 
+                      List<Object> capturedContext) {
         
         this.contextVars = null == contextVars ? 
             Collections.emptyList() : 
@@ -39,14 +39,18 @@ abstract class ContextualObject {
             Collections.unmodifiableList(capturedContext);        
     }
     
-    protected final List<Object> applyCapturedContext() {
-        List<Object> originalContext = ContextTrampoline.Propagation.STRICT.equals(propagation) ? 
+    List<Object> enter() {
+        List<Object> previousContextState = ContextTrampoline.Propagation.STRICT.equals(propagation) ? 
             ContextTrampoline.captureContext(contextVars) : Collections.nCopies(contextVars.size(), null);
         restoreContext(capturedContext);
-        return originalContext;
+        return previousContextState;
     }
     
-    protected final void restoreContext(List<Object> contextState) {
+    void exit(List<Object> previousContextState) {
+        restoreContext(previousContextState);
+    }
+    
+    private void restoreContext(List<Object> contextState) {
         Iterator<? extends ContextVar<?>> vars = contextVars.iterator();
         Iterator<Object> values = contextState.iterator();
         while (vars.hasNext() && values.hasNext()) {

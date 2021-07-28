@@ -93,12 +93,16 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
 
     @Override
     public Promise<Void> connect(SocketAddress remote) {
-        return (Promise<Void>)delegate.connect(remote);
+        AsyncResult<Void> asyncResult = new AsyncResult<>();
+        connect(remote, null, asyncResult.handler);
+        return asyncResult;
     }
 
     @Override
     public Promise<Integer> read(ByteBuffer dst) {
-        return (Promise<Integer>)delegate.read(dst);
+        AsyncResult<Integer> asyncResult = new AsyncResult<>();
+        read(dst, null, asyncResult.handler);
+        return asyncResult;
     }
 
     @Override
@@ -115,7 +119,9 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
 
     @Override
     public Promise<Integer> write(ByteBuffer src) {
-        return (Promise<Integer>)delegate.write(src);
+        AsyncResult<Integer> asyncResult = new AsyncResult<>();
+        write(src, null, asyncResult.handler);
+        return asyncResult;
     }
 
     @Override

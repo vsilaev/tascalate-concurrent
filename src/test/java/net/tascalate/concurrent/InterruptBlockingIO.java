@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -55,7 +56,10 @@ public class InterruptBlockingIO {
                               .onTimeout(() -> {
                                   System.out.println("Timeout with url " + url);
                                   return defaultResponse();
-                              }, Duration.ofSeconds(3), true);
+                              }, Duration.ofSeconds(5), true)
+                              .thenAccept(BlockingIO.interruptible(v -> {}))
+                              .whenComplete(BlockingIO.interruptible((r, e) -> {}))
+                              .thenApply(__ -> "");
     }
 
     private static String callHttp(Object proxy, String url) {
@@ -63,9 +67,10 @@ public class InterruptBlockingIO {
         Object content;
         try {
             HttpURLConnection conn = (HttpURLConnection)(new URL(url).openConnection());
-            BlockingIO.register(conn::disconnect);
-            content = conn.getContent();
-            System.out.println("Called " + url);
+            try (Closeable resource = BlockingIO.register(conn::disconnect)) {
+                content = conn.getContent();
+                System.out.println("Called " + url);
+            }
         } catch (IOException ex) {
             System.out.println("ERROR reading " + url + " ==> " + ex.getLocalizedMessage());
             content = null;

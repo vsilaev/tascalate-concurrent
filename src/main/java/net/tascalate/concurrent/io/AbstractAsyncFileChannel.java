@@ -62,20 +62,23 @@ public class AbstractAsyncFileChannel<F extends AbstractAsyncFileChannel<F>>
     }
 
     public Promise<FileLock> lock(boolean shared) {
-        return lock(0, Long.MAX_VALUE, shared);
+        return doLock(0, Long.MAX_VALUE, shared);
     }
     
     @Override
     public Promise<FileLock> lock(long position, long size, boolean shared) {
-        Promise<FileLock> promise = (Promise<FileLock>)delegate.lock(position, size, shared);
-        return promise.dependent()
-                      .thenApply(this::upgradeLock, true)
-                      .unwrap();
+        return doLock(position, size, shared);
     }
 
     public final <A> void lock(boolean shared, A attachment,
                                CompletionHandler<FileLock, ? super A> handler) {
         lock(0, Long.MAX_VALUE, shared, attachment, handler);
+    }
+    
+    protected Promise<FileLock> doLock(long position, long size, boolean shared) {
+        AsyncResult<FileLock> asyncResult = new AsyncResult<>();
+        lock(position, size, shared, null, asyncResult.handler);
+        return asyncResult;
     }
     
     @Override
@@ -114,7 +117,9 @@ public class AbstractAsyncFileChannel<F extends AbstractAsyncFileChannel<F>>
 
     @Override
     public Promise<Integer> read(ByteBuffer dst, long position) {
-        return (Promise<Integer>)delegate.read(dst, position);
+        AsyncResult<Integer> asyncResult = new AsyncResult<>();
+        read(dst, position, null, asyncResult.handler);
+        return asyncResult;
     }
 
     @Override
@@ -124,7 +129,9 @@ public class AbstractAsyncFileChannel<F extends AbstractAsyncFileChannel<F>>
 
     @Override
     public Promise<Integer> write(ByteBuffer src, long position) {
-        return (Promise<Integer>)delegate.write(src, position);
+        AsyncResult<Integer> asyncResult = new AsyncResult<>();
+        write(src, position, null, asyncResult.handler);
+        return asyncResult;
     }
     
     protected FileLock upgradeLock(FileLock delegate) {

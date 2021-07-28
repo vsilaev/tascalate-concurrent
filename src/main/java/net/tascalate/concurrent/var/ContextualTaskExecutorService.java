@@ -15,20 +15,17 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.List;
 import java.util.concurrent.Callable;
 
 import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.TaskExecutorService;
 
-public class ContextualTaskExecutorService<D extends TaskExecutorService> 
+class ContextualTaskExecutorService<D extends TaskExecutorService> 
     extends ContextualExecutorService<D> 
     implements TaskExecutorService {
-    protected ContextualTaskExecutorService(D delegate, 
-                                            List<ContextVar<?>> contextVars, 
-                                            ContextTrampoline.Propagation propagation, 
-                                            List<Object> capturedContext) {
-        super(delegate, contextVars, propagation, capturedContext);
+    
+    ContextualTaskExecutorService(D delegate, Contextualization ctxz) {
+        super(delegate, ctxz);
     }
     
     @Override
