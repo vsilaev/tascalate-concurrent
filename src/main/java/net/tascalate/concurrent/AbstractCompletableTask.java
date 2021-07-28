@@ -6,7 +6,7 @@
  * under the Apache License, Version 2.0. Please see 
  * https://github.com/lukas-krecan/completion-stage/blob/completion-stage-0.0.9/src/main/java/net/javacrumbs/completionstage/SimpleCompletionStage.java
  * 
- * Modified work: copyright 2015-2020 Valery Silaev (http://vsilaev.com)
+ * Modified work: copyright 2015-2021 Valery Silaev (http://vsilaev.com)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
