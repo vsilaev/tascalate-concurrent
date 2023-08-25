@@ -94,9 +94,9 @@ public class PromiseOperations {
         return p -> unwrap(Promises.tryComposeEx(p.dependent(PromiseOrigin.ALL), fn));
     }
     
-    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> 
+    public static <S, T, A, R> Function<Promise<Iterable<S>>, Promise<R>> 
         partitionedItems(int batchSize, 
-                         Function<? super T, CompletionStage<? extends T>> spawner,
+                         Function<? super S, CompletionStage<? extends T>> spawner,
                          Collector<T, A, R> downstream) {
         
         return p -> p.dependent()
@@ -105,9 +105,9 @@ public class PromiseOperations {
                      .unwrap();
     }
     
-    public static <T, A, R> Function<Promise<Iterable<T>>, Promise<R>> 
+    public static <S, T, A, R> Function<Promise<Iterable<S>>, Promise<R>> 
         partitionedItems(int batchSize, 
-                         Function<? super T, CompletionStage<? extends T>> spawner, 
+                         Function<? super S, CompletionStage<? extends T>> spawner, 
                          Collector<T, A, R> downstream,
                          Executor downstreamExecutor) {
         
@@ -117,9 +117,9 @@ public class PromiseOperations {
                      .unwrap();
     }
     
-    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> 
+    public static <S, T, A, R> Function<Promise<Stream<S>>, Promise<R>> 
         partitionedStream(int batchSize, 
-                          Function<? super T, CompletionStage<? extends T>> spawner, 
+                          Function<? super S, CompletionStage<? extends T>> spawner, 
                           Collector<T, A, R> downstream) {
         
          return p -> p.dependent()
@@ -128,9 +128,9 @@ public class PromiseOperations {
                       .unwrap();
      }
     
-    public static <T, A, R> Function<Promise<Stream<T>>, Promise<R>> 
+    public static <S, T, A, R> Function<Promise<Stream<S>>, Promise<R>> 
         partitionedStream(int batchSize, 
-                          Function<? super T, CompletionStage<? extends T>> spawner, 
+                          Function<? super S, CompletionStage<? extends T>> spawner, 
                           Collector<T, A, R> downstream,
                           Executor downstreamExecutor) {
         

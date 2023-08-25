@@ -253,41 +253,41 @@ public final class Promises {
                });
     }
     
-    public static <T, A, R> Promise<R> partitioned(Iterable<? extends T> values, 
-                                                   int batchSize, 
-                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                   Collector<T, A, R> downstream) {
+    public static <S, T, A, R> Promise<R> partitioned(Iterable<? extends S> values, 
+                                                      int batchSize, 
+                                                      Function<? super S, CompletionStage<? extends T>> spawner, 
+                                                      Collector<T, A, R> downstream) {
         return partitioned1(values.iterator(), null, batchSize, spawner, downstream);
     }
     
-    public static <T, A, R> Promise<R> partitioned(Iterable<? extends T> values, 
-                                                   int batchSize, 
-                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                   Collector<T, A, R> downstream,
-                                                   Executor downstreamExecutor) {
+    public static <S, T, A, R> Promise<R> partitioned(Iterable<? extends S> values, 
+                                                      int batchSize, 
+                                                      Function<? super S, CompletionStage<? extends T>> spawner, 
+                                                      Collector<T, A, R> downstream,
+                                                      Executor downstreamExecutor) {
         return partitioned2(values.iterator(), null, batchSize, spawner, downstream, downstreamExecutor);
     }
     
-    public static <T, A, R> Promise<R> partitioned(Stream<? extends T> values, 
-                                                   int batchSize, 
-                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                   Collector<T, A, R> downstream) {
+    public static <S, T, A, R> Promise<R> partitioned(Stream<? extends S> values, 
+                                                      int batchSize, 
+                                                      Function<? super S, CompletionStage<? extends T>> spawner, 
+                                                      Collector<T, A, R> downstream) {
         return partitioned1(values.iterator(), values, batchSize, spawner, downstream);
     }
     
-    public static <T, A, R> Promise<R> partitioned(Stream<? extends T> values, 
-                                                   int batchSize, 
-                                                   Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                   Collector<T, A, R> downstream,
-                                                   Executor downstreamExecutor) {
+    public static <S, T, A, R> Promise<R> partitioned(Stream<? extends S> values, 
+                                                      int batchSize, 
+                                                      Function<? super S, CompletionStage<? extends T>> spawner, 
+                                                      Collector<T, A, R> downstream,
+                                                      Executor downstreamExecutor) {
         return partitioned2(values.iterator(), values, batchSize, spawner, downstream, downstreamExecutor);
     }
     
-    private static <T, A, R> Promise<R> partitioned1(Iterator<? extends T> values, 
-                                                     Object source,
-                                                     int batchSize, 
-                                                     Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                     Collector<T, A, R> downstream) {
+    private static <S, T, A, R> Promise<R> partitioned1(Iterator<? extends S> values, 
+                                                        Object source,
+                                                        int batchSize, 
+                                                        Function<? super S, CompletionStage<? extends T>> spawner, 
+                                                        Collector<T, A, R> downstream) {
         return
             parallelStep1(values, batchSize, spawner, downstream)
             .dependent()
@@ -296,12 +296,12 @@ public final class Promises {
             .unwrap();
     }
 
-    private static <T, A, R> Promise<R> partitioned2(Iterator<? extends T> values, 
-                                                     Object source,
-                                                     int batchSize, 
-                                                     Function<? super T, CompletionStage<? extends T>> spawner, 
-                                                     Collector<T, A, R> downstream,
-                                                     Executor downstreamExecutor) {
+    private static <S, T, A, R> Promise<R> partitioned2(Iterator<? extends S> values, 
+                                                        Object source,
+                                                        int batchSize, 
+                                                        Function<? super S, CompletionStage<? extends T>> spawner, 
+                                                        Collector<T, A, R> downstream,
+                                                        Executor downstreamExecutor) {
         return 
             parallelStep2(values, batchSize, spawner, downstream, downstreamExecutor)
             .dependent()
@@ -310,13 +310,13 @@ public final class Promises {
             .unwrap();
     }
     
-    private static <T, A, R> Promise<IndexedStep<A>> parallelStep1(
-        Iterator<? extends T> values, int batchSize,
-        Function<? super T, CompletionStage<? extends T>> spawner,                                                        
+    private static <S, T, A, R> Promise<IndexedStep<A>> parallelStep1(
+        Iterator<? extends S> values, int batchSize,
+        Function<? super S, CompletionStage<? extends T>> spawner,                                                        
         Collector<T, A, R> downstream) {
 
         return loop(new IndexedStep<>(), step -> step.initial() || values.hasNext(), step -> {
-            List<T> valuesBatch = drainBatch(values, batchSize);
+            List<S> valuesBatch = drainBatch(values, batchSize);
             if (valuesBatch.isEmpty()) {
                 // Over
                 return Promises.success(step.initial() ? step.next(downstream.supplier().get()) : step);
@@ -336,14 +336,14 @@ public final class Promises {
         });
     }
 
-    private static <T, A, R> Promise<IndexedStep<A>> parallelStep2(
-        Iterator<? extends T> values, int batchSize,
-        Function<? super T, CompletionStage<? extends T>> spawner,                                                        
+    private static <S, T, A, R> Promise<IndexedStep<A>> parallelStep2(
+        Iterator<? extends S> values, int batchSize,
+        Function<? super S, CompletionStage<? extends T>> spawner,                                                        
         Collector<T, A, R> downstream,
         Executor downstreamExecutor) {
 
         return loop(new IndexedStep<>(), step -> step.initial() || values.hasNext(), step -> {
-            List<T> valuesBatch = drainBatch(values, batchSize);
+            List<S> valuesBatch = drainBatch(values, batchSize);
             if (valuesBatch.isEmpty()) {
                 // Over
                 return step.initial() ?
