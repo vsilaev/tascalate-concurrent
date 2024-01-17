@@ -39,27 +39,31 @@ public final class CancelMethodsCache {
     private CancelMethodsCache() {}
     
     public static Cancellation cancellationOf(Class<?> stageClass) {
-        return CANCEL_METHODS.get(stageClass, LOOKUP_CANCEL_METHOD);
+        return GET_CANCEL_METHOD_BY_CLASS.apply(stageClass);
     }
     
-    private static final Cache<Class<?>, Cancellation> CANCEL_METHODS = new Cache<>();
-    private static final Cancellation NO_CANCELATION = (p, b) -> {
-        System.err.println("Cancellation is not supported for promise " + p);
-        return false;
-    };
-    private static final Function<Class<?>, Cancellation> LOOKUP_CANCEL_METHOD = c -> {
-        Stream<Function<Class<?>, ExceptionalCancellation>> options = Stream.of(
-            CancelMethodsCache::cancelInterruptibleMethodOf,     
-            CancelMethodsCache::cancelMethodOf,
-            CancelMethodsCache::completeExceptionallyMethodOf
-        );
-        return options.map(option -> Optional.ofNullable( option.apply(c) ))
-                      .filter(Optional::isPresent)
-                      .map(Optional::get)
-                      .map(ExceptionalCancellation::unchecked)
-                      .findFirst()
-                      .orElse(NO_CANCELATION);
-    };
+    private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
+    
+    private static final Function<Class<?>, Cancellation> GET_CANCEL_METHOD_BY_CLASS = 
+        new FunctionMemoization<>(c -> {
+            
+            Cancellation NO_CANCELATION = (p, b) -> {
+                System.err.println("Cancellation is not supported for promise " + p);
+                return false;
+            };
+            
+            Stream<Function<Class<?>, ExceptionalCancellation>> options = Stream.of(
+                    CancelMethodsCache::cancelInterruptibleMethodOf,     
+                    CancelMethodsCache::cancelMethodOf,
+                    CancelMethodsCache::completeExceptionallyMethodOf
+                );
+                return options.map(option -> Optional.ofNullable( option.apply(c) ))
+                              .filter(Optional::isPresent)
+                              .map(Optional::get)
+                              .map(ExceptionalCancellation::unchecked)
+                              .findFirst()
+                              .orElse(NO_CANCELATION);
+        });
     
     private static ExceptionalCancellation cancelInterruptibleMethodOf(Class<?> clazz) {
         try {
@@ -136,7 +140,7 @@ public final class CancelMethodsCache {
     }
     
     private static MethodHandle unreflect(Method m) throws IllegalAccessException {
-        return MethodHandles.publicLookup().unreflect(m);
+        return LOOKUP.unreflect(m);
     }
     
     @FunctionalInterface
