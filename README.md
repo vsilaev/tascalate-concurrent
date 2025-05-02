@@ -41,6 +41,16 @@ To use a library you have to add a single Maven dependency
     <version>0.9.9</version>
 </dependency>
 ```
+
+If you are developing code for JDK 21+ and need to use `ScopedValue` as a `ContentVar`-iable then add the following dependency as well:
+```xml
+<dependency>
+    <groupId>net.tascalate</groupId>
+    <artifactId>net.tascalate.concurrent.addon</artifactId>
+    <version>0.1.0</version>
+</dependency>
+```
+
 # What is inside?
 ## 1.	Promise interface
 This is the core interface of the Tascalate Concurrent library. It may be best described by the formula: 
