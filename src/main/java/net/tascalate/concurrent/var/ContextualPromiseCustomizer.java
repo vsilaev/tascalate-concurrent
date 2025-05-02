@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -26,95 +25,45 @@ import java.util.function.Supplier;
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
 class ContextualPromiseCustomizer implements PromiseCustomizer {
-    private final Contextualization ctxz;
+    private final Contextualization<?> ctxz;
     
-    ContextualPromiseCustomizer(Contextualization ctxz) {
+    ContextualPromiseCustomizer(Contextualization<?> ctxz) {
         this.ctxz = ctxz;
     }
     
     @Override
     public Runnable wrapArgument(Runnable original, boolean async) {
-        return () -> {
-            List<Object> originalContext = ctxz.enter();
-            try {
-                original.run();
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
-
+        return () -> ctxz.runWith(original);
     }
 
     @Override
     public <U, R> Function<U, R> wrapArgument(Function<U, R> original, boolean async, boolean isCompose) {
-        return u -> {
-            List<Object> originalContext = ctxz.enter();
-            try {
-                return original.apply(u);
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
+        return u -> ctxz.supplyWith(() -> original.apply(u));
     }
 
     @Override
     public <U> Consumer<U> wrapArgument(Consumer<U> original, boolean async) {
-        return u -> {
-            List<Object> originalContext = ctxz.enter();
-            try {
-                original.accept(u);
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
+        return u -> ctxz.runWith(() -> original.accept(u));
     }
 
     @Override
     public <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
-        return () -> {
-            List<Object> originalContext = ctxz.enter();
-            try {
-                return original.get();
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
+        return () -> ctxz.supplyWith(original);
     }
     
     @Override
     public <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
-        return u -> {
-            List<Object> originalContext = ctxz.enter();
-            try {
-                return original.test(u);
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
+        return u -> ctxz.supplyWith(() -> original.test(u));
     }
 
     @Override
     public <U, V, R> BiFunction<U, V, R> wrapArgument(BiFunction<U, V, R> original, boolean async) {
-        return (u, v) -> {
-            List<Object> originalContext = ctxz.enter();
-            try {
-                return original.apply(u, v);
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
+        return (u, v) -> ctxz.supplyWith(() -> original.apply(u, v));
     }
 
     @Override
     public <U, V> BiConsumer<U, V> wrapArgument(BiConsumer<U, V> original, boolean async) {
-        return (u, v) -> {
-            List<Object> originalContext = ctxz.enter();
-            try {
-                original.accept(u, v);
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
+        return (u, v) -> ctxz.runWith(() -> original.accept(u, v));
     }
 
     /*

@@ -24,7 +24,7 @@ class ContextualTaskExecutorService<D extends TaskExecutorService>
     extends ContextualExecutorService<D> 
     implements TaskExecutorService {
     
-    ContextualTaskExecutorService(D delegate, Contextualization ctxz) {
+    ContextualTaskExecutorService(D delegate, Contextualization<?> ctxz) {
         super(delegate, ctxz);
     }
     

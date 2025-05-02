@@ -19,6 +19,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -35,6 +36,7 @@ import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
 import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
+import net.tascalate.concurrent.var.ContextTrampoline;
 
 import static net.tascalate.concurrent.PromiseOperations.partitionedItems;
 import static net.tascalate.concurrent.PromiseOperations.partitionedStream;
@@ -483,5 +485,12 @@ public class J8Examples {
     private static Void onError(Throwable i) {
         System.out.println(">>> Error " + i + ", " + Thread.currentThread());
         return null;
+    }
+    
+    final static ThreadLocal<String> V_STRING = new ThreadLocal<>();
+    final static ThreadLocal<Date> V_DATE = new ThreadLocal<>();
+    static {
+        Function<Runnable, Runnable> customizer = ContextTrampoline.threadLocals(V_STRING, V_DATE).relay()::contextual;
+        customizer.apply(() -> {});
     }
 }

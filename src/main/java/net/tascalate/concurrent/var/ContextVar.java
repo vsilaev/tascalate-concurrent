@@ -15,81 +15,101 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.function.Consumer;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
 public interface ContextVar<T> {
-    
     T get();
     
-    void set(T value);
-    
-    default void remove() {
-        set(null);
+    <V> V callWith(T capturedValue, Callable<V> code) throws Exception;
+
+    default void runWith(T capturedValue, Runnable code) {
+        try {
+            callWith(capturedValue, () -> {
+                code.run();
+                return null;
+            });
+        } catch (Error | RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
     
-    public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer) {
-        return define(reader, writer, null);
+    default <V> V supplyWith(T capturedValue, Supplier<V> code) {
+        try {
+            return callWith(capturedValue, code::get);
+        } catch (Error | RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
     
-    public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer) {
-        return define(name, reader, writer, null);
+    default ContextTrampoline<T> relay() {
+        return new ContextTrampoline<T>(this);
     }
     
-    public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return define(ContextTrampoline.generateVarName(), reader, writer, eraser);
+    /**
+     * Convert this var to the variant with pessimistic propagation option.
+     * Useful for rare cases when thread might have its own default values 
+     * of the context variables and they must be restored. 
+     * <p>The logic is the following:</p>
+     * <ol>
+     * <li>Save context variables from the current thread</li>
+     * <li>Apply context variables from the snapshot</li>
+     * <li>Execute code</li>
+     * <li>Restore context variables saved in the step [1]</li>
+     * </ol>
+     */
+    default ContextVar<T> strict() {
+        return this;
     }
     
-    public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return new ContextVar<T>() {
-            @Override
-            public T get() { 
-                return reader.get();
-            }
-
-            @Override
-            public void set(T value) {
-                writer.accept(value);
-            }
-
-            @Override
-            public void remove() {
-                if (null != eraser) {
-                    eraser.run();
-                } else {
-                    set(null);
-                }
-            }
-            
-            @Override
-            public String toString() {
-                return String.format("<custom-ctx-var>[%s]", name);
-            }
-        };
+    /**
+     * Convert this var to the variant that is optimized for performance
+     * <p>The logic is the following:</p>
+     * <ol>
+     * <li>Apply context variables from the snapshot</li>
+     * <li>Execute code</li>
+     * <li>Reset context variables</li>
+     * </ol>
+     */
+    default ContextVar<T> optimized() {
+        return this;
     }
 
-    public static <T> ContextVar<T> from(ThreadLocal<T> tl) {
-        return new ContextVar<T>() {
-            @Override
-            public T get() { 
-                return tl.get();
-            }
 
-            @Override
-            public void set(T value) {
-                tl.set(value);
-            }
-
-            @Override
-            public void remove() {
-                tl.remove();
-            }
-            
-            @Override
-            public String toString() {
-                return String.format("<thread-local-ctx-var>[%s]", tl);
-            }
-        };
-    }    
-
+    @SuppressWarnings("unchecked")
+    public static <T> ContextVar<T> empty() {
+        return (ContextVar<T>)ContextVarHelper.EMPTY;
+    }
+    
+    @SafeVarargs
+    public static <T> ContextVar<List<? extends T>> of(ContextVar<? extends T>... vars) {
+        return of(Arrays.asList(vars));
+    }
+    
+    public static <T> ContextVar<List<? extends T>> of(List<? extends ContextVar<? extends T>> vars) {
+        if (null == vars || vars.isEmpty()) {
+            return ContextVar.empty();
+        } else {
+            return new ContextVarGroup<>(vars);
+        }
+    }
+    
+    @SafeVarargs
+    public static <T> ContextVar<List<? extends T>> ofMorphing(ContextVar<? extends T>... vars) {
+        return ofMorphing(Arrays.asList(vars));
+    }
+    
+    public static <T> ContextVar<List<? extends T>> ofMorphing(List<? extends ContextVar<? extends T>> vars) {
+        if (null == vars || vars.isEmpty()) {
+            return ContextVar.empty();
+        } else {
+            return new ContextVarGroup.Optimized<>(vars);
+        }
+    }
 }

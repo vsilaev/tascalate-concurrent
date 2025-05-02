@@ -15,54 +15,29 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 
-class Contextualization {
-    private final List<ContextVar<?>> contextVars;
-    private final ContextTrampoline.Propagation propagation;
-    private final List<Object> capturedContext;
+class Contextualization<T> {
+    private final ContextVar<T> contextVar;
+    private final T capturedContext;
     
-    Contextualization(List<ContextVar<?>> contextVars, 
-                      ContextTrampoline.Propagation propagation, 
-                      List<Object> capturedContext) {
+    Contextualization(ContextVar<T> contextVar, 
+                      T capturedContext) {
         
-        this.contextVars = null == contextVars ? 
-            Collections.emptyList() : 
-            Collections.unmodifiableList(contextVars);
-            
-        this.propagation = propagation == null ? ContextTrampoline.Propagation.OPTIMIZED : propagation;
-        
-        this.capturedContext = null == capturedContext ?
-            Collections.emptyList() : 
-            Collections.unmodifiableList(capturedContext);        
+        this.contextVar = null == contextVar ? ContextVar.empty() : contextVar; 
+        this.capturedContext = capturedContext;        
     }
     
-    List<Object> enter() {
-        List<Object> previousContextState = ContextTrampoline.Propagation.STRICT.equals(propagation) ? 
-            ContextTrampoline.captureContext(contextVars) : Collections.nCopies(contextVars.size(), null);
-        restoreContext(capturedContext);
-        return previousContextState;
+    void runWith(Runnable code) {
+        contextVar.runWith(capturedContext, code);
     }
     
-    void exit(List<Object> previousContextState) {
-        restoreContext(previousContextState);
+    <V> V supplyWith(Supplier<V> code) {
+        return contextVar.supplyWith(capturedContext, code);
     }
     
-    private void restoreContext(List<Object> contextState) {
-        Iterator<? extends ContextVar<?>> vars = contextVars.iterator();
-        Iterator<Object> values = contextState.iterator();
-        while (vars.hasNext() && values.hasNext()) {
-            @SuppressWarnings("unchecked")
-            ContextVar<Object> contextVar = (ContextVar<Object>)vars.next();
-            Object contextVal = values.next();
-            if (null == contextVal) {
-                contextVar.remove();
-            } else {
-                contextVar.set(contextVal);
-            }
-        }
-    }    
-
+    <V> V callWith(Callable<V> code) throws Exception {
+        return contextVar.callWith(capturedContext, code);        
+    }
 }

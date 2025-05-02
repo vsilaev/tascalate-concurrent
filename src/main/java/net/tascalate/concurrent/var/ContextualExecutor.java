@@ -15,14 +15,13 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.List;
 import java.util.concurrent.Executor;
 
 class ContextualExecutor<D extends Executor> implements Executor {
     protected final D delegate;
-    protected final Contextualization ctxz;
+    protected final Contextualization<?> ctxz;
     
-    ContextualExecutor(D delegate, Contextualization ctxz) {
+    ContextualExecutor(D delegate, Contextualization<?> ctxz) {
         this.delegate = delegate;
         this.ctxz = ctxz;
     }
@@ -33,13 +32,6 @@ class ContextualExecutor<D extends Executor> implements Executor {
     }
 
     Runnable contextualRunnable(Runnable original) {
-        return () -> {
-            List<Object> originalContext = ctxz.enter(); 
-            try {
-                original.run();
-            } finally {
-                ctxz.exit(originalContext);
-            }            
-        };
+        return () -> ctxz.runWith(original);
     }
 }

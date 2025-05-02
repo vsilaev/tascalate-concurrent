@@ -29,7 +29,7 @@ class ContextualExecutorService<D extends ExecutorService>
     extends ContextualExecutor<D> 
     implements ExecutorService {
     
-    ContextualExecutorService(D delegate, Contextualization ctxz) {
+    ContextualExecutorService(D delegate, Contextualization<?> ctxz) {
         super(delegate, ctxz);
     }
 
@@ -100,13 +100,6 @@ class ContextualExecutorService<D extends ExecutorService>
     }
     
     <T> Callable<T> contextualCallable(Callable<T> original) {
-        return () -> {
-            List<Object> originalContext = ctxz.enter(); 
-            try {
-                return original.call();
-            } finally {
-                ctxz.exit(originalContext);
-            }
-        };
+        return () -> ctxz.callWith(original);
     }
 }
