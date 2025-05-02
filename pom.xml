@@ -157,7 +157,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.0.0-M5</version>
+				<version>3.5.3</version>
 				<configuration>
 					<includes>
 						<include>**/*TestSuite.java</include>
@@ -171,7 +171,7 @@
 			<plugin>
 				<groupId>org.moditect</groupId>
 				<artifactId>moditect-maven-plugin</artifactId>
-				<version>1.2.2</version>
+				<version>1.2.2.Final</version>
 				<executions>
 					<execution>
 						<id>add-module-infos</id>
