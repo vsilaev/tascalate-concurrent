@@ -94,7 +94,7 @@ enum ReferenceType {
 
         LookupKey(K key) {
             this.key = key;
-            this.hashCode = System.identityHashCode(key);
+            this.hashCode = key == null ? 0 : key.hashCode();
         }
 
         @Override
@@ -118,7 +118,7 @@ enum ReferenceType {
 
         WeakKey(K key, ReferenceQueue<? super K> queue) {
             super(key, queue);
-            hashCode = System.identityHashCode(key);
+            hashCode = key == null ? 0 : key.hashCode();
         }
 
         @Override
@@ -147,7 +147,7 @@ enum ReferenceType {
 
         SoftKey(K key, ReferenceQueue<? super K> queue) {
             super(key, queue);
-            hashCode = System.identityHashCode(key);
+            hashCode = key == null ? 0 : key.hashCode();
         }
 
         @Override

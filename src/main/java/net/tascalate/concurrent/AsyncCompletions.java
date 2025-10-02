@@ -114,15 +114,20 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
             } else {
                 if (!settledResults.isEmpty()) {
                     // There are some resolved results available
-                    return settledResults.poll().done(); 
+                    Try<T> settledResult = settledResults.poll();
+                    inProgress.decrementAndGet();
+                    return settledResult.done(); 
                 } else {
                     if (unprocessed > 0) {
-                        // If we are still producing then await for any result...  
+                        // If we are still producing then await for any result...
+                        Try<T> settledResult;
                         try {
-                            return settledResults.take().done();
+                            settledResult = settledResults.take();
                         } catch (InterruptedException ex) {
                             throw new NoSuchElementException(ex.getMessage());
                         }
+                        inProgress.decrementAndGet();
+                        return settledResult.done();
                     } else {
                         if (enlistPending()) {
                             // More was enlisted
@@ -221,23 +226,18 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     }
     
     private BiConsumer<T, Throwable> enlistResolved(CompletionStage<? extends T> promise) {
-        return (v, ex) -> {
+        return (resolvedValue, ex) -> {
             enlistedPromises.remove(promise);
-            enlistResolved(v, ex);
-        };
-    }
-    
-    private void enlistResolved(T resolvedValue, Throwable ex) {
-        try {
-            if (ex == null) {
-                settledResults.put(Try.success(resolvedValue));
-            } else {
-                settledResults.put(Try.failure(ex));
+            try {
+                if (ex == null) {
+                    settledResults.put(Try.success(resolvedValue));
+                } else {
+                    settledResults.put(Try.failure(ex));
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e); // Shouldn't happen for the queue with an unlimited size
             }
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e); // Shouldn't happen for the queue with an unlimited size
-        }
-        inProgress.decrementAndGet();
+        };
     }
 
 }
