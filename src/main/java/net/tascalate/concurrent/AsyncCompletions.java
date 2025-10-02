@@ -19,12 +19,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -64,7 +64,8 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     private final BlockingQueue<Try<T>> settledResults;
     private final Set<CompletionStage<?>> enlistedPromises;
     
-    private final AtomicInteger inProgress = new AtomicInteger(0);
+    // Must be accessed from the single thread - i.e. the "main" thread that controls iteration via hasNext / next
+    private int inProgress = 0;
     
     AsyncCompletions(Iterator<? extends CompletionStage<? extends T>> pendingValues, int chunkSize) {
         this(pendingValues, chunkSize, Cancel.NONE);
@@ -84,8 +85,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     
     @Override
     public boolean hasNext() {
-        int unprocessed = inProgress.get();
-        if (unprocessed < 0) {
+        if (inProgress < 0) {
             // Forcibly closed
             return false;
         } else {
@@ -93,7 +93,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
                 // There are some resolved results available
                 return true; 
             } else {
-                if (unprocessed > 0) {
+                if (inProgress > 0) {
                     // If we are still producing then there are more...            
                     return true;
                 } else {
@@ -107,18 +107,17 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     @Override
     public T next() {
         while (true) {
-            int unprocessed = inProgress.get();
-            if (unprocessed < 0) {
+            if (inProgress < 0) {
                 // Forcibly closed
                 throw new NoSuchElementException("This sequence was closed");
             } else {
                 if (!settledResults.isEmpty()) {
                     // There are some resolved results available
                     Try<T> settledResult = settledResults.poll();
-                    inProgress.decrementAndGet();
+                    inProgress--;
                     return settledResult.done(); 
                 } else {
-                    if (unprocessed > 0) {
+                    if (inProgress > 0) {
                         // If we are still producing then await for any result...
                         Try<T> settledResult;
                         try {
@@ -126,7 +125,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
                         } catch (InterruptedException ex) {
                             throw new NoSuchElementException(ex.getMessage());
                         }
-                        inProgress.decrementAndGet();
+                        inProgress--;
                         return settledResult.done();
                     } else {
                         if (enlistPending()) {
@@ -149,9 +148,9 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     
     @Override
     public void close() {
-        inProgress.set(Integer.MIN_VALUE);
-        settledResults.clear();
+        inProgress = Integer.MIN_VALUE;
         cancelStrategy.apply(enlistedPromises, pendingPromises);
+        settledResults.clear();
     }
     
     
@@ -196,7 +195,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     }
     
     private static <T> Stream<T> toStream(AsyncCompletions<T> iterator) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, 0), false)
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false)
                             .onClose(iterator::close); 
     }
     
@@ -208,7 +207,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
             // while stage may be completed already
             // we should increment step-by-step 
             // instead of setting the value at once
-            int isClosed = inProgress.getAndIncrement(); 
+            int isClosed = inProgress++; 
             if (isClosed < 0) {
                 break;
             }
