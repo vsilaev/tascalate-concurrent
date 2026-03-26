@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-abstract class ModifiableContextVarGroup<T> implements ModifiableContextVar<List<? extends T>> {
+abstract class ModifiableContextVarGroup<T> implements ModifiableContextVar<List<T>> {
     final List<? extends ModifiableContextVar<? extends T>> vars;
     
     ModifiableContextVarGroup(List<? extends ModifiableContextVar<? extends T>> vars) {
@@ -27,14 +27,14 @@ abstract class ModifiableContextVarGroup<T> implements ModifiableContextVar<List
     }
     
     @Override
-    public List<? extends T> get() {
+    public List<T> get() {
         return vars.stream()
                    .map(ContextVar::get)
                    .collect(Collectors.toList());
     }
     
     @Override
-    public void set(List<? extends T> value) {
+    public void set(List<T> value) {
         ContextVarHelper.applyValues(vars, value);
     }
     
@@ -51,7 +51,7 @@ abstract class ModifiableContextVarGroup<T> implements ModifiableContextVar<List
         }
         
         @Override
-        public <V> V callWith(List<? extends T> capturedValue, Callable<V> code) throws Exception {
+        public <V> V callWith(List<T> capturedValue, Callable<V> code) throws Exception {
             List<? extends T> previousValues = this.get();
             ContextVarHelper.applyValues(vars, capturedValue);
             try {
@@ -85,7 +85,7 @@ abstract class ModifiableContextVarGroup<T> implements ModifiableContextVar<List
         }
         
         @Override
-        public <V> V callWith(List<? extends T> capturedValue, Callable<V> code) throws Exception {
+        public <V> V callWith(List<T> capturedValue, Callable<V> code) throws Exception {
             ContextVarHelper.applyValues(vars, capturedValue);
             try {
                 return code.call();

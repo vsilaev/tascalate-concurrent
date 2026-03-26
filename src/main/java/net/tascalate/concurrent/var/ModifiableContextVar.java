@@ -54,11 +54,11 @@ public interface ModifiableContextVar<T> extends ContextVar<T> {
     }
     
     @SafeVarargs
-    public static <T> ContextVar<List<? extends T>> of(ModifiableContextVar<? extends T>... vars) {
+    public static <T> ContextVar<List<T>> of(ModifiableContextVar<? extends T>... vars) {
         return of(Arrays.asList(vars));
     }
     
-    public static <T> ContextVar<List<? extends T>> of(List<? extends ModifiableContextVar<? extends T>> vars) {
+    public static <T> ContextVar<List<T>> of(List<? extends ModifiableContextVar<? extends T>> vars) {
         if (null == vars || vars.isEmpty()) {
             return ContextVar.empty();
         }

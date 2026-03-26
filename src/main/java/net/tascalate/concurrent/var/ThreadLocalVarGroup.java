@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<? extends T>> {
+abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
 
     List<? extends ThreadLocal<? extends T>> threadLocals;
     
@@ -29,14 +29,14 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<? ext
     }
     
     @Override
-    public List<? extends T> get() {
+    public List<T> get() {
         return threadLocals.stream()
                            .map(ThreadLocal::get)
                            .collect(Collectors.toList());
     }
     
     @Override
-    public void set(List<? extends T> value) {
+    public void set(List<T> value) {
         applyValues(threadLocals, value);
     }
     
@@ -53,7 +53,7 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<? ext
         }
 
         @Override
-        public <V> V callWith(List<? extends T> capturedValue, Callable<V> code) throws Exception {
+        public <V> V callWith(List<T> capturedValue, Callable<V> code) throws Exception {
             List<? extends T> previousValues = this.get();
             applyValues(threadLocals, capturedValue);
             try {
@@ -88,7 +88,7 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<? ext
         }
 
         @Override
-        public <V> V callWith(List<? extends T> capturedValue, Callable<V> code) throws Exception {
+        public <V> V callWith(List<T> capturedValue, Callable<V> code) throws Exception {
             applyValues(threadLocals, capturedValue);
             try {
                 return code.call();

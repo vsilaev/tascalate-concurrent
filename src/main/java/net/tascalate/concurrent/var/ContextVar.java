@@ -88,11 +88,11 @@ public interface ContextVar<T> {
     }
     
     @SafeVarargs
-    public static <T> ContextVar<List<? extends T>> of(ContextVar<? extends T>... vars) {
+    public static <T> ContextVar<List<T>> of(ContextVar<? extends T>... vars) {
         return of(Arrays.asList(vars));
     }
     
-    public static <T> ContextVar<List<? extends T>> of(List<? extends ContextVar<? extends T>> vars) {
+    public static <T> ContextVar<List<T>> of(List<? extends ContextVar<? extends T>> vars) {
         if (null == vars || vars.isEmpty()) {
             return ContextVar.empty();
         } else {
@@ -101,11 +101,11 @@ public interface ContextVar<T> {
     }
     
     @SafeVarargs
-    public static <T> ContextVar<List<? extends T>> ofMorphing(ContextVar<? extends T>... vars) {
+    public static <T> ContextVar<List<T>> ofMorphing(ContextVar<? extends T>... vars) {
         return ofMorphing(Arrays.asList(vars));
     }
     
-    public static <T> ContextVar<List<? extends T>> ofMorphing(List<? extends ContextVar<? extends T>> vars) {
+    public static <T> ContextVar<List<T>> ofMorphing(List<? extends ContextVar<? extends T>> vars) {
         if (null == vars || vars.isEmpty()) {
             return ContextVar.empty();
         } else {

@@ -32,6 +32,7 @@ public class CompletableFutureWrapper<T> extends CompletableFutureDecorator<T> {
         super(delegate);
     }
 
+    @SuppressWarnings("deprecation")
     protected boolean success(T value) {
         return onSuccess(value);
     }
@@ -41,6 +42,7 @@ public class CompletableFutureWrapper<T> extends CompletableFutureDecorator<T> {
         return delegate.complete(value);
     }
     
+    @SuppressWarnings("deprecation")
     protected boolean failure(Throwable ex) {
         return onFailure(ex);
     }

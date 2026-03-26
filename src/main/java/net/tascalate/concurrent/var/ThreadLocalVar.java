@@ -115,11 +115,11 @@ public abstract class ThreadLocalVar<T> implements ModifiableContextVar<T> {
     }
     
     @SafeVarargs
-    public static <T> ContextVar<List<? extends T>> of(ThreadLocal<? extends T>... tls) {
+    public static <T> ContextVar<List<T>> of(ThreadLocal<? extends T>... tls) {
         return of(Arrays.asList(tls));
     }
     
-    public static <T> ContextVar<List<? extends T>> of(List<? extends ThreadLocal<? extends T>> threadLocals) {
+    public static <T> ContextVar<List<T>> of(List<? extends ThreadLocal<? extends T>> threadLocals) {
         if (null == threadLocals || threadLocals.isEmpty()) {
             return ContextVar.empty();
         } else {

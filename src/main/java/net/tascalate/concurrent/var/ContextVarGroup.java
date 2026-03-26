@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-class ContextVarGroup<T> implements ContextVar<List<? extends T>> {
+class ContextVarGroup<T> implements ContextVar<List<T>> {
 
     final List<? extends ContextVar<? extends T>> vars;
     
@@ -29,14 +29,14 @@ class ContextVarGroup<T> implements ContextVar<List<? extends T>> {
     }
     
     @Override
-    public List<? extends T> get() {
+    public List<T> get() {
         return vars.stream()
                    .map(ContextVar::get)
                    .collect(Collectors.toList());
     }
 
     @Override
-    public <V> V callWith(List<? extends T> capturedValue, Callable<V> code) throws Exception {
+    public <V> V callWith(List<T> capturedValue, Callable<V> code) throws Exception {
         Iterator<? extends ContextVar<?>> varsIterator = vars.iterator();
         Iterator<? extends T> valuesIterator = capturedValue.iterator();
         Callable<V> wrappedCode = code;

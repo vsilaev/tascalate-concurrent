@@ -129,29 +129,29 @@ public class ContextTrampoline<X> {
     }
 
     @SafeVarargs
-    public static <T> ContextVar<List<? extends T>> genericVars(ContextVar<? extends T>... contextVars) {
+    public static <T> ContextVar<List<T>> genericVars(ContextVar<? extends T>... contextVars) {
         return ContextVar.of(contextVars);
     }
     
-    public static <T> ContextVar<List<? extends T>> genericVars(List<? extends ContextVar<? extends T>> contextVars) {
+    public static <T> ContextVar<List<T>> genericVars(List<? extends ContextVar<? extends T>> contextVars) {
         return ContextVar.of(contextVars);
     }
     
     @SafeVarargs
-    public static <T> ContextVar<List<? extends T>> modifiableVars(ModifiableContextVar<? extends T>... contextVars) {
+    public static <T> ContextVar<List<T>> modifiableVars(ModifiableContextVar<? extends T>... contextVars) {
         return ModifiableContextVar.of(contextVars);
     }
     
-    public static <T> ContextVar<List<? extends T>> modifiableVars(List<? extends ModifiableContextVar<? extends T>> contextVars) {
+    public static <T> ContextVar<List<T>> modifiableVars(List<? extends ModifiableContextVar<? extends T>> contextVars) {
         return ModifiableContextVar.of(contextVars);
     }
     
     @SafeVarargs
-    public static <T> ContextVar<List<? extends T>> threadLocals(ThreadLocal<? extends T>... contextVars) {
+    public static <T> ContextVar<List<T>> threadLocals(ThreadLocal<? extends T>... contextVars) {
         return ThreadLocalVar.of(contextVars);
     }
     
-    public static <T> ContextVar<List<? extends T>> threadLocals(List<? extends ThreadLocal<? extends T>> contextVars) {
+    public static <T> ContextVar<List<T>> threadLocals(List<? extends ThreadLocal<? extends T>> contextVars) {
         return ThreadLocalVar.of(contextVars);
     }
     

@@ -6,7 +6,7 @@
 	 
 	<groupId>net.tascalate</groupId>
 	<artifactId>net.tascalate.concurrent</artifactId>
-	<version>0.9.10</version>
+	<version>0.9.11</version>
 	<packaging>jar</packaging>  
 
 	<name>Tascalate Concurrent</name>
@@ -69,7 +69,7 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-source-plugin</artifactId>
-						<version>3.3.1</version>
+						<version>3.4.0</version>
 						<executions>
 							<execution>
 								<id>attach-sources</id>
@@ -82,7 +82,7 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-javadoc-plugin</artifactId>
-						<version>3.11.2</version>
+						<version>3.12.0</version>
 						<configuration>
 							<jdkToolchain>
 								<version>1.8</version>
@@ -102,7 +102,7 @@
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-gpg-plugin</artifactId>
-						<version>3.2.7</version>
+						<version>3.2.8</version>
 						<executions>
 							<execution>
 								<id>sign-artifacts</id>
@@ -152,12 +152,12 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
-				<version>3.4.2</version>
+				<version>3.5.0</version>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.3</version>
+				<version>3.5.4</version>
 				<configuration>
 					<includes>
 						<include>**/*TestSuite.java</include>
@@ -171,7 +171,7 @@
 			<plugin>
 				<groupId>org.moditect</groupId>
 				<artifactId>moditect-maven-plugin</artifactId>
-				<version>1.2.2.Final</version>
+				<version>1.3.0.Final</version>
 				<executions>
 					<execution>
 						<id>add-module-infos</id>
@@ -192,7 +192,7 @@
 			<plugin>
 				<groupId>org.sonatype.central</groupId>
 				<artifactId>central-publishing-maven-plugin</artifactId>
-				<version>0.8.0</version>
+				<version>0.9.0</version>
 				<extensions>true</extensions>
 				<configuration>
 					<publishingServerId>ossrh</publishingServerId>
@@ -201,7 +201,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.14.0</version>
+				<version>3.14.1</version>
 				<executions>
 					<execution>
 						<id>default-compile</id>
@@ -216,6 +216,23 @@
 							<excludes>
 								<exclude>module-info.java</exclude>
 							</excludes>
+						</configuration>
+					</execution> 
+					<execution>
+						<id>compile-java25</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<jdkToolchain>
+								<version>25</version>
+								<vendor>Oracle</vendor>
+							</jdkToolchain>
+							<release>25</release>
+							<compileSourceRoots>
+								<compileSourceRoot>${project.basedir}/src/main/java25</compileSourceRoot>
+							</compileSourceRoots>
+							<outputDirectory>${project.build.outputDirectory}</outputDirectory>
 						</configuration>
 					</execution> 
 				</executions>
