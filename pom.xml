@@ -6,7 +6,7 @@
 	 
 	<groupId>net.tascalate</groupId>
 	<artifactId>net.tascalate.concurrent</artifactId>
-	<version>0.9.11</version>
+	<version>0.9.12</version>
 	<packaging>jar</packaging>  
 
 	<name>Tascalate Concurrent</name>
@@ -216,6 +216,8 @@
 							<excludes>
 								<exclude>module-info.java</exclude>
 							</excludes>
+							<source>1.8</source>
+							<target>1.8</target>
 						</configuration>
 					</execution> 
 					<execution>
