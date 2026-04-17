@@ -51,7 +51,7 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
     static <T> Constructor<T, Optional<T>> newWithAllResults() {
         return (minResultsCount, maxErrorsCount, cancelRemaining, promises) -> 
             new AggregatingPromise<T, Optional<T>>(minResultsCount, maxErrorsCount, cancelRemaining, promises) {
-                private final List<Optional<T>> results = newList(promises.size());
+                private List<Optional<T>> results = newList(promises.size());
                 void applyResult(int idx, T value) {
                     results.set(idx, Optional.ofNullable(value));
                 }
@@ -65,7 +65,7 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
     static <T> Constructor<T, T> newWithSuccessResults() {
         return (minResultsCount, maxErrorsCount, cancelRemaining, promises) -> 
             new AggregatingPromise<T, T>(minResultsCount, maxErrorsCount, cancelRemaining, promises) {
-                private final List<T> results = newList(promises.size());
+                private List<T> results = newList(promises.size());
                 void applyResult(int idx, T value) {
                     results.set(idx, value);
                 }
@@ -135,7 +135,7 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
         }
         if (null == error) {
             // ON NEXT RESULT
-            final int c = resultsCount.incrementAndGet();
+            int c = resultsCount.incrementAndGet();
             if (c <= minResultsCount) {
                 // Only one thread may access this due to check with
                 // "completions"
@@ -156,7 +156,7 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
             }
         } else {
             // ON NEXT ERROR
-            final int c = errorsCount.getAndIncrement();
+            int c = errorsCount.getAndIncrement();
             // We are reporting maxErrorsCount + 1 exceptions
             // So if we specify that no exceptions should happen
             // we will report at least one
@@ -174,7 +174,7 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
                     if (cancelRemaining) {
                         cancelPromises();
                     }
-                    
+                    c++; //Beacuse we used errorsCount.getAndIncrement() rather than incrementAndGet
                     failure(new MultitargetException(
                         String.format(
                             c == 1 ? 

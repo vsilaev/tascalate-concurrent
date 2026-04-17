@@ -28,7 +28,6 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -282,7 +281,7 @@ class CallbackRegistry<T> {
         Callable<U> callable = () -> callback.apply(value);
         try {
             executor.execute( (AsyncTask)() -> target.fireTransition(callable) );
-        } catch (RejectedExecutionException ex) {
+        } catch (/*RejectedExecutionException*/ Throwable ex) {
             // Propagate error in-place
             Callable<U> propagateError = () -> { throw ex; };
             target.fireTransition(propagateError);
