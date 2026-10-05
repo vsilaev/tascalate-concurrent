@@ -37,6 +37,9 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
 
     private CloseMode closedMode = null; // null = OPEN
     
+    public static <T> NilChannel<T> nil() {
+        return NilChannel.instance();
+    }
     
     public static <T> AsyncChannel<T> rendezvous() {
         return rendezvous(false);

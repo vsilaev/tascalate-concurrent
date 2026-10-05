@@ -38,6 +38,8 @@ import java.util.function.Supplier;
  */
 public abstract class Try<R> {
 
+    Try() {}
+    
     /**
      * Returns {@code true} if this is a {@link Success}, {@code false} otherwise.
      *

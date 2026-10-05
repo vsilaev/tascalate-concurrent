@@ -38,6 +38,8 @@ import java.util.function.Supplier;
  */
 public sealed abstract class Try<R> permits Try.Success, Try.Failure {
 
+    Try() {}
+
     /**
      * Returns {@code true} if this is a {@link Success}, {@code false} otherwise.
      *

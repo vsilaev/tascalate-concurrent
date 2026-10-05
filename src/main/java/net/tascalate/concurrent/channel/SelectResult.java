@@ -15,15 +15,17 @@
  */
 package net.tascalate.concurrent.channel;
 
+import java.util.Objects;
+
 public final class SelectResult<T> {
     private final int index;
+    private final SelectCase<?> selectCase;
     private final T value;
-    private final boolean isSend;
 
-    public SelectResult(int index, T value, boolean isSend) {
+    public SelectResult(int index, SelectCase<?> selectCase, T value) {
         this.index = index;
+        this.selectCase = selectCase;
         this.value = value;
-        this.isSend = isSend;
     }
 
     public int index() { 
@@ -34,31 +36,37 @@ public final class SelectResult<T> {
         return value; 
     }
     
-    public boolean isSend() { 
-        return isSend; 
+    public boolean selectCase() { 
+        return selectCase(); 
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof SelectResult)) return false;
+        if (this == o) {
+            return true;
+        }
+        
+        if (!(o instanceof SelectResult)) {
+            return false;
+        }
+        
         SelectResult<?> result = (SelectResult<?>) o;
         return index == result.index &&
-               isSend == result.isSend &&
-               java.util.Objects.equals(value, result.value);
+               Objects.equals(selectCase, result.selectCase) &&
+               Objects.equals(value, result.value);
     }
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(index, value, isSend);
+        return Objects.hash(index, value, selectCase);
     }
 
     @Override
     public String toString() {
         return "SelectResult{" +
-               "index=" + index +
-               ", value=" + value +
-               ", isSend=" + isSend +
+               "index=" + index + ", " +
+               "case=" + selectCase + ", " +
+               "value=" + value +
                '}';
     }
 }

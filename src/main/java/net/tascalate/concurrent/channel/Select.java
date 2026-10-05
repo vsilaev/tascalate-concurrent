@@ -31,19 +31,17 @@ final class Select {
     // Internal wrapper to unify types for Promises.any and capture exceptions
     static final class SelectResultHolder {
         final int index;
+        final SelectCase<?> selectCase;
         final Object value;
-        final boolean isSend;
         final Throwable error;
 
-        public SelectResultHolder(int index, Object value, boolean isSend, Throwable error) {
+        public SelectResultHolder(int index, SelectCase<?> selectCase, Object value, Throwable error) {
             this.index = index;
+            this.selectCase = selectCase;
             this.value = value;
-            this.isSend = isSend;
             this.error = error;
         }
     }
-
-    // ── The select itself ────────────────────────────────────────────
 
     @SuppressWarnings("unchecked")
     static <T> Promise<SelectResult<T>> select(SelectCase.Typed<T>... cases) {
@@ -64,7 +62,7 @@ final class Select {
         List<SelectCase<T>> shuffled = new ArrayList<>(Arrays.asList(cases));
         Collections.shuffle(shuffled);
 
-        // ── Phase 1: non-blocking try ────────────────────────────────
+        // Phase 1: non-blocking try
         int defaultOriginalIdx = -1;
 
         for (int i = 0; i < shuffled.size(); i++) {
@@ -89,24 +87,24 @@ final class Select {
                 } else if (r.isFailure()) {
                     return Promises.failure(r.getCause());
                 } else if (r.isSuccess()) {
-                    return success(originalIndex[i], r.get(), false);
+                    return success(originalIndex[i], trc, r.get() /*isSend=false*/);
                 } else {
                     throw new IllegalStateException();
                 }
             } else if (c instanceof SelectCase.Send) {
                 SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
                 if (tsc.channel().trySend(tsc.value())) {
-                    return success(originalIndex[i], null, true);
+                    return success(originalIndex[i], tsc, null /*isSend=true*/);
                 }
             }
         }
 
         // Nothing was immediately ready → use default if present
         if (defaultOriginalIdx >= 0) {
-            return success(defaultOriginalIdx, null, false);
+            return success(defaultOriginalIdx, cases[defaultOriginalIdx], null /*isSend=false*/);
         }
 
-        // ── Phase 2: async wait using tascalate Promises ─────────────
+        // Phase 2: async wait using tascalate Promises
         List<CompletionStage<SelectResultHolder>> stages = new ArrayList<>();
 
         for (int i = 0; i < shuffled.size(); i++) {
@@ -120,7 +118,6 @@ final class Select {
             }
 
             int origIdx = originalIndex[i];
-            boolean isSend = false;
             Promise<?> originalFuture;
 
             if (c instanceof SelectCase.Receive) {
@@ -128,16 +125,13 @@ final class Select {
             } else if (c instanceof SelectCase.Send) {
                 SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
                 originalFuture = tsc.channel().send(tsc.value());
-                isSend = true;
             } else {
                 continue;
             }
 
-            final boolean finalIsSend = isSend;
-
             CompletionStage<SelectResultHolder> stage = 
             originalFuture.dependent()
-                          .handle((val, ex) -> new SelectResultHolder(origIdx, val, finalIsSend, ex), true);
+                          .handle((val, ex) -> new SelectResultHolder(origIdx, c, val, ex), true);
             // No need to unwrap above - not exposed to the clients
 
             stages.add(stage);
@@ -158,11 +152,11 @@ final class Select {
                 .dependent()
                 .thenCompose(res -> 
                     res.error != null ? Promises.failure(res.error)
-                                      : success(res.index, res.value, res.isSend), true)
+                                      : success(res.index, res.selectCase, res.value), true)
                 .unwrap();
     }
     
-    private static <T> Promise<SelectResult<T>> success(int idx, T value, boolean isSend) {
-        return Promises.success(new SelectResult<>(idx, value, isSend));
+    private static <T> Promise<SelectResult<T>> success(int idx, SelectCase<?> selectCase, T value) {
+        return Promises.success(new SelectResult<>(idx, selectCase, value));
     }
 }
