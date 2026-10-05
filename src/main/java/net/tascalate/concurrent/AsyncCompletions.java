@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -59,7 +60,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     }
     
     private final int chunkSize;
-    private final Cancel cancelStrategy;
+    private final Cancel cancelPolicy;
     private final Iterator<? extends CompletionStage<? extends T>> pendingPromises;
     private final BlockingQueue<Try<T>> settledResults;
     private final Set<CompletionStage<?>> enlistedPromises;
@@ -73,9 +74,9 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     
     protected AsyncCompletions(Iterator<? extends CompletionStage<? extends T>> pendingValues, 
                                  int chunkSize, 
-                                 Cancel cancelStrategy) {
+                                 Cancel cancelPolicy) {
         this.chunkSize        = chunkSize;
-        this.cancelStrategy   = cancelStrategy == null ? Cancel.NONE : cancelStrategy;
+        this.cancelPolicy   = cancelPolicy == null ? Cancel.NONE : cancelPolicy;
         this.pendingPromises  = pendingValues;
         this.settledResults   = chunkSize > 0 ? new LinkedBlockingQueue<>(chunkSize) 
                                               : new LinkedBlockingQueue<>(); 
@@ -89,18 +90,9 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
             // Forcibly closed
             return false;
         } else {
-            if (!settledResults.isEmpty()) {
-                // There are some resolved results available
-                return true; 
-            } else {
-                if (inProgress > 0) {
-                    // If we are still producing then there are more...            
-                    return true;
-                } else {
-                    // More was enlisted - then some available
-                    return enlistPending();
-                }
-            }
+            return !settledResults.isEmpty() || // There are some resolved results available
+                   inProgress > 0            || // If we are still producing then there are more...
+                   enlistPending();             // More was enlisted - then some available
         }
     }
 
@@ -111,21 +103,23 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
                 // Forcibly closed
                 throw new NoSuchElementException("This sequence was closed");
             } else {
-                if (!settledResults.isEmpty()) {
+                Try<T> settledResult = settledResults.poll();
+                if (null != settledResult) {
                     // There are some resolved results available
-                    Try<T> settledResult = settledResults.poll();
                     inProgress--;
+                    enlistPending();
                     return settledResult.done(); 
                 } else {
                     if (inProgress > 0) {
                         // If we are still producing then await for any result...
-                        Try<T> settledResult;
                         try {
                             settledResult = settledResults.take();
                         } catch (InterruptedException ex) {
-                            throw new NoSuchElementException(ex.getMessage());
+                            Thread.currentThread().interrupt(); 
+                            Try.failure(ex).done();
                         }
                         inProgress--;
+                        enlistPending();
                         return settledResult.done();
                     } else {
                         if (enlistPending()) {
@@ -149,7 +143,8 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     @Override
     public void close() {
         inProgress = Integer.MIN_VALUE;
-        cancelStrategy.apply(enlistedPromises, pendingPromises);
+        cancelPolicy.apply(enlistedPromises, pendingPromises);
+        enlistedPromises.clear();
         settledResults.clear();
     }
     
@@ -195,20 +190,19 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
     }
     
     private static <T> Stream<T> toStream(AsyncCompletions<T> iterator) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false)
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.IMMUTABLE), false)
                             .onClose(iterator::close); 
     }
     
     private boolean enlistPending() {
         boolean enlisted = false;
-        int i = 0;
         while (pendingPromises.hasNext()) {
             // +1 before setting completion handler -- 
             // while stage may be completed already
             // we should increment step-by-step 
             // instead of setting the value at once
-            int isClosed = inProgress++; 
-            if (isClosed < 0) {
+            int currentInProgress = ++inProgress; 
+            if (currentInProgress < 0) {
                 break;
             }
             CompletionStage<? extends T> nextPromise = pendingPromises.next();
@@ -216,8 +210,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
             nextPromise.whenComplete(enlistResolved(nextPromise));
             enlisted = true;
             
-            i++;
-            if (chunkSize > 0 && i >= chunkSize) {
+            if (chunkSize > 0 && currentInProgress >= chunkSize) {
                 break;
             }
         };  
@@ -233,10 +226,14 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
                 } else {
                     settledResults.put(Try.failure(ex));
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e); // Shouldn't happen for the queue with an unlimited size
+            } catch (InterruptedException ie) {
+                // Shouldn't happen for the queue with an unlimited size
+                if (null != ex) {
+                    ie.addSuppressed(ex);
+                }
+                Thread.currentThread().interrupt(); 
+                throw new CompletionException(ie);
             }
         };
     }
-
 }

@@ -6,7 +6,7 @@
 	 
 	<groupId>net.tascalate</groupId>
 	<artifactId>net.tascalate.concurrent</artifactId>
-	<version>0.9.13</version>
+	<version>0.9.14</version>
 	<packaging>jar</packaging>  
 
 	<name>Tascalate Concurrent</name>
@@ -86,7 +86,6 @@
 						<configuration>
 							<jdkToolchain>
 								<version>1.8</version>
-								<vendor>Oracle</vendor>
 							</jdkToolchain>
 							<sourceFileExcludes>module-info.java</sourceFileExcludes>
 						</configuration>	
@@ -211,13 +210,28 @@
 						<configuration>
 							<jdkToolchain>
 								<version>12</version>
-								<vendor>Oracle</vendor>
 							</jdkToolchain>
 							<excludes>
 								<exclude>module-info.java</exclude>
 							</excludes>
 							<source>1.8</source>
 							<target>1.8</target>
+						</configuration>
+					</execution> 
+					<execution>
+						<id>compile-java17</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<jdkToolchain>
+								<version>17</version>
+							</jdkToolchain>
+							<release>17</release>
+							<compileSourceRoots>
+								<compileSourceRoot>${project.basedir}/src/main/java17</compileSourceRoot>
+							</compileSourceRoots>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/versions/17</outputDirectory>
 						</configuration>
 					</execution> 
 					<execution>
@@ -228,7 +242,6 @@
 						<configuration>
 							<jdkToolchain>
 								<version>25</version>
-								<vendor>Oracle</vendor>
 							</jdkToolchain>
 							<release>25</release>
 							<compileSourceRoots>

@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-module net.tascalate.concurrent {
-    exports net.tascalate.concurrent;
-    exports net.tascalate.concurrent.channel;
-    exports net.tascalate.concurrent.decorators;
-    exports net.tascalate.concurrent.delays;
-    exports net.tascalate.concurrent.io;
-    exports net.tascalate.concurrent.locks;
-    exports net.tascalate.concurrent.var;
+package net.tascalate.concurrent.channel;
+
+import java.util.concurrent.CompletableFuture;
+
+import net.tascalate.concurrent.CompletableFutureWrapper;
+
+class ChannelOperationPromise<T> extends CompletableFutureWrapper<T> {
+    ChannelOperationPromise() {
+        super(new CompletableFuture<>());
+    }
+    
+    boolean settledSuccess(T value) {
+        return super.success(value);
+    }
+    
+    boolean settledFailure(Throwable failure) {
+        return super.failure(failure);
+    }
 }
