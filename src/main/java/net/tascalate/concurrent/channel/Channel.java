@@ -15,51 +15,39 @@
  */
 package net.tascalate.concurrent.channel;
 
-/**
- * Base contract shared by both send and receive channel views.
- * Carries lifecycle, introspection, and close-mode semantics.
- */
-public interface Channel extends AutoCloseable {
+import net.tascalate.concurrent.Promise;
 
-    /**
-     * Determines the behavior of {@link #close(CloseMode)}.
-     */
-    enum CloseMode {
-        /**
-         * Go semantics: waiting senders fail, waiting receivers complete
-         * with {@code null}, buffered items can still be drained.
-         */
-        DRAIN,
-
-        /**
-         * Java/Reactor semantics: all waiting senders and receivers fail
-         * exceptionally, buffer is cleared.
-         */
-        FAIL_ALL
+public interface Channel<T> extends SendChannel<T>, ReceiveChannel<T> {
+    public static <T> Channel<T> nil() {
+        return NilChannel.instance();
+    }
+    
+    public static <T> Channel<T> rendezvous() {
+        return rendezvous(false);
+    }
+    
+    public static <T> Channel<T> rendezvous(boolean fair) {
+        return new BufferedChannel<>(0, fair);
+    }
+    
+    public static <T> Channel<T> buffered(int capacity) {
+        return buffered(capacity, false);
+    }
+    
+    public static <T> Channel<T> buffered(int capacity, boolean fair) {
+        if (capacity < 1) {
+            throw new IllegalArgumentException("Capacity must be > 0 for buffered channel");
+        }
+        return new BufferedChannel<>(capacity, fair);
+    }
+    
+    @SuppressWarnings("unchecked")
+    public static <T> Promise<SelectResult<T>> select(SelectCase.Typed<T>... cases) {
+        return Select.select(cases);
     }
 
-    /**
-     * Closes with {@link CloseMode#FAIL_ALL}.
-     * This is the {@link AutoCloseable} contract — try-with-resources
-     * stops everything immediately.
-     */
-    @Override
-    default void close() {
-        close(CloseMode.FAIL_ALL);
+    @SuppressWarnings("unchecked")
+    public static <T> Promise<SelectResult<Object>> select(SelectCase<T>... cases) {
+        return Select.select(cases);
     }
-
-    /** Closes with the specified mode. Idempotent. */
-    void close(CloseMode mode);
-
-    /** {@code true} if the channel has been closed in any mode. */
-    boolean isClosed();
-
-    /** The mode the channel was closed with, or {@code null} if still open. */
-    CloseMode closedMode();
-
-    /** Number of elements currently buffered. Go's {@code len(ch)}. */
-    int size();
-
-    /** Buffer capacity. Go's {@code cap(ch)}. Always 0 for rendezvous channels. */
-    int capacity();
 }

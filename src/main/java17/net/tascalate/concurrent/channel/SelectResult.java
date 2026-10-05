@@ -15,4 +15,4 @@
  */
 package net.tascalate.concurrent.channel;
 
-public record SelectResult<T>(int index, SelectCase<?> selectCase, T value) {}
+public record SelectResult<T>(int index, SelectCase<?> match, T value) {}

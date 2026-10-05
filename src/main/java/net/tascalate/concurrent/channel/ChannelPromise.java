@@ -15,23 +15,20 @@
  */
 package net.tascalate.concurrent.channel;
 
-import net.tascalate.concurrent.Promise;
+import java.util.concurrent.CompletableFuture;
 
-/**
- * Write-only view of a channel.
- * Pass this to producers to prevent them from accidentally receiving.
- */
-public interface AsyncSendChannel<T> extends Channel {
+import net.tascalate.concurrent.CompletableFutureWrapper;
 
-    /**
-     * Sends a value. Returns a completed future if accepted or buffered,
-     * a pending future if the channel is full, or a failed future if closed.
-     */
-    Promise<Void> send(T value);
-
-    /**
-     * Non-blocking send. Returns {@code true} if the value was buffered
-     * or handed to a waiting receiver, {@code false} if full or closed.
-     */
-    boolean trySend(T value);
+class ChannelPromise<T> extends CompletableFutureWrapper<T> {
+    ChannelPromise() {
+        super(new CompletableFuture<>());
+    }
+    
+    boolean completeSuccess(T value) {
+        return super.success(value);
+    }
+    
+    boolean completeFailure(Throwable failure) {
+        return super.failure(failure);
+    }
 }

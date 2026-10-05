@@ -25,7 +25,7 @@ import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.Promises;
 import net.tascalate.concurrent.Try;
 
-public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel<T> {
+public class BufferedChannel<T> implements Channel<T> {
 
     private final int capacity;
     private final ReentrantLock lock;
@@ -33,48 +33,15 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
     // Queue<Object> instead of Queue<Optional<T>> — no per-element allocation
     private final Queue<Object> buffer = new ArrayDeque<>();
     private final Queue<WaitingSender<T>> waitSenders = new ArrayDeque<>();
-    private final Queue<ChannelOperationPromise<T>> waitReceivers = new ArrayDeque<>();
+    private final Queue<ChannelPromise<T>> waitReceivers = new ArrayDeque<>();
 
     private CloseMode closedMode = null; // null = OPEN
-    
-    public static <T> NilChannel<T> nil() {
-        return NilChannel.instance();
-    }
-    
-    public static <T> AsyncChannel<T> rendezvous() {
-        return rendezvous(false);
-    }
-    
-    public static <T> AsyncChannel<T> rendezvous(boolean fair) {
-        return new AsyncChannel<>(0, fair);
-    }
-    
-    public static <T> AsyncChannel<T> buffered(int capacity) {
-        return buffered(capacity, false);
-    }
-    
-    public static <T> AsyncChannel<T> buffered(int capacity, boolean fair) {
-        if (capacity < 1) {
-            throw new IllegalArgumentException("Capacity must be > 0 for buffered channel");
-        }
-        return new AsyncChannel<>(capacity, fair);
-    }
-    
-    @SuppressWarnings("unchecked")
-    public static <T> Promise<SelectResult<T>> select(SelectCase.Typed<T>... cases) {
-        return Select.select(cases);
-    }
 
-    @SuppressWarnings("unchecked")
-    public static <T> Promise<SelectResult<Object>> select(SelectCase<T>... cases) {
-        return Select.select(cases);
-    }
-
-    public AsyncChannel(int capacity) {
+    public BufferedChannel(int capacity) {
         this(capacity, false);
     }
 
-    public AsyncChannel(int capacity, boolean fair) {
+    public BufferedChannel(int capacity, boolean fair) {
         if (capacity < 0) {
             throw new IllegalArgumentException("Capacity must be >= 0");
         }
@@ -83,10 +50,9 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
     }
 
     @Override
-    public Promise<Void> send(T value) {
+    public Promise<T> send(T value) {
         while (true) {
-            ChannelOperationPromise<Void> senderFuture = new ChannelOperationPromise<>();
-            ChannelOperationPromise<T> matchedReceiver = null;
+            ChannelPromise<T> matchedReceiver = null;
             boolean handoff = false;
 
             lock.lock();
@@ -95,7 +61,7 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                     return Promises.failure(new IllegalStateException("Channel is closed"));
                 }
 
-                ChannelOperationPromise<T> matched;
+                ChannelPromise<T> matched;
                 while ((matched = waitReceivers.poll()) != null) {
                     if (matched.isDone()) {
                         continue;
@@ -109,20 +75,22 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                     // rendezvous — completed outside lock
                 } else if (buffer.size() < capacity) {
                     buffer.add(wrap(value));
-                    return Promises.success(null);
+                    return Promises.success(value);
                 } else {
-                    waitSenders.add(new WaitingSender<>(value, senderFuture));
-                    return senderFuture;
+                    WaitingSender<T> ws = new WaitingSender<>(value); 
+                    waitSenders.add(ws);
+                    return ws.future;
                 }
             } finally {
                 lock.unlock();
             }
 
             if (handoff) {
-                if (matchedReceiver.settledSuccess(value)) {
-                    return Promises.success(null);
+                if (matchedReceiver.completeSuccess(value)) {
+                    // matchedReceiver is completed with the same value, safe to use as a return
+                    return matchedReceiver;
                 }
-                // receiver cancelled concurrently → retry
+                // receiver cancelled concurrently -> retry
             }
         }
     }
@@ -130,9 +98,7 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
     @Override
     public Promise<T> receive() {
         while (true) {
-            ChannelOperationPromise<T> receiverFuture = new ChannelOperationPromise<>();
-            T result = null;
-            boolean completedImmediately = false;
+            T resultFromBuffer = null;
             WaitingSender<T> rendezvousSender = null;
 
             lock.lock();
@@ -142,13 +108,15 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                         return Promises.failure(new IllegalStateException("Channel is closed"));
                     }
                     if (buffer.isEmpty() && waitSenders.isEmpty()) {
-                        return Promises.success(null);
-                    }
+                        return successEmpty();
+                    } 
                 }
 
-                if (!buffer.isEmpty()) {
-                    // ── BUFFER PATH ───────────────────────────────────
-                    result = unwrap(buffer.poll());
+                boolean completedImmediately = false;
+                Object buffered = buffer.poll();
+                if (buffered != null) {
+                    // BUFFER PATH
+                    resultFromBuffer = unwrap(buffered);
                     completedImmediately = true;
 
                     WaitingSender<T> ws;
@@ -162,22 +130,22 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                         }
                     }
                 } else {
-                    // ── RENDEZVOUS PATH ───────────────────────────────
+                    // RENDEZVOUS PATH
                     WaitingSender<T> ws;
                     while ((ws = waitSenders.poll()) != null) {
                         if (ws.isDone()) {
                             continue;
                         }
                         rendezvousSender = ws;
-                        result = ws.value;
                         completedImmediately = true;
                         break;
                     }
 
                     if (!completedImmediately) {
                         if (closedMode != null) {
-                            return Promises.success(null);
+                            return successEmpty();
                         }
+                        ChannelPromise<T> receiverFuture = new ChannelPromise<>();
                         waitReceivers.add(receiverFuture);
                         return receiverFuture;
                     }
@@ -186,16 +154,18 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                 lock.unlock();
             }
 
-            if (completedImmediately) {
-                if (rendezvousSender != null) {
-                    if (!rendezvousSender.complete()) {
-                        continue;
-                    }
+            if (rendezvousSender != null) {
+                if (rendezvousSender.complete()) {
+                    // rendezvousSender is completed with the same value, safe to use as a return
+                    return rendezvousSender.future;
+                } else {
+                    // rendezvousSender was canceled concurrently, retry
+                    continue;
                 }
-                return Promises.success(result);
+            } else {
+                // Otherwise this is result polled from buffer
+                return Promises.success(resultFromBuffer);
             }
-
-            return receiverFuture;
         }
     }
 
@@ -212,14 +182,15 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                 }
             }
 
-            // ── buffered path (only reachable when capacity > 0) ──
-            if (!buffer.isEmpty()) {
-                T result = unwrap(buffer.poll());
+            Object buffered = buffer.poll();
+            // buffered path (only reachable when capacity > 0)
+            if (buffered != null) {
+                T result = unwrap(buffered);
                 promoteOneSender();
                 return Try.success(result);
             }
 
-            // ── rendezvous path (the ONLY path when capacity == 0) ──
+            // rendezvous path (the ONLY path when capacity == 0)
             WaitingSender<T> ws;
             while ((ws = waitSenders.poll()) != null) {
                 if (ws.isDone()) {
@@ -228,7 +199,7 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                 if (ws.complete()) { // atomic claim
                     return Try.success(ws.value);
                 }
-                // cancelled concurrently → try next
+                // cancelled concurrently -> try next
             }
 
             return null; // not ready
@@ -238,17 +209,18 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
     }
 
     @Override
-    public boolean trySend(T value) {
+    public Try<T> trySend(T value) {
         while (true) {
-            ChannelOperationPromise<T> matchedReceiver = null;
+            ChannelPromise<T> matchedReceiver = null;
 
             lock.lock();
             try {
                 if (closedMode != null) {
-                    return false;
+                    // Channel is closed, sending is an error in any closing mode
+                    return Try.failure(new IllegalStateException("Channel is closed"));
                 }
 
-                ChannelOperationPromise<T> matched;
+                ChannelPromise<T> matched;
                 while ((matched = waitReceivers.poll()) != null) {
                     if (matched.isDone()) {
                         continue;
@@ -260,19 +232,21 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                 if (matchedReceiver == null) {
                     if (buffer.size() < capacity) {
                         buffer.add(wrap(value));
-                        return true;
+                        // Buffered
+                        return Try.success(value);
                     } else {
-                        return false;
+                        // Channel full
+                        return null;
                     }
                 }
             } finally {
                 lock.unlock();
             }
 
-            if (matchedReceiver.settledSuccess(value)) {
-                return true;
+            if (matchedReceiver.completeSuccess(value)) {
+                return Try.success(value);
             }
-            // receiver cancelled → retry
+            // Receiver was cancelled concurrently -> retry
         }
     }
 
@@ -282,8 +256,8 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
             throw new IllegalArgumentException("CloseMode cannot be null");
         }
 
-        List<ChannelOperationPromise<?>> toFail = new ArrayList<>();
-        List<ChannelOperationPromise<T>> toResolve = new ArrayList<>();
+        List<ChannelPromise<?>> toFail = new ArrayList<>();
+        List<ChannelPromise<T>> toResolve = new ArrayList<>();
         boolean failReceivers = (mode == CloseMode.FAIL_ALL);
 
         lock.lock();
@@ -298,7 +272,7 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
                 toFail.add(ws.future);
             }
 
-            ChannelOperationPromise<T> wr;
+            ChannelPromise<T> wr;
             while ((wr = waitReceivers.poll()) != null) {
                 toResolve.add(wr);
             }
@@ -311,14 +285,14 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
         }
 
         IllegalStateException ex = new IllegalStateException("Channel is closed");
-        for (ChannelOperationPromise<?> f : toFail) {
-            f.settledFailure(ex);
+        for (ChannelPromise<?> f : toFail) {
+            f.completeFailure(ex);
         }
-        for (ChannelOperationPromise<T> f : toResolve) {
+        for (ChannelPromise<T> f : toResolve) {
             if (failReceivers) {
-                f.settledFailure(ex);
+                f.completeFailure(ex);
             } else {
-                f.settledSuccess(null);
+                f.completeSuccess(null);
             }
         }
     }
@@ -361,7 +335,9 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
     private void promoteOneSender() {
         WaitingSender<T> ws;
         while ((ws = waitSenders.poll()) != null) {
-            if (ws.isDone()) continue;
+            if (ws.isDone()) {
+                continue;
+            }
             if (ws.complete()) {
                 buffer.add(wrap(ws.value));
                 break;
@@ -373,11 +349,11 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
 
     private static class WaitingSender<T> {
         final T value;
-        final ChannelOperationPromise<Void> future;
+        final ChannelPromise<T> future;
 
-        WaitingSender(T value, ChannelOperationPromise<Void> future) {
+        WaitingSender(T value) {
             this.value = value;
-            this.future = future;
+            this.future = new ChannelPromise<>();
         }
         
         boolean isDone() {
@@ -385,8 +361,15 @@ public class AsyncChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel
         }
         
         boolean complete() {
-            return future.settledSuccess(null);
+            return future.completeSuccess(value);
         }
+    }
+    
+    private static final Promise<Object> NULL_SUCCESS = Promises.success(null);
+    
+    @SuppressWarnings("unchecked")
+    private static <T> Promise<T> successEmpty() {
+        return (Promise<T>) NULL_SUCCESS;
     }
     
     // ArrayDeque forbids null elements. Instead of wrapping every value

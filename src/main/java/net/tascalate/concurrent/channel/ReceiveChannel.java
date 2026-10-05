@@ -28,7 +28,7 @@ import net.tascalate.concurrent.Try;
  * Read-only view of a channel.
  * Pass this to consumers to prevent them from accidentally sending.
  */
-public interface AsyncReceiveChannel<T> extends Channel {
+public interface ReceiveChannel<T> extends ChannelBase {
     /**
      * Receives a value. Returns a completed future with the value if available,
      * a pending future if the channel is empty, or a failed future if closed
@@ -56,6 +56,10 @@ public interface AsyncReceiveChannel<T> extends Channel {
      * Non-blocking receive. Returns immediately without registering a waiter.
      */
     Try<T> tryReceive();
+    
+    default SelectCase.Receive<T> receiving() {
+        return SelectCase.receive(this);
+    }
     
     /**
      * Asynchronously consumes all elements from the channel until it is closed and drained.
@@ -85,7 +89,7 @@ public interface AsyncReceiveChannel<T> extends Channel {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(continueCondition, "continueCondition");
         
-        return Promises.<Boolean>loop(
+        return Promises.loop(
             Boolean.TRUE,
             continueLoop -> continueLoop,
             continueLoop -> receive().dependent().thenApply(value -> {
@@ -99,7 +103,7 @@ public interface AsyncReceiveChannel<T> extends Channel {
                 return Boolean.TRUE; // Continue loop
             }, true)
         ).dependent()
-         .thenAccept(b -> {})
+         .thenAccept(b -> {}, true)
          .unwrap();
     }
 }

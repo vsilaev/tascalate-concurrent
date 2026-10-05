@@ -25,7 +25,7 @@ import net.tascalate.concurrent.Try;
  * Primary use: pass to {@link Select} as a dynamically disabled case,
  * or hold as a placeholder before a real channel is assigned.
  */
-public final class NilChannel<T> implements AsyncSendChannel<T>, AsyncReceiveChannel<T> {
+public final class NilChannel<T> implements Channel<T> {
 
     private static final NilChannel<?> INSTANCE = new NilChannel<>();
 
@@ -37,13 +37,13 @@ public final class NilChannel<T> implements AsyncSendChannel<T>, AsyncReceiveCha
     }
 
     @Override
-    public Promise<Void> send(T value) {
+    public Promise<T> send(T value) {
         return incomplete(); // never completes
     }
 
     @Override
-    public boolean trySend(T value) {
-        return false;
+    public Try<T> trySend(T value) {
+        return null;
     }
 
     @Override
@@ -82,6 +82,6 @@ public final class NilChannel<T> implements AsyncSendChannel<T>, AsyncReceiveCha
     }
     
     static <T> Promise<T> incomplete() {
-        return new ChannelOperationPromise<>();
+        return new ChannelPromise<>();
     }
 }

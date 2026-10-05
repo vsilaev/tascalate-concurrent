@@ -19,12 +19,12 @@ import java.util.Objects;
 
 public final class SelectResult<T> {
     private final int index;
-    private final SelectCase<?> selectCase;
+    private final SelectCase<?> match;
     private final T value;
 
-    public SelectResult(int index, SelectCase<?> selectCase, T value) {
+    public SelectResult(int index, SelectCase<?> match, T value) {
         this.index = index;
-        this.selectCase = selectCase;
+        this.match = match;
         this.value = value;
     }
 
@@ -52,20 +52,20 @@ public final class SelectResult<T> {
         
         SelectResult<?> result = (SelectResult<?>) o;
         return index == result.index &&
-               Objects.equals(selectCase, result.selectCase) &&
+               Objects.equals(match, result.match) &&
                Objects.equals(value, result.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, value, selectCase);
+        return Objects.hash(index, value, match);
     }
 
     @Override
     public String toString() {
         return "SelectResult{" +
                "index=" + index + ", " +
-               "case=" + selectCase + ", " +
+               "match=" + match + ", " +
                "value=" + value +
                '}';
     }

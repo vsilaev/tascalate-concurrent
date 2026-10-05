@@ -17,7 +17,9 @@ package net.tascalate.concurrent.channel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletionStage;
 
 import net.tascalate.concurrent.Promise;
@@ -31,13 +33,13 @@ final class Select {
     // Internal wrapper to unify types for Promises.any and capture exceptions
     static final class SelectResultHolder {
         final int index;
-        final SelectCase<?> selectCase;
+        final SelectCase<?> match;
         final Object value;
         final Throwable error;
 
-        public SelectResultHolder(int index, SelectCase<?> selectCase, Object value, Throwable error) {
+        public SelectResultHolder(int index, SelectCase<?> match, Object value, Throwable error) {
             this.index = index;
-            this.selectCase = selectCase;
+            this.match = match;
             this.value = value;
             this.error = error;
         }
@@ -64,7 +66,8 @@ final class Select {
 
         // Phase 1: non-blocking try
         int defaultOriginalIdx = -1;
-
+        Throwable firstFailure = null;
+        Set<Integer> failedIndexes = new HashSet<>();
         for (int i = 0; i < shuffled.size(); i++) {
             SelectCase<T> c = shuffled.get(i);
 
@@ -85,7 +88,10 @@ final class Select {
                 if (r == null) {
                     continue; // not ready, try next case
                 } else if (r.isFailure()) {
-                    return Promises.failure(r.getCause());
+                    if (null == firstFailure) {
+                        firstFailure = r.getCause();
+                    }
+                    failedIndexes.add(i);
                 } else if (r.isSuccess()) {
                     return success(originalIndex[i], trc, r.get() /*isSend=false*/);
                 } else {
@@ -93,8 +99,19 @@ final class Select {
                 }
             } else if (c instanceof SelectCase.Send) {
                 SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
-                if (tsc.channel().trySend(tsc.value())) {
-                    return success(originalIndex[i], tsc, null /*isSend=true*/);
+                
+                Try<T> r = tsc.channel().trySend(tsc.value());
+                
+                if (r == null) {
+                    continue; // Not ready (full), try next case
+                } else if (r.isFailure()) {
+                    if (firstFailure == null) {
+                        firstFailure = r.getCause();
+                    }
+                    failedIndexes.add(i);
+                } else if (r.isSuccess()) {
+                    // Successfully sent!
+                    return success(originalIndex[i], tsc, r.get());
                 }
             }
         }
@@ -108,6 +125,9 @@ final class Select {
         List<CompletionStage<SelectResultHolder>> stages = new ArrayList<>();
 
         for (int i = 0; i < shuffled.size(); i++) {
+            if (failedIndexes.contains(i)) {
+                continue;
+            }
             SelectCase<T> c = shuffled.get(i);
             if (c instanceof SelectCase.Default) {
                 continue;
@@ -138,22 +158,26 @@ final class Select {
         }
 
         if (stages.isEmpty()) {
-            // All cases are Disabled (no Default present, otherwise Phase 1
-            // would have returned). Go semantics: select{} blocks forever.
-            return NilChannel.incomplete();
+            if (firstFailure != null) {
+                return Promises.failure(firstFailure);
+            } else {
+                // All cases are Disabled (no Default present, otherwise Phase 1
+                // would have returned). Go semantics: select{} blocks forever.
+                return NilChannel.incomplete();
+            }
+        } else {
+            // Promises.any races the stages. The first to complete wins.
+            // It automatically calls .cancel() on the losing stages.
+            // Thanks to dependent(true), this cancellation propagates all the way 
+            // to the AsyncChannel, cleaning up its internal waitSenders/waitReceivers queues!
+            return 
+            Promises.any(stages)
+                    .dependent()
+                    .thenCompose(res -> 
+                        res.error != null ? Promises.failure(res.error)
+                                          : success(res.index, res.match, res.value), true)
+                    .unwrap();
         }
-
-        // Promises.any races the stages. The first to complete wins.
-        // It automatically calls .cancel() on the losing stages.
-        // Thanks to dependent(true), this cancellation propagates all the way 
-        // to the AsyncChannel, cleaning up its internal waitSenders/waitReceivers queues!
-        return 
-        Promises.any(stages)
-                .dependent()
-                .thenCompose(res -> 
-                    res.error != null ? Promises.failure(res.error)
-                                      : success(res.index, res.selectCase, res.value), true)
-                .unwrap();
     }
     
     private static <T> Promise<SelectResult<T>> success(int idx, SelectCase<?> selectCase, T value) {

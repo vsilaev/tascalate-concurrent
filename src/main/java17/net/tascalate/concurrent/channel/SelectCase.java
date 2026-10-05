@@ -20,10 +20,10 @@ public sealed interface SelectCase<T> permits SelectCase.Typed, SelectCase.Recei
     public sealed interface Typed<T> extends SelectCase<T>
            permits Send, Default, Disabled {}
 
-    public record Send<T>(AsyncSendChannel<? super T> channel, T value)
+    public record Send<T>(SendChannel<T> channel, T value)
            implements Typed<T> {}
 
-    public record Receive<T>(AsyncReceiveChannel<T> channel)
+    public record Receive<T>(ReceiveChannel<T> channel)
            implements SelectCase<Void> {}
 
     public record Default<T>()
@@ -34,11 +34,11 @@ public sealed interface SelectCase<T> permits SelectCase.Typed, SelectCase.Recei
 
     // Factory helpers
 
-    public static <T> Send<T> send(AsyncSendChannel<? super T> ch, T value) {
+    public static <T, S extends T> Send<T> send(SendChannel<T> ch, S value) {
         return new Send<T>(ch, value);
     }
 
-    public static <T> Receive<T> receive(AsyncReceiveChannel<T> ch) {
+    public static <T> Receive<T> receive(ReceiveChannel<T> ch) {
         return new Receive<>(ch);
     }
 
