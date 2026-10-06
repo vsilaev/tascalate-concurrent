@@ -122,7 +122,7 @@ public class BufferedChannel<T> implements Channel<T> {
                     
                     isWon = isWon || coordinator.tryWin();
                     if (!isWon) {
-                        return canceledPromise();
+                        return canceled();
                     }
                     
                     matchedReceiver = matched;
@@ -136,14 +136,14 @@ public class BufferedChannel<T> implements Channel<T> {
                 } else if (buffer.size() < capacity) {
                     isWon = isWon || coordinator.tryWin();
                     if (!isWon) {
-                        return canceledPromise();
+                        return canceled();
                     }
                     buffer.add(wrap(value));
                     return Promises.success(value);
                 } else {
                     isWon = isWon || coordinator.tryWin();
                     if (!isWon) {
-                        return canceledPromise();
+                        return canceled();
                     }
                     // Attach coord to the WaitingSender so the receiver can check it
                     WaitingSender<T> ws = new WaitingSender<>(value, coordinator); 
@@ -263,7 +263,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 if (!buffer.isEmpty()) {
                     isWon = isWon || coord.tryWin();
                     if (!isWon) {
-                        return canceledPromise();
+                        return canceled();
                     }
                     // BUFFER PATH
                     resultFromBuffer = unwrap(buffer.poll());
@@ -290,7 +290,7 @@ public class BufferedChannel<T> implements Channel<T> {
                         
                         isWon = isWon || coord.tryWin();
                         if (!isWon) {
-                            return canceledPromise();
+                            return canceled();
                         }
                         
                         waitSenders.poll(); 
@@ -523,23 +523,23 @@ public class BufferedChannel<T> implements Channel<T> {
         }
     }
     
-    private static final Promise<Object> NULL_SUCCESS = Promises.success(null);
+    private static final Promise<Object> PROMISE_NOTHING = Promises.success(null);
     
     @SuppressWarnings("unchecked")
     private static <T> Promise<T> nothing() {
-        return (Promise<T>) NULL_SUCCESS;
+        return (Promise<T>) PROMISE_NOTHING;
     }
     
     
-    private static final Promise<Object> CANCELED_PROMISE; 
+    private static final Promise<Object> PROMISE_CANCELED; 
     static {
-        CANCELED_PROMISE = new ChannelPromise<>(null);
-        CANCELED_PROMISE.cancel(true);
+        PROMISE_CANCELED = new ChannelPromise<>(null);
+        PROMISE_CANCELED.cancel(true);
     }
     
     @SuppressWarnings("unchecked")
-    private static <T> Promise<T> canceledPromise() {
-        return (Promise<T>)CANCELED_PROMISE;
+    private static <T> Promise<T> canceled() {
+        return (Promise<T>)PROMISE_CANCELED;
     }
     
     // ArrayDeque forbids null elements. Instead of wrapping every value
