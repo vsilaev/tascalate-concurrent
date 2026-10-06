@@ -22,15 +22,32 @@ public interface Channel<T> extends SendChannel<T>, ReceiveChannel<T> {
         return NilChannel.instance();
     }
     
+    public static <T> Channel<T> nil(Class<T> elementType) {
+        return NilChannel.instance();
+    }
+    
     public static <T> Channel<T> rendezvous() {
         return rendezvous(false);
     }
+    
+    public static <T> Channel<T> rendezvous(Class<T> elementType) {
+        return rendezvous(false);
+    }
+
     
     public static <T> Channel<T> rendezvous(boolean fair) {
         return new BufferedChannel<>(0, fair);
     }
     
+    public static <T> Channel<T> rendezvous(Class<T> elementType, boolean fair) {
+        return new BufferedChannel<>(0, fair);
+    }
+    
     public static <T> Channel<T> buffered(int capacity) {
+        return buffered(capacity, false);
+    }
+    
+    public static <T> Channel<T> buffered(Class<T> elementType, int capacity) {
         return buffered(capacity, false);
     }
     
@@ -39,6 +56,10 @@ public interface Channel<T> extends SendChannel<T>, ReceiveChannel<T> {
             throw new IllegalArgumentException("Capacity must be > 0 for buffered channel");
         }
         return new BufferedChannel<>(capacity, fair);
+    }
+    
+    public static <T> Channel<T> buffered(Class<T> elementType, int capacity, boolean fair) {
+        return buffered(capacity, fair);
     }
     
     @SuppressWarnings("unchecked")
