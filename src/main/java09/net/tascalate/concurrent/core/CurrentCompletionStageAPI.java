@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,11 @@ package net.tascalate.concurrent.core;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-class J9CompletionStageAPI extends J8CompletionStageAPI {
+final class CurrentCompletionStageAPI implements CompletionStageAPI {
     
-    J9CompletionStageAPI() {}
+    private CurrentCompletionStageAPI() {
+        
+    }
     
     @Override
     public boolean defaultExecutorOverridable() {
@@ -31,4 +33,7 @@ class J9CompletionStageAPI extends J8CompletionStageAPI {
     public Executor defaultExecutorOf(CompletableFuture<?> completableFuture) {
         return completableFuture.defaultExecutor();
     }
+    
+    static final CompletionStageAPI INSTANCE = new CurrentCompletionStageAPI();
+
 }

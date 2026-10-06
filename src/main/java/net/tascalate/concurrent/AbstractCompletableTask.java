@@ -28,6 +28,7 @@ import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException
 import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
 
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +43,8 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import net.tascalate.concurrent.core.CompletionStageAPI;
 
 /**
  * Base superclass for both root and intermediate {@link Promise}-s that
@@ -119,6 +122,26 @@ abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
         } catch (ExecutionException ex) {
             throw rewrapExecutionException(ex);
         }
+    }
+    
+    @Override 
+    public boolean isIn(State state) {
+        return CompletionStageAPI.current().isInState(task, state, true);
+    }
+
+    @Override 
+    public boolean isIn(Set<State> states) {
+        return CompletionStageAPI.current().isInState(task, states, true);
+    }
+    
+    @Override 
+    public T resultNow() {
+        return CompletionStageAPI.current().resultNow(task, true);
+    }
+    
+    @Override 
+    public Throwable exceptionNow() {
+        return CompletionStageAPI.current().exceptionNow(task, true);
     }
     
     @Override

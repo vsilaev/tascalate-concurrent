@@ -20,6 +20,7 @@ import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
 
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -91,6 +92,73 @@ public class CompletionStageWrapper<T>
         }
     }
     
+    @Override 
+    public boolean isIn(State state) {
+        if (null == state) {
+            return false;
+        }
+        if (isDone()) {
+            if (null == fault) {
+                return state == Promise.State.SUCCESS;
+            } else if (isCancelled()) {
+                return state == Promise.State.CANCELLED;
+            } else {
+                return state == Promise.State.FAILED;
+            }
+        } else {
+            return state == Promise.State.RUNNING;
+        }
+    }
+
+    @Override 
+    public boolean isIn(Set<State> states) {
+        if (null == states || states.isEmpty()) {
+            return false;
+        }
+        if (isDone()) {
+            if (null == fault) {
+                return states.contains(Promise.State.SUCCESS);
+            } else if (isCancelled()) {
+                return states.contains(Promise.State.CANCELLED);
+            } else {
+                return states.contains(Promise.State.FAILED);
+            }
+        } else {
+            return states.contains(Promise.State.RUNNING);
+        }
+    }
+    
+    
+    @Override 
+    public T resultNow() {
+        if (isDone()) {
+            if (null == fault) {
+                return result;
+            } else if (isCancelled()) {
+                throw new IllegalStateException("Task was cancelled");
+            } else {
+                throw new IllegalStateException("Task completed with exception");
+            }
+        } else {
+            throw new IllegalStateException("Task has not completed");
+        }
+    }
+    
+    @Override 
+    public Throwable exceptionNow() {
+        if (isDone()) {
+            if (null == fault) {
+                throw new IllegalStateException("Task completed with a result");
+            } else if (isCancelled()) {
+                throw new IllegalStateException("Task was cancelled");
+            } else {
+                return fault;
+            }
+        } else {
+            throw new IllegalStateException("Task has not completed");
+        }
+    }
+    
     @Override
     public boolean isCompletedExceptionally() {
         return isDone() && fault != null;
@@ -145,7 +213,7 @@ public class CompletionStageWrapper<T>
     
     // By default CompletableFuture.cancel() doesn't interrupt a promise from thenCompose(fn)!
     // Moreover, exceptionallyAsync and exceptionallyCompose[Async] doesn't play well with cancellation.
-    // Pessimistically assume this "feature" for all CompletionStage impls. and fix this
+    // Pessimistic assume this "feature" for all CompletionStage impls. and fix this
     static class StrictPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
         StrictPromise(Promise<T> delegate) {
             super(delegate);

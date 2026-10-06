@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent.decorators;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
@@ -23,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.core.CompletionStageAPI;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass via delegation
@@ -67,5 +69,21 @@ abstract public class AbstractFutureDecorator<T, D extends CompletionStage<T> & 
     @Override
     public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         return delegate.get(timeout, unit);
+    }
+    
+    public boolean isIn(Promise.State state) {
+        return CompletionStageAPI.current().isInState(delegate, state, true);
+    }
+    
+    public boolean isIn(Set<Promise.State> states) {
+        return CompletionStageAPI.current().isInState(delegate, states, true);
+    }
+    
+    public T resultNow() {
+        return CompletionStageAPI.current().resultNow(delegate, true);
+    }
+    
+    public Throwable exceptionNow() {
+        return CompletionStageAPI.current().exceptionNow(delegate, true);
     }
 }

@@ -24,6 +24,9 @@ import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
 import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
@@ -39,6 +42,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.core.CompletionStageAPI;
 import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
 
 /**
@@ -52,6 +56,64 @@ import net.tascalate.concurrent.decorators.ExecutorBoundPromise;
  *   a type of the successfully resolved promise value   
  */
 public interface Promise<T> extends Future<T>, CompletionStage<T> {
+    
+    /**
+     * Represents the computation state.
+     */
+    enum State {
+        /**
+         * The task has not completed.
+         */
+        RUNNING,
+        /**
+         * The task completed with a result.
+         */
+        SUCCESS,
+        /**
+         * The task completed with an exception.
+         */
+        FAILED,
+        /**
+         * The task was cancelled.
+         */
+        CANCELLED;
+        
+        public static final Set<State> PENDING             = EnumSet.of(RUNNING);
+        public static final Set<State> COMPLETED           = EnumSet.complementOf(EnumSet.of(RUNNING));
+        public static final Set<State> SUCCEEDED           = EnumSet.of(SUCCESS);
+        public static final Set<State> FAILED_OR_CANCELLED = EnumSet.of(FAILED, CANCELLED);
+    }
+    
+    default boolean isIn(State state) {
+        return CompletionStageAPI.current().isInState(this, state, false);
+    }
+
+    default boolean isIn(State... state) {
+        if (state == null) {
+            return false;
+        } else {
+            switch (state.length) {
+                case 0: return false;
+                case 1: return isIn(state[0]);
+                default:
+                    Set<State> states = new HashSet<>();
+                    states.addAll(Arrays.asList(state));
+                    return CompletionStageAPI.current().isInState(this, states, false);
+            }
+        }
+    }
+    
+    default boolean isIn(Set<State> states) {
+        return CompletionStageAPI.current().isInState(this, states, false);
+    }
+    
+    default T resultNow() {
+        return CompletionStageAPI.current().resultNow(this, false);
+    }
+    
+    default Throwable exceptionNow() {
+        return CompletionStageAPI.current().exceptionNow(this, false);
+    }
     
     default T getNow(T valueIfAbsent) throws CancellationException, CompletionException {
         return getNow(supply(valueIfAbsent));

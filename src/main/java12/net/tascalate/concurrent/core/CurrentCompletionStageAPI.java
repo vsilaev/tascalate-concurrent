@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,65 +18,54 @@ package net.tascalate.concurrent.core;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 
-class J8CompletionStageAPI implements CompletionStageAPI {
-    
-    J8CompletionStageAPI() {}
+final class CurrentCompletionStageAPI implements CompletionStageAPI {
+
+    private CurrentCompletionStageAPI() {
+        
+    }
     
     @Override
     public boolean defaultExecutorOverridable() {
-        return false;
+        return true;
     }
     
     @Override
     public Executor defaultExecutorOf(CompletableFuture<?> completableFuture) {
-        return ForkJoinPool.commonPool();
+        return completableFuture.defaultExecutor();
     }
     
     @Override
     public <T> CompletionStage<T> exceptionallyAsync(CompletionStage<T> delegate, 
                                                      Function<Throwable, ? extends T> fn) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.<T>handleAsync((r1, ex1) -> fn.apply(ex1)))
-                       .thenCompose(Function.identity());        
+        return delegate.exceptionallyAsync(fn);        
     }
     
     @Override
     public <T> CompletionStage<T> exceptionallyAsync(CompletionStage<T> delegate, 
                                                      Function<Throwable, ? extends T> fn, Executor executor) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.<T>handleAsync((r1, ex1) -> fn.apply(ex1), executor))
-                       .thenCompose(Function.identity());        
+        return delegate.exceptionallyAsync(fn, executor);        
     }
     
     @Override
     public <T> CompletionStage<T> exceptionallyCompose(CompletionStage<T> delegate, 
                                                        Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return delegate.handle((r, ex) -> ex == null ? delegate : fn.apply(ex))
-                       .thenCompose(Function.identity());
+        return delegate.exceptionallyCompose(fn);
     }
     
     @Override
     public <T> CompletionStage<T> exceptionallyComposeAsync(CompletionStage<T> delegate, 
                                                             Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.handleAsync((r1, ex1) -> fn.apply(ex1))
-                                       .thenCompose(Function.identity()))
-                       .thenCompose(Function.identity());
+        return delegate.exceptionallyComposeAsync(fn);
     }
     
     @Override
     public <T> CompletionStage<T> exceptionallyComposeAsync(CompletionStage<T> delegate, 
                                                             Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
-        return delegate.handle((r, ex) -> ex == null ? 
-                               delegate : 
-                               delegate.handleAsync((r1, ex1) -> fn.apply(ex1), executor)
-                                       .thenCompose(Function.identity()))
-                       .thenCompose(Function.identity());
-    }
+        return delegate.exceptionallyComposeAsync(fn, executor);
+    }    
+    
+    static final CompletionStageAPI INSTANCE = new CurrentCompletionStageAPI();
+
 }

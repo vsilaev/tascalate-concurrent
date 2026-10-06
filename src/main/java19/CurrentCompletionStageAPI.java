@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,20 @@
  */
 package net.tascalate.concurrent.core;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 
-class J12CompletionStageAPI implements CompletionStageAPI {
-    
-    J12CompletionStageAPI() {}
+import net.tascalate.concurrent.Promise;
+
+final class CurrentCompletionStageAPI implements CompletionStageAPI {
+
+    private CurrentCompletionStageAPI() {
+        
+    }
     
     @Override
     public boolean defaultExecutorOverridable() {
@@ -63,4 +69,53 @@ class J12CompletionStageAPI implements CompletionStageAPI {
                                                             Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         return delegate.exceptionallyComposeAsync(fn, executor);
     }    
+    
+    @Override
+    public boolean isInState(Future<?> promise, Promise.State state, boolean isDelegate) {
+        if (null == state) {
+            return false;
+        } else {
+            return stateOf(promise) == state;
+        }
+    }
+
+    @Override
+    public boolean isInState(Future<?> promise, Set<Promise.State> states, boolean isDelegate) {
+        if (null == states || states.isEmpty()) {
+            return false;
+        } else {
+            return states.contains(stateOf(promise));
+        }
+    }
+
+    @Override
+    public <T> T resultNow(Future<T> future, boolean isDelegate) {
+        if (isDelegate) { 
+            return future.resultNow();
+        } else {
+           return CompletionStageAPI.super.resultNow(future, isDelegate);
+        }
+    }
+
+    @Override
+    public Throwable exceptionNow(Future<?> future, boolean isDelegate) {
+        if (isDelegate) { 
+            return future.exceptionNow();
+        } else {
+           return CompletionStageAPI.super.exceptionNow(future, isDelegate);
+        }
+    }
+    
+    private static Promise.State stateOf(Future<?> future) {
+        switch (future.state()) {
+            case RUNNING:   return Promise.State.RUNNING;
+            case SUCCESS:   return Promise.State.SUCCESS;
+            case FAILED:    return Promise.State.FAILED;
+            case CANCELLED: return Promise.State.CANCELLED;
+            default: throw new IllegalArgumentException("Unknown state: " + future.state());
+        }
+    }
+    
+    static final CompletionStageAPI INSTANCE = new CurrentCompletionStageAPI();
+
 }

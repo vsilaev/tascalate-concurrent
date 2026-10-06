@@ -209,7 +209,7 @@
 						</goals>
 						<configuration>
 							<jdkToolchain>
-								<version>12</version>
+								<version>8</version>
 							</jdkToolchain>
 							<excludes>
 								<exclude>module-info.java</exclude>
@@ -218,6 +218,38 @@
 							<target>1.8</target>
 						</configuration>
 					</execution> 
+					<execution>
+						<id>compile-java09</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<jdkToolchain>
+								<version>9</version>
+							</jdkToolchain>
+							<release>9</release>
+							<compileSourceRoots>
+								<compileSourceRoot>${project.basedir}/src/main/java09</compileSourceRoot>
+							</compileSourceRoots>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/versions/9</outputDirectory>
+						</configuration>
+					</execution>
+					<execution>
+						<id>compile-java12</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<jdkToolchain>
+								<version>12</version>
+							</jdkToolchain>
+							<release>12</release>
+							<compileSourceRoots>
+								<compileSourceRoot>${project.basedir}/src/main/java12</compileSourceRoot>
+							</compileSourceRoots>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/versions/12</outputDirectory>
+						</configuration>
+					</execution>
 					<execution>
 						<id>compile-java17</id>
 						<goals>
@@ -235,6 +267,22 @@
 						</configuration>
 					</execution> 
 					<execution>
+						<id>compile-java19</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<jdkToolchain>
+								<version>19</version>
+							</jdkToolchain>
+							<release>19</release>
+							<compileSourceRoots>
+								<compileSourceRoot>${project.basedir}/src/main/java19</compileSourceRoot>
+							</compileSourceRoots>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/versions/19</outputDirectory>
+						</configuration>
+					</execution> 
+					<execution>
 						<id>compile-java25</id>
 						<goals>
 							<goal>compile</goal>
@@ -246,6 +294,22 @@
 							<release>25</release>
 							<compileSourceRoots>
 								<compileSourceRoot>${project.basedir}/src/main/java25</compileSourceRoot>
+							</compileSourceRoots>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/versions/25</outputDirectory>
+						</configuration>
+					</execution> 
+					<execution>
+						<id>compile-java25-inline</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<jdkToolchain>
+								<version>25</version>
+							</jdkToolchain>
+							<release>25</release>
+							<compileSourceRoots>
+								<compileSourceRoot>${project.basedir}/src/main/java25-inline</compileSourceRoot>
 							</compileSourceRoots>
 							<outputDirectory>${project.build.outputDirectory}</outputDirectory>
 						</configuration>

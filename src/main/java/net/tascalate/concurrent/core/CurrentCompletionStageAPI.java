@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,43 +15,25 @@
  */
 package net.tascalate.concurrent.core;
 
-final class CurrentCompletionStageAPI {
-    static final CompletionStageAPI INSTANCE;
-    
-    private CurrentCompletionStageAPI() {}
-    
-    private static int getJavaVersion() {
-        // Use specification version instead of java.version
-        String version = System.getProperty("java.specification.version");
-        if (version == null || version.length() == 0) return 0;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
-        // Handle legacy Java 8 ("1.8")
-        if (version.startsWith("1.")) {
-            // Safe because "1." is always followed by at least one digit
-            int dot2 = version.indexOf('.', 2);
-            if (dot2 == -1) {
-                return Integer.parseInt(version.substring(2));
-            }
-            return Integer.parseInt(version.substring(2, dot2));
-        }
-
-        // Handle modern Java ("11", "21", "22-ea")
-        // Just read digits until we hit a non-digit character
-        int end = 0;
-        while (end < version.length() && Character.isDigit(version.charAt(end))) {
-            end++;
-        }
+final class CurrentCompletionStageAPI implements CompletionStageAPI {
+    
+    private CurrentCompletionStageAPI() {
         
-        return (end == 0) ? 0 : Integer.parseInt(version.substring(0, end));
     }
     
-    static {
-        int version = getJavaVersion();
-        if (version >= 12) 
-            INSTANCE = new J12CompletionStageAPI();
-        else if (version >= 9) 
-            INSTANCE = new J9CompletionStageAPI();
-        else
-            INSTANCE = new J8CompletionStageAPI();
+    @Override
+    public boolean defaultExecutorOverridable() {
+        return false;
     }
+    
+    @Override
+    public Executor defaultExecutorOf(CompletableFuture<?> completableFuture) {
+        return ForkJoinPool.commonPool();
+    }
+    
+    static final CompletionStageAPI INSTANCE = new CurrentCompletionStageAPI();
 }

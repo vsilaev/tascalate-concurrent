@@ -36,6 +36,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import net.tascalate.concurrent.core.CompletionStageAPI;
 import net.tascalate.concurrent.core.Decorator;
 /**
  * 
@@ -770,6 +771,26 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     @Override
     public T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException {
         return delegate.getNow(valueIfAbsent);
+    }
+    
+    @Override
+    public boolean isIn(State state) {
+        return CompletionStageAPI.current().isInState(delegate, state, true);
+    }
+    
+    @Override
+    public boolean isIn(Set<State> states) {
+        return CompletionStageAPI.current().isInState(delegate, states, true);
+    }
+    
+    @Override 
+    public T resultNow() {
+        return CompletionStageAPI.current().resultNow(delegate, true);
+    }
+    
+    @Override 
+    public Throwable exceptionNow() {
+        return CompletionStageAPI.current().exceptionNow(delegate, true);
     }
     
     @Override
