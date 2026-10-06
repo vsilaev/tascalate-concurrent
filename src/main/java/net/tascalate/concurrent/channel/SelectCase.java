@@ -30,15 +30,15 @@ public interface SelectCase<T> {
     public static interface Typed<T> extends SelectCase<T> {}
 
     public static final class Send<T> implements Typed<T> {
-        private final SendChannel<T> channel;
+        private final SelectableSendChannel<T> channel;
         private final T value;
 
-        public Send(SendChannel<T> channel, T value) {
+        public Send(SelectableSendChannel<T> channel, T value) {
             this.channel = channel;
             this.value   = value;
         }
 
-        public SendChannel<T> channel() {
+        public SelectableSendChannel<T> channel() {
             return channel;
         }
 
@@ -73,13 +73,13 @@ public interface SelectCase<T> {
      * result type to {@code Object}.
      */
     public static final class Receive<T> implements SelectCase<Void> {
-        private final ReceiveChannel<T> channel;
+        private final SelectableReceiveChannel<T> channel;
 
-        public Receive(ReceiveChannel<T> channel) {
+        public Receive(SelectableReceiveChannel<T> channel) {
             this.channel = channel;
         }
 
-        public ReceiveChannel<T> channel() {
+        public SelectableReceiveChannel<T> channel() {
             return channel;
         }
 
@@ -144,11 +144,11 @@ public interface SelectCase<T> {
     
     // Factory helpers
 
-    public static <T, S extends T> Send<T> send(SendChannel<T> ch, S value) {
+    public static <T, S extends T> Send<T> send(SelectableSendChannel<T> ch, S value) {
         return new Send<T>(ch, value);
     }
 
-    public static <T> Receive<T> receive(ReceiveChannel<T> ch) {
+    public static <T> Receive<T> receive(SelectableReceiveChannel<T> ch) {
         return new Receive<>(ch);
     }
 

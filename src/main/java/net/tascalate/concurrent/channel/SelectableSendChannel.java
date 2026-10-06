@@ -15,27 +15,17 @@
  */
 package net.tascalate.concurrent.channel;
 
-import java.util.concurrent.CompletableFuture;
+import net.tascalate.concurrent.Promise;
 
-import net.tascalate.concurrent.CompletableFutureWrapper;
-
-class ChannelPromise<T> extends CompletableFutureWrapper<T> {
-    SelectCoordinator coordinator;
+public interface SelectableSendChannel<T> extends SendChannel<T> {
     
-    ChannelPromise(SelectCoordinator coordinator) {
-        super(new CompletableFuture<>());
-        this.coordinator = coordinator;
+    default Promise<T> send(T value) {
+        return send(value, SelectCoordinator.anyWins());
     }
     
-    boolean completeSuccess(T value) {
-        if (null == coordinator || coordinator.tryWin()) {
-            return super.success(value);
-        } else {
-            return false;
-        }
-    }
+    Promise<T> send(T value, SelectCoordinator coordinator);
     
-    boolean completeFailure(Throwable failure) {
-        return super.failure(failure);
+    default <S extends T> SelectCase.Send<T> sending(S value) {
+        return SelectCase.send(this, value);
     }
 }

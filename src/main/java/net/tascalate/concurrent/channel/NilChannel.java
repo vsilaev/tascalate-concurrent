@@ -37,7 +37,7 @@ public final class NilChannel<T> implements Channel<T> {
     }
 
     @Override
-    public Promise<T> send(T value) {
+    public Promise<T> send(T value, SelectCoordinator selectCoordinator) {
         return incomplete(); // never completes
     }
 
@@ -47,7 +47,7 @@ public final class NilChannel<T> implements Channel<T> {
     }
 
     @Override
-    public Promise<T> receive() {
+    public Promise<T> receive(SelectCoordinator coordinator) {
         return incomplete(); // never completes
     }
 
@@ -82,6 +82,6 @@ public final class NilChannel<T> implements Channel<T> {
     }
     
     static <T> Promise<T> incomplete() {
-        return new ChannelPromise<>();
+        return new ChannelPromise<>(null);
     }
 }

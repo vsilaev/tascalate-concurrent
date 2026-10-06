@@ -17,7 +17,7 @@ package net.tascalate.concurrent.channel;
 
 import net.tascalate.concurrent.Promise;
 
-public interface Channel<T> extends SendChannel<T>, ReceiveChannel<T> {
+public interface Channel<T> extends SelectableSendChannel<T>, SelectableReceiveChannel<T> {
     public static <T> Channel<T> nil() {
         return NilChannel.instance();
     }

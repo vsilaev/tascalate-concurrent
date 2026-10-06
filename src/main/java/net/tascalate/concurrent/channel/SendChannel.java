@@ -35,8 +35,4 @@ public interface SendChannel<T> extends ChannelBase {
      * or handed to a waiting receiver, {@code false} if full or closed.
      */
     Try<T> trySend(T value);
-    
-    default <S extends T> SelectCase.Send<T> sending(S value) {
-        return SelectCase.send(this, value);
-    }
 }

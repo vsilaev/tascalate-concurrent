@@ -123,7 +123,8 @@ final class Select {
 
         // Phase 2: async wait using tascalate Promises
         List<CompletionStage<SelectResultHolder>> stages = new ArrayList<>();
-
+        
+        SelectCoordinator coordinator = SelectCoordinator.createFirstWins();
         for (int i = 0; i < shuffled.size(); i++) {
             if (failedIndexes.contains(i)) {
                 continue;
@@ -141,10 +142,10 @@ final class Select {
             Promise<?> originalFuture;
 
             if (c instanceof SelectCase.Receive) {
-                originalFuture = ((SelectCase.Receive<?>)c).channel().receive();
+                originalFuture = ((SelectCase.Receive<?>)c).channel().receive(coordinator);
             } else if (c instanceof SelectCase.Send) {
                 SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
-                originalFuture = tsc.channel().send(tsc.value());
+                originalFuture = tsc.channel().send(tsc.value(), coordinator);
             } else {
                 continue;
             }

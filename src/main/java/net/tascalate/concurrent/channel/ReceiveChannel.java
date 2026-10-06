@@ -57,10 +57,6 @@ public interface ReceiveChannel<T> extends ChannelBase {
      */
     Try<T> tryReceive();
     
-    default SelectCase.Receive<T> receiving() {
-        return SelectCase.receive(this);
-    }
-    
     /**
      * Asynchronously consumes all elements from the channel until it is closed and drained.
      * Mirrors Go's {@code for v := range ch { action(v) }}.
