@@ -33,27 +33,54 @@ import java.util.concurrent.ThreadFactory;
 public class ThrottledTaskExecutorService extends ThrottledExecutorService 
                                           implements TaskExecutorService {
     
+    public ThrottledTaskExecutorService(String threadNamePrefix, int maxConcurrentThreads) {
+        super(threadNamePrefix, maxConcurrentThreads);
+    }
+    
     public ThrottledTaskExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads) {
         super(threadFactory, maxConcurrentThreads, 0);
     }
     
+    public ThrottledTaskExecutorService(String threadNamePrefix, int maxConcurrentThreads, int queueCapacity) {
+        super(threadNamePrefix, maxConcurrentThreads, queueCapacity);
+    }    
+    
     public ThrottledTaskExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, int queueCapacity) {
         super(threadFactory, maxConcurrentThreads, queueCapacity, RejectedExecutionHandler.ABORT_POLICY);
     }
+    
+    public ThrottledTaskExecutorService(String threadNamePrefix, int maxConcurrentThreads, 
+                                        RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
+        super(threadNamePrefix, maxConcurrentThreads, rejectedExecutionHandler);
+    }    
     
     public ThrottledTaskExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, 
                                         RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
         this(threadFactory, maxConcurrentThreads, 0, rejectedExecutionHandler);
     }
     
+    public ThrottledTaskExecutorService(String threadNamePrefix, int maxConcurrentThreads, int queueCapacity, 
+                                        RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
+        super(threadNamePrefix, maxConcurrentThreads, queueCapacity, rejectedExecutionHandler);
+    }    
+    
     public ThrottledTaskExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, int queueCapacity, 
                                         RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
         super(threadFactory, maxConcurrentThreads, queueByCapacity(queueCapacity), rejectedExecutionHandler);
     }
     
+    public ThrottledTaskExecutorService(String threadNamePrefix, int maxConcurrentThreads, BlockingQueue<Runnable> queue) {
+        super(threadNamePrefix, maxConcurrentThreads, queue);
+    }    
+    
     public ThrottledTaskExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, BlockingQueue<Runnable> queue) {
         super(threadFactory, maxConcurrentThreads, queue, RejectedExecutionHandler.ABORT_POLICY);
     }
+    
+    public ThrottledTaskExecutorService(String threadNamePrefix, int maxConcurrentThreads, BlockingQueue<Runnable> queue, 
+                                        RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
+        super(threadNamePrefix, maxConcurrentThreads, queue, rejectedExecutionHandler);
+    }    
     
     public ThrottledTaskExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, BlockingQueue<Runnable> queue, 
                                         RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {

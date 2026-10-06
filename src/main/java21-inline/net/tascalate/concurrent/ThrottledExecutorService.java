@@ -62,18 +62,36 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
     
     private final Set<Thread> threads = ConcurrentHashMap.newKeySet();
     private final CountDownLatch terminationSignal = new CountDownLatch(1);
+
+    public ThrottledExecutorService(String threadNamePrefix, int maxConcurrentThreads) {
+        this(makeThreadFactory(threadNamePrefix), maxConcurrentThreads);
+    }
     
     public ThrottledExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads) {
         this(threadFactory, maxConcurrentThreads, 0);
     }
     
+    public ThrottledExecutorService(String threadNamePrefix, int maxConcurrentThreads, int queueCapacity) {
+        this(makeThreadFactory(threadNamePrefix), maxConcurrentThreads, queueCapacity);
+    }
+    
     public ThrottledExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, int queueCapacity) {
         this(threadFactory, maxConcurrentThreads, queueCapacity, RejectedExecutionHandler.ABORT_POLICY);
     }
+
+    public ThrottledExecutorService(String threadNamePrefix, int maxConcurrentThreads, 
+                                    RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
+        this(makeThreadFactory(threadNamePrefix), maxConcurrentThreads, rejectedExecutionHandler);
+    }    
     
     public ThrottledExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, 
                                     RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
         this(threadFactory, maxConcurrentThreads, 0, rejectedExecutionHandler);
+    }
+
+    public ThrottledExecutorService(String threadNamePrefix, int maxConcurrentThreads, int queueCapacity, 
+                                    RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
+        this(makeThreadFactory(threadNamePrefix), maxConcurrentThreads, queueCapacity, rejectedExecutionHandler);
     }
     
     public ThrottledExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, int queueCapacity, 
@@ -81,8 +99,17 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
         this(threadFactory, maxConcurrentThreads, queueByCapacity(queueCapacity), rejectedExecutionHandler);
     }
     
+    public ThrottledExecutorService(String threadNamePrefix, int maxConcurrentThreads, BlockingQueue<Runnable> queue) {
+        this(makeThreadFactory(threadNamePrefix), maxConcurrentThreads, queue);
+    }
+    
     public ThrottledExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, BlockingQueue<Runnable> queue) {
         this(threadFactory, maxConcurrentThreads, queue, RejectedExecutionHandler.ABORT_POLICY);
+    }
+    
+    public ThrottledExecutorService(String threadNamePrefix, int maxConcurrentThreads, BlockingQueue<Runnable> queue, 
+                                    RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
+        this(makeThreadFactory(threadNamePrefix), maxConcurrentThreads, queue, rejectedExecutionHandler);
     }
     
     public ThrottledExecutorService(ThreadFactory threadFactory, int maxConcurrentThreads, BlockingQueue<Runnable> queue, 
@@ -95,6 +122,10 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
                                         ? rejectedExecutionHandler 
                                         : RejectedExecutionHandler.ABORT_POLICY;
         
+    }
+    
+    private static ThreadFactory makeThreadFactory(String threadNamePrefix) {
+        return Thread.ofVirtual().name(threadNamePrefix, 0).factory();
     }
     
     public Stream<Thread> threads() {

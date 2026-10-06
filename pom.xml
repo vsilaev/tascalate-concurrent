@@ -283,6 +283,22 @@
 						</configuration>
 					</execution> 
 					<execution>
+						<id>compile-java21-inline</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<jdkToolchain>
+								<version>21</version>
+							</jdkToolchain>
+							<release>21</release>
+							<compileSourceRoots>
+								<compileSourceRoot>${project.basedir}/src/main/java21-inline</compileSourceRoot>
+							</compileSourceRoots>
+							<outputDirectory>${project.build.outputDirectory}</outputDirectory>
+						</configuration>
+					</execution> 
+					<execution>
 						<id>compile-java25</id>
 						<goals>
 							<goal>compile</goal>

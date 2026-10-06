@@ -30,11 +30,11 @@ import java.util.concurrent.TimeUnit;
 public class TaskExecutorCompletionService<V> extends ExecutorCompletionService<V> 
                                               implements TaskCompletionService<V> {
     
-    public TaskExecutorCompletionService(TaskExecutorService executor) {
+    public TaskExecutorCompletionService(Executor executor) {
         super(wrapExecutor(executor));
     }
 
-    public TaskExecutorCompletionService(TaskExecutorService executor,
+    public TaskExecutorCompletionService(Executor executor,
                                          BlockingQueue<Promise<V>> completionQueue) {
         super(wrapExecutor(executor), cast(completionQueue));
     }
