@@ -199,7 +199,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
                     .unwrap()
             );
         }
-        DependentPromise<Try<T>> h = dependent().handle((r, e) -> Try.handle(r, e, null), false);
+        DependentPromise<Try<T>> h = dependent().handle(Try::handle, false);
         return h.thenCompose(t -> t.isSuccess() || !(isCancelled() || t.isCancel()) ?
            // "this" is already completed promise here (in both cases)
            // Use *Async to execute on default "this" executor
@@ -226,8 +226,8 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Promise<Try<T>> onTimeout = Timeouts.delayed(null, duration);
         return
         this.dependent()
-            .handle((r, e) -> Try.handle(r, e, onTimeout), false)
-            .applyToEither(onTimeout, applyAndCancel(v -> Try.doneOrTimeout(v, duration), cancelOnTimeout, this), PromiseOrigin.ALL)
+            .handle(Try::handle, false)
+            .applyToEither(onTimeout, applyAndCancel(v -> Try.doneOrTimeout(v, duration), cancelOnTimeout, this, onTimeout), PromiseOrigin.ALL)
             // Use *Async to execute on default "this" executor; 
             // Don't use *Async above to let interrupt correctly with single-thread executors
             .thenComposeAsync(Try::asPromise, true)
@@ -250,9 +250,9 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
         return 
         this.dependent()
-            .handle((r, e) -> Try.handle(r, e, onTimeout), false)
+            .handle(Try::handle, false)
             // Use *Async to execute on default "this" executor
-            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this), PromiseOrigin.ALL)
+            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this, onTimeout), PromiseOrigin.ALL)
             // Use *Async to execute on default "this" executor; 
             // Don't use *Async above to let interrupt correctly with single-thread executors            
             .thenComposeAsync(Try::asPromise, true)
@@ -276,8 +276,8 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.call(supplier), duration);
         return
         this.dependent()
-            .handle((r, e) -> supply(Try.handle(r, e, onTimeout)), false)
-            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this), PromiseOrigin.ALL)
+            .handle((r, e) -> supply(Try.handle(r, e)), false)
+            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this, onTimeout), PromiseOrigin.ALL)
             // Use *Async to execute on default "this" executor; 
             // Don't use *Async above to let interrupt correctly with single-thread executors
             // Supplier will be called on async executor of this

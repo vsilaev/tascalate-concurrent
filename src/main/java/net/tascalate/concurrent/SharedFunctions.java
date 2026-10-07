@@ -79,14 +79,22 @@ class SharedFunctions {
         }
     }
     
-    static <T, U> Function<T, U> applyAndCancel(Function<T, U> fn, boolean cancel, Promise<?> target) {
+    static <T, U> Function<T, U> applyAndCancel(Function<T, U> fn, boolean cancel, Promise<?> target, Promise<?> timeout) {
         if (cancel) {
             return fn.andThen(u -> {
-               target.cancel(true); 
-               return u; 
+                target.cancel(true); 
+                if (null != timeout) {
+                    timeout.cancel(true);
+                }
+                return u; 
             });
-        } else {
+        } else if (null == timeout){
             return fn;
+        } else {
+            return fn.andThen(u -> {
+                timeout.cancel(true);
+                return u; 
+            });
         }
     }
 

@@ -433,10 +433,7 @@ public abstract class Try<R> {
      * @param <R> the type of the value
      * @return a Success or Failure based on the provided error
      */
-    static <R> Try<R> handle(R result, Throwable error, Promise<?> timeout) {
-        if (null != timeout) {
-            timeout.cancel(true);
-        }
+    static <R> Try<R> handle(R result, Throwable error) {
         return null == error ? Try.success(result) : Try.failure(error);
     }
     
