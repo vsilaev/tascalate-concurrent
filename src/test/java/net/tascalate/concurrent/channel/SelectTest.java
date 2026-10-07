@@ -12,11 +12,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
 import net.tascalate.concurrent.Promise;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import static org.junit.Assert.fail;
 
 public class SelectTest {
 
@@ -357,5 +366,114 @@ public class SelectTest {
         String s = r.toString();
         assertTrue(s.contains("index=0"));
         assertTrue(s.contains("hello"));
+    }
+    
+    // ── Concurrency Stress Tests (No Lost Items, No Duplicates) ───────
+
+    @Test
+    public void selectStressTestBufferedChannels() throws Exception {
+        runSelectStressTest(10); // capacity 10
+    }
+
+    @Test
+    public void selectStressTestRendezvousChannels() throws Exception {
+        runSelectStressTest(0); // capacity 0 (rendezvous)
+    }
+
+    private void runSelectStressTest(int capacity) throws Exception {
+        int NUM_CHANNELS = 3;
+        int NUM_PRODUCERS = 100;
+        int NUM_CONSUMERS = 100;
+        int ITEMS_PER_PRODUCER = 5000;
+        int TOTAL_ITEMS = NUM_PRODUCERS * ITEMS_PER_PRODUCER;
+
+        @SuppressWarnings("unchecked")
+        Channel<Integer>[] channels = new Channel[NUM_CHANNELS];
+        for (int i = 0; i < NUM_CHANNELS; i++) {
+            channels[i] = (capacity == 0) ? Channel.<Integer>rendezvous() : Channel.<Integer>buffered(capacity);
+        }
+
+        Set<Integer> received = ConcurrentHashMap.newKeySet();
+        AtomicInteger receivedCount = new AtomicInteger(0);
+        AtomicInteger itemIdGenerator = new AtomicInteger(0);
+
+        ExecutorService pool = Executors.newFixedThreadPool(NUM_PRODUCERS + NUM_CONSUMERS);
+        List<Future<?>> consumerFutures = new ArrayList<>();
+        List<Future<?>> producerFutures = new ArrayList<>();
+
+        // ── Consumers ─────────────────────────────────────────────────
+        for (int c = 0; c < NUM_CONSUMERS; c++) {
+            consumerFutures.add(pool.submit(() -> {
+                @SuppressWarnings("unchecked")
+                SelectCase<Integer>[] cases = new SelectCase[NUM_CHANNELS];
+                for (int i = 0; i < NUM_CHANNELS; i++) {
+                    cases[i] = SelectCase.receive(channels[i]);
+                }
+                try {
+                    // ✅ FIX: Check count without incrementing
+                    while (receivedCount.get() < TOTAL_ITEMS) {
+                        SelectResult<Integer> res = Channel.select(cases).join();
+                        Integer val = (Integer) res.value();
+                        if (val != null) {
+                            if (!received.add(val)) {
+                                throw new AssertionError("Duplicate item received: " + val);
+                            }
+                            // ✅ FIX: Increment ONLY after successful receive
+                            receivedCount.incrementAndGet();
+                        }
+                    }
+                } catch (Exception e) {
+                    // Expected when channels are closed to unblock waiting consumers
+                }
+            }));
+        }
+
+        // ── Producers ─────────────────────────────────────────────────
+        for (int p = 0; p < NUM_PRODUCERS; p++) {
+            producerFutures.add(pool.submit(() -> {
+                for (int i = 0; i < ITEMS_PER_PRODUCER; i++) {
+                    int item = itemIdGenerator.getAndIncrement();
+                    @SuppressWarnings("unchecked")
+                    SelectCase<Integer>[] cases = new SelectCase[NUM_CHANNELS];
+                    //int c = (int)(Math.random() * NUM_CHANNELS);
+                    //channels[c].send(item);
+                    for (int c = 0; c < NUM_CHANNELS; c++) {
+                        cases[c] = SelectCase.send(channels[c], item);
+                    }
+                    Channel.select(cases).join();
+                }
+            }));
+        }
+
+        // ── Wait for all producers to finish sending ──────────────────
+        for (Future<?> f : producerFutures) {
+            f.get(3000, TimeUnit.SECONDS); // Fails fast if producer hangs
+        }
+
+        // ── Wait for all items to be received ─────────────────────────
+        long startTime = System.currentTimeMillis();
+        while (receivedCount.get() < TOTAL_ITEMS) {
+            if (System.currentTimeMillis() - startTime > 10000) {
+                fail("Timeout waiting for items to be received. Received: " + receivedCount.get() + "/" + TOTAL_ITEMS);
+            }
+            Thread.sleep(10);
+        }
+
+        // ── Close channels to unblock any consumers waiting in select ─
+        for (Channel<Integer> ch : channels) {
+            ch.close(ChannelBase.CloseMode.FAIL_ALL);
+        }
+
+        // ── Wait for consumers to finish ──────────────────────────────
+        for (Future<?> f : consumerFutures) {
+            f.get(5000, TimeUnit.SECONDS);
+        }
+
+        pool.shutdown();
+        pool.awaitTermination(5000, TimeUnit.SECONDS);
+
+        // ── Assertions ────────────────────────────────────────────────
+        assertEquals("All unique items must be received (no duplicates, no missing)", TOTAL_ITEMS, received.size());
+        assertEquals("Total received count must match", TOTAL_ITEMS, receivedCount.get());
     }
 }

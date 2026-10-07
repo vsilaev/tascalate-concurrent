@@ -27,12 +27,16 @@ class ChannelPromise<T> extends CompletableFutureWrapper<T> {
         this.coordinator = coordinator;
     }
     
-    boolean completeSuccess(T value) {
-        if (null == coordinator || coordinator.tryWin()) {
+    boolean completeSuccess(T value, Channel<?> owner) {
+        //if (null == coordinator || coordinator.tryWin(owner)) {
             return super.success(value);
-        } else {
-            return false;
-        }
+        //} else {
+        //    return false;
+        //}
+    }
+    
+    boolean tryClaim(Channel<?> owner) {
+        return null == coordinator || coordinator.tryClaim(owner);
     }
     
     boolean completeFailure(Throwable failure) {

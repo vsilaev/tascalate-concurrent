@@ -15,7 +15,7 @@
  */
 package net.tascalate.concurrent.channel;
 
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public abstract class SelectCoordinator {
     
@@ -23,7 +23,7 @@ public abstract class SelectCoordinator {
         
     }
     
-    abstract boolean tryWin();
+    abstract boolean tryClaim(Channel<?> candidate);
     
     static SelectCoordinator createFirstWins() {
         return new FirstWins();
@@ -35,23 +35,22 @@ public abstract class SelectCoordinator {
     
     private static SelectCoordinator ANY_WINS = new SelectCoordinator() {
         @Override
-        boolean tryWin() {
+        boolean tryClaim(Channel<?> candidate) {
             return true;
         }
     }; 
     
     static final class FirstWins extends SelectCoordinator {
         
-        private static final AtomicIntegerFieldUpdater<FirstWins> UPDATER = 
-                AtomicIntegerFieldUpdater.newUpdater(FirstWins.class, "victory");
+        @SuppressWarnings("rawtypes")
+        private static final AtomicReferenceFieldUpdater<FirstWins, Channel> UPDATER = 
+                AtomicReferenceFieldUpdater.newUpdater(FirstWins.class, Channel.class, "winner");
         
-        // 0 = false, 1 = true
-        @SuppressWarnings("unused")
-        private volatile int victory = 0;
+        private volatile Channel<Object> winner = null;
         
         @Override
-        boolean tryWin() {
-            return UPDATER.compareAndSet(this, 0, 1);
+        boolean tryClaim(Channel<?> candidate) {
+            return UPDATER.compareAndSet(this, null, candidate) || winner == candidate;
         }
     }
 }

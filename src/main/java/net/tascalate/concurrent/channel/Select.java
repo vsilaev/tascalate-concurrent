@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionStage;
 
 import net.tascalate.concurrent.Promise;
@@ -109,7 +110,7 @@ final class Select {
             }
         }
 
-        // Nothing was immediately ready → use default if present
+        // Nothing was immediately ready -> use default if present
         if (defaultOriginalIdx >= 0) {
             return success(defaultOriginalIdx, cases[defaultOriginalIdx], null /*isSend=false*/);
         }
@@ -148,9 +149,13 @@ final class Select {
 
             CompletionStage<SelectResultHolder<T>> stage = 
             originalFuture.dependent()
-                          .handle((val, ex) -> new SelectResultHolder<>(originalIdx, c, val, ex), true);
-            // No need to unwrap above - not exposed to the clients
-
+                          .handle((val, ex) -> {
+                              if (ex instanceof CancellationException) {
+                                  throw (CancellationException)ex;
+                              } else {
+                                  return new SelectResultHolder<>(originalIdx, c, val, ex); 
+                              }
+                          }, true);
             stages.add(stage);
         }
 

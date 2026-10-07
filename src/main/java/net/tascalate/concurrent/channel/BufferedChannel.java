@@ -32,7 +32,7 @@ public class BufferedChannel<T> implements Channel<T> {
 
     // Queue<Object> instead of Queue<Optional<T>> — no per-element allocation
     private final Queue<Object> buffer = new ArrayDeque<>();
-    private final Queue<WaitingSender<T>> waitSenders = new ArrayDeque<>();
+    private final Queue<WaitingSender> waitSenders = new ArrayDeque<>();
     private final Queue<ChannelPromise<T>> waitReceivers = new ArrayDeque<>();
 
     private CloseMode closedMode = null; // null = OPEN
@@ -51,48 +51,7 @@ public class BufferedChannel<T> implements Channel<T> {
 
     @Override
     public Promise<T> send(T value) {
-        while (true) {
-            ChannelPromise<T> matchedReceiver = null;
-            boolean handoff = false;
-
-            lock.lock();
-            try {
-                if (closedMode != null) {
-                    return Promises.failure(new IllegalStateException("Channel is closed"));
-                }
-
-                ChannelPromise<T> matched;
-                while ((matched = waitReceivers.poll()) != null) {
-                    if (matched.isDone()) {
-                        continue;
-                    }
-                    matchedReceiver = matched;
-                    handoff = true;
-                    break;
-                }
-
-                if (handoff) {
-                    // rendezvous — completed outside lock
-                } else if (buffer.size() < capacity) {
-                    buffer.add(wrap(value));
-                    return Promises.success(value);
-                } else {
-                    WaitingSender<T> ws = new WaitingSender<>(value, null); 
-                    waitSenders.add(ws);
-                    return ws.future;
-                }
-            } finally {
-                lock.unlock();
-            }
-
-            if (handoff) {
-                if (matchedReceiver.completeSuccess(value)) {
-                    // matchedReceiver is completed with the same value, safe to use as a return
-                    return matchedReceiver;
-                }
-                // receiver cancelled concurrently -> retry
-            }
-        }
+        return send(value, SelectCoordinator.anyWins());
     }
     
     @Override
@@ -115,12 +74,11 @@ public class BufferedChannel<T> implements Channel<T> {
                 ChannelPromise<T> matched;
                 // Use peek() to check before committing, just like receive
                 while ((matched = waitReceivers.peek()) != null) {
-                    if (matched.isDone()) {
-                        waitReceivers.poll(); // clean up cancelled receiver
+                    if (removePhantomReceiver(matched)) {
                         continue;
                     }
                     
-                    isWon = isWon || coordinator.tryWin();
+                    isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
                         return canceled();
                     }
@@ -134,7 +92,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 if (handoff) {
                     // rendezvous — completed outside lock
                 } else if (buffer.size() < capacity) {
-                    isWon = isWon || coordinator.tryWin();
+                    isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
                         return canceled();
                     }
@@ -146,7 +104,7 @@ public class BufferedChannel<T> implements Channel<T> {
                     // eventually tries to complete this sender, it can check tryWin().
                     
                     // Attach coord to the WaitingSender so the receiver can check it
-                    WaitingSender<T> ws = new WaitingSender<>(value, coordinator); 
+                    WaitingSender ws = new WaitingSender(value, coordinator); 
                     waitSenders.add(ws);
                     return ws.future;
                 }
@@ -155,7 +113,7 @@ public class BufferedChannel<T> implements Channel<T> {
             }
 
             if (handoff) {
-                if (matchedReceiver.completeSuccess(value)) {
+                if (matchedReceiver.completeSuccess(value, this)) {
                     return matchedReceiver;
                 }
                 // receiver cancelled concurrently -> retry.
@@ -165,76 +123,7 @@ public class BufferedChannel<T> implements Channel<T> {
 
     @Override
     public Promise<T> receive() {
-        while (true) {
-            T resultFromBuffer = null;
-            WaitingSender<T> rendezvousSender = null;
-
-            lock.lock();
-            try {
-                if (closedMode != null) {
-                    if (closedMode == CloseMode.FAIL_ALL) {
-                        return Promises.failure(new IllegalStateException("Channel is closed"));
-                    }
-                    if (buffer.isEmpty() && waitSenders.isEmpty()) {
-                        return nothing();
-                    } 
-                }
-
-                boolean completedImmediately = false;
-                Object buffered = buffer.poll();
-                if (buffered != null) {
-                    // BUFFER PATH
-                    resultFromBuffer = unwrap(buffered);
-                    completedImmediately = true;
-
-                    WaitingSender<T> ws;
-                    while ((ws = waitSenders.poll()) != null) {
-                        if (ws.isDone()) {
-                            continue;
-                        }
-                        if (ws.complete()) {
-                            buffer.add(wrap(ws.value));
-                            break;
-                        }
-                    }
-                } else {
-                    // RENDEZVOUS PATH
-                    WaitingSender<T> ws;
-                    while ((ws = waitSenders.poll()) != null) {
-                        if (ws.isDone()) {
-                            continue;
-                        }
-                        rendezvousSender = ws;
-                        completedImmediately = true;
-                        break;
-                    }
-
-                    if (!completedImmediately) {
-                        if (closedMode != null) {
-                            return nothing();
-                        }
-                        ChannelPromise<T> receiverFuture = new ChannelPromise<>(null);
-                        waitReceivers.add(receiverFuture);
-                        return receiverFuture;
-                    }
-                }
-            } finally {
-                lock.unlock();
-            }
-
-            if (rendezvousSender != null) {
-                if (rendezvousSender.complete()) {
-                    // rendezvousSender is completed with the same value, safe to use as a return
-                    return rendezvousSender.future;
-                } else {
-                    // rendezvousSender was canceled concurrently, retry
-                    continue;
-                }
-            } else {
-                // Otherwise this is result polled from buffer
-                return Promises.success(resultFromBuffer);
-            }
-        }
+        return receive(SelectCoordinator.anyWins());
     }
     
     @Override
@@ -246,7 +135,7 @@ public class BufferedChannel<T> implements Channel<T> {
         boolean isWon = false;
         while (true) {
             T resultFromBuffer = null;
-            WaitingSender<T> rendezvousSender = null;
+            WaitingSender rendezvousSender = null;
 
             lock.lock();
             try {
@@ -261,7 +150,7 @@ public class BufferedChannel<T> implements Channel<T> {
 
                 boolean completedImmediately = false;
                 if (!buffer.isEmpty()) {
-                    isWon = isWon || coord.tryWin();
+                    isWon = isWon || coord.tryClaim(this);
                     if (!isWon) {
                         return canceled();
                     }
@@ -269,26 +158,29 @@ public class BufferedChannel<T> implements Channel<T> {
                     resultFromBuffer = unwrap(buffer.poll());
                     completedImmediately = true;
 
-                    WaitingSender<T> ws;
-                    while ((ws = waitSenders.poll()) != null) {
-                        if (ws.isDone()) {
+                    WaitingSender ws;
+                    while ((ws = waitSenders.peek()) != null) {
+                        if (removePhantomSender(ws)) {
                             continue;
                         }
+                        
                         if (ws.complete()) {
                             buffer.add(wrap(ws.value));
+                            waitSenders.poll();
                             break;
+                        } else {
+                            waitSenders.poll();
                         }
                     }
                 } else {
                     // RENDEZVOUS PATH
-                    WaitingSender<T> ws;
+                    WaitingSender ws;
                     while ((ws = waitSenders.peek()) != null) {
-                        if (ws.isDone()) {
-                            waitSenders.poll();
+                        if (removePhantomSender(ws)) {
                             continue;
                         }
                         
-                        isWon = isWon || coord.tryWin();
+                        isWon = isWon || coord.tryClaim(this);
                         if (!isWon) {
                             return canceled();
                         }
@@ -349,13 +241,17 @@ public class BufferedChannel<T> implements Channel<T> {
             }
 
             // rendezvous path (the ONLY path when capacity == 0)
-            WaitingSender<T> ws;
-            while ((ws = waitSenders.poll()) != null) {
-                if (ws.isDone()) {
-                    continue; // skip cancelled
+            WaitingSender ws;
+            while ((ws = waitSenders.peek()) != null) {
+                if (removePhantomSender(ws)) {
+                    continue;
                 }
+                
                 if (ws.complete()) { // atomic claim
+                    waitSenders.poll();
                     return Try.success(ws.value);
+                } else {
+                    waitSenders.poll();
                 }
                 // cancelled concurrently -> try next
             }
@@ -379,10 +275,12 @@ public class BufferedChannel<T> implements Channel<T> {
                 }
 
                 ChannelPromise<T> matched;
-                while ((matched = waitReceivers.poll()) != null) {
-                    if (matched.isDone()) {
+                while ((matched = waitReceivers.peek()) != null) {
+                    if (removePhantomReceiver(matched)) {
                         continue;
                     }
+                    
+                    waitReceivers.poll();
                     matchedReceiver = matched;
                     break;
                 }
@@ -401,7 +299,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 lock.unlock();
             }
 
-            if (matchedReceiver.completeSuccess(value)) {
+            if (matchedReceiver.completeSuccess(value, this)) {
                 return Try.success(value);
             }
             // Receiver was cancelled concurrently -> retry
@@ -425,7 +323,7 @@ public class BufferedChannel<T> implements Channel<T> {
             }
             closedMode = mode;
 
-            WaitingSender<T> ws;
+            WaitingSender ws;
             while ((ws = waitSenders.poll()) != null) {
                 toFail.add(ws.future);
             }
@@ -450,7 +348,7 @@ public class BufferedChannel<T> implements Channel<T> {
             if (failReceivers) {
                 f.completeFailure(ex);
             } else {
-                f.completeSuccess(null);
+                f.completeSuccess(null, this);
             }
         }
     }
@@ -489,23 +387,44 @@ public class BufferedChannel<T> implements Channel<T> {
     public int capacity() {
         return capacity;   // immutable, no lock needed
     }
+    
+    private boolean removePhantomReceiver(ChannelPromise<T> matched) {
+        if (matched.isDone() || !matched.tryClaim(this)) {
+            waitReceivers.poll();
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    private boolean removePhantomSender(WaitingSender waitingSender) {
+        if (waitingSender.isDone() || !waitingSender.tryClaim()) {
+            waitSenders.poll();
+            return true;
+        } else {
+            return false;
+        }
+    }
 
     private void promoteOneSender() {
-        WaitingSender<T> ws;
-        while ((ws = waitSenders.poll()) != null) {
-            if (ws.isDone()) {
+        WaitingSender ws;
+        while ((ws = waitSenders.peek()) != null) {       // peek
+            if (removePhantomSender(ws)) {
                 continue;
             }
             if (ws.complete()) {
+                waitSenders.poll();
                 buffer.add(wrap(ws.value));
                 break;
+            } else {
+                waitSenders.poll();
             }
         }
     }
 
     // inner classes
 
-    private static class WaitingSender<T> {
+    private class WaitingSender {
         final T value;
         final ChannelPromise<T> future;
 
@@ -518,8 +437,12 @@ public class BufferedChannel<T> implements Channel<T> {
             return future.isDone();
         }
         
+        boolean tryClaim() {
+            return future.tryClaim(BufferedChannel.this);
+        }
+        
         boolean complete() {
-            return future.completeSuccess(value);
+            return future.completeSuccess(value, BufferedChannel.this);
         }
     }
     
