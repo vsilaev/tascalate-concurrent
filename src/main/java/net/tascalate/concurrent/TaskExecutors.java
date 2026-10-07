@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,17 @@
  */
 package net.tascalate.concurrent;
 
-import java.util.Collection;
 import java.util.List;
-
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * The drop-in replacement for {@link Executors} utility class that returns various useful implementations
@@ -197,7 +193,9 @@ public class TaskExecutors {
     }
 
     
-    static class TaskExecutorServiceAdapter implements TaskExecutorService {
+    static class TaskExecutorServiceAdapter extends AbstractExecutorService // Need for completion service
+                                            implements TaskExecutorService {
+        
         private final ExecutorService delegate;
 
         TaskExecutorServiceAdapter(ExecutorService executor) {
@@ -227,43 +225,28 @@ public class TaskExecutors {
         public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
             return delegate.awaitTermination(timeout, unit);
         }
+        
+        @Override
+        protected <T> RunnablePromise<T> newTaskFor(Runnable runnable, T value) {
+            return newTaskFor(Executors.callable(runnable, value));
+        }
+
+        @Override
+        protected <T> RunnablePromise<T> newTaskFor(Callable<T> callable) {
+            return TaskExecutors.newRunnablePromise(this, callable);
+        }    
+
 
         public <T> Promise<T> submit(Callable<T> callable) {
-            RunnablePromise<T> task = newRunnablePromise(this, callable);
-            delegate.execute(task);
-            return task;
+            return (Promise<T>)super.submit(callable);
         }
 
         public <T> Promise<T> submit(Runnable codeBlock, T result) {
-            RunnablePromise<T> task = newRunnablePromise(this, Executors.callable(codeBlock, result));
-            delegate.execute(task);
-            return task;
+            return (Promise<T>) super.submit(codeBlock, result);
         }
 
         public Promise<?> submit(Runnable codeBlock) {
-            RunnablePromise<?> task = newRunnablePromise(this, Executors.callable(codeBlock, null));
-            delegate.execute(task);
-            return task;
-        }
-
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
-            return delegate.invokeAll(tasks);
-        }
-
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, 
-                                             long timeout, TimeUnit unit) throws InterruptedException {
-            
-            return delegate.invokeAll(tasks, timeout, unit);
-        }
-
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
-            return delegate.invokeAny(tasks);
-        }
-
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks, 
-                               long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-            
-            return delegate.invokeAny(tasks, timeout, unit);
+            return (Promise<?>)super.submit(codeBlock);
         }
     }
 }

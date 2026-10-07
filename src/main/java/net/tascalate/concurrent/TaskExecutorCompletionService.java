@@ -22,9 +22,9 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 
 public class TaskExecutorCompletionService<V> extends ExecutorCompletionService<V> 
@@ -73,51 +73,55 @@ public class TaskExecutorCompletionService<V> extends ExecutorCompletionService<
         if (executor instanceof TaskExecutorService && executor instanceof AbstractExecutorService) {
             return executor;
         } else {
-            return new AbstractExecutorService() {
-                private volatile boolean terminated;
-
-                @Override
-                public void execute(Runnable command) {
-                    executor.execute(command);
-                }
-                
-                @Override
-                protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
-                    return newTaskFor(Executors.callable(runnable, value));
-                }
-
-                @Override
-                protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
-                    return TaskExecutors.newRunnablePromise(this, callable);
-                }                
-                
-                // Just no-ops to fulfill ExecutorService  contract
-                @Override
-                public void shutdown() {
-                    terminated = true;
-                }
-
-                @Override
-                public List<Runnable> shutdownNow() {
-                    terminated = true;
-                    return Collections.emptyList();
-                }
-
-                @Override
-                public boolean isShutdown() {
-                    return terminated;
-                }
-
-                @Override
-                public boolean isTerminated() {
-                    return terminated;
-                }
-
-                @Override
-                public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-                    return true;
-                }
-            };
+            if (executor instanceof ExecutorService) {
+                return TaskExecutors.adapt((ExecutorService)executor);
+            } else {
+                return new AbstractExecutorService() {
+                    private volatile boolean terminated;
+    
+                    @Override
+                    public void execute(Runnable command) {
+                        executor.execute(command);
+                    }
+                    
+                    @Override
+                    protected <T> RunnablePromise<T> newTaskFor(Runnable runnable, T value) {
+                        return newTaskFor(Executors.callable(runnable, value));
+                    }
+    
+                    @Override
+                    protected <T> RunnablePromise<T> newTaskFor(Callable<T> callable) {
+                        return TaskExecutors.newRunnablePromise(this, callable);
+                    }                
+                    
+                    // Just no-ops to fulfill ExecutorService  contract
+                    @Override
+                    public void shutdown() {
+                        terminated = true;
+                    }
+    
+                    @Override
+                    public List<Runnable> shutdownNow() {
+                        terminated = true;
+                        return Collections.emptyList();
+                    }
+    
+                    @Override
+                    public boolean isShutdown() {
+                        return terminated;
+                    }
+    
+                    @Override
+                    public boolean isTerminated() {
+                        return terminated;
+                    }
+                    
+                    @Override
+                    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+                        return true;
+                    }
+                };
+            }
         }
     }
 }

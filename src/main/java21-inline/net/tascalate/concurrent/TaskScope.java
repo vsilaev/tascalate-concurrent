@@ -15,6 +15,7 @@
  */
 package net.tascalate.concurrent;
 
+import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
@@ -101,6 +102,10 @@ public class TaskScope implements AutoCloseable {
             @Override
             public Promise<Object> next() {
                 try {
+                    checkOwner();
+                    if (allFutures.isEmpty()) {
+                        throw new ConcurrentModificationException();
+                    }
                     Promise<Object> result = completionService.take();
                     allFutures.remove(result);
                     return (Promise<Object>)result;
@@ -112,6 +117,7 @@ public class TaskScope implements AutoCloseable {
             
             @Override
             public boolean hasNext() {
+                // Don't check owner here - non destructive operation
                 return !allFutures.isEmpty();
             }
         };
@@ -127,6 +133,8 @@ public class TaskScope implements AutoCloseable {
     // blocks within a code where you are
     // forking set of threads and consumes results
     public void reset() {
+        checkOwner();
+        
         // Cancel all forks first
         allFutures.forEach(f -> f.cancel(true));
         // Remove enlisted futures
