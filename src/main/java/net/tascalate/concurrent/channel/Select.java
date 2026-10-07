@@ -46,9 +46,28 @@ final class Select {
         }
     }
 
-    static <T> Promise<SelectResult<T>> select(@SuppressWarnings("unchecked") SelectCase<T>... cases) {
+    @SafeVarargs
+    static <T> Promise<SelectResult<T>> select(SelectCase<T>... cases) {
         if (cases == null || cases.length == 0) {
             return Promises.failure(new IllegalArgumentException("At least one case required"));
+        }
+
+        // Reject duplicate channels
+        Set<Object> seen = new HashSet<>();
+        for (SelectCase<T> c : cases) {
+            Object ch;
+            if (c instanceof SelectCase.Receive) {
+                ch = ((SelectCase.Receive<?>)c).channel();
+            } else if (c instanceof SelectCase.Send) {
+                ch = ((SelectCase.Send<?>)c).channel();
+            } else {
+                ch = null;
+            }
+            if (ch != null && !seen.add(ch)) {
+                return Promises.failure(
+                    new IllegalArgumentException("Duplicate channel in select: " + ch)
+                    );
+            }
         }
 
         // Keep a mapping from shuffled position -> original index

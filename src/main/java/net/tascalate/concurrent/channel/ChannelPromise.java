@@ -20,19 +20,15 @@ import java.util.concurrent.CompletableFuture;
 import net.tascalate.concurrent.CompletableFutureWrapper;
 
 class ChannelPromise<T> extends CompletableFutureWrapper<T> {
-    SelectCoordinator coordinator;
+    private final SelectCoordinator coordinator;
     
     ChannelPromise(SelectCoordinator coordinator) {
         super(new CompletableFuture<>());
         this.coordinator = coordinator;
     }
     
-    boolean completeSuccess(T value, Channel<?> owner) {
-        //if (null == coordinator || coordinator.tryWin(owner)) {
-            return super.success(value);
-        //} else {
-        //    return false;
-        //}
+    boolean completeSuccess(T value) {
+        return super.success(value);
     }
     
     boolean tryClaim(Channel<?> owner) {

@@ -48,11 +48,6 @@ public class BufferedChannel<T> implements Channel<T> {
         this.capacity = capacity;
         this.lock = new ReentrantLock(fair);
     }
-
-    @Override
-    public Promise<T> send(T value) {
-        return send(value, SelectCoordinator.anyWins());
-    }
     
     @Override
     public Promise<T> send(T value, SelectCoordinator coordinator) {
@@ -113,7 +108,7 @@ public class BufferedChannel<T> implements Channel<T> {
             }
 
             if (handoff) {
-                if (matchedReceiver.completeSuccess(value, this)) {
+                if (matchedReceiver.completeSuccess(value)) {
                     return matchedReceiver;
                 }
                 // receiver cancelled concurrently -> retry.
@@ -122,14 +117,9 @@ public class BufferedChannel<T> implements Channel<T> {
     }
 
     @Override
-    public Promise<T> receive() {
-        return receive(SelectCoordinator.anyWins());
-    }
-    
-    @Override
-    public Promise<T> receive(SelectCoordinator coord) {
-        if (null == coord) {
-            coord = SelectCoordinator.anyWins();
+    public Promise<T> receive(SelectCoordinator coordinator) {
+        if (null == coordinator) {
+            coordinator = SelectCoordinator.anyWins();
         }
         
         boolean isWon = false;
@@ -150,7 +140,7 @@ public class BufferedChannel<T> implements Channel<T> {
 
                 boolean completedImmediately = false;
                 if (!buffer.isEmpty()) {
-                    isWon = isWon || coord.tryClaim(this);
+                    isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
                         return canceled();
                     }
@@ -180,7 +170,7 @@ public class BufferedChannel<T> implements Channel<T> {
                             continue;
                         }
                         
-                        isWon = isWon || coord.tryClaim(this);
+                        isWon = isWon || coordinator.tryClaim(this);
                         if (!isWon) {
                             return canceled();
                         }
@@ -195,7 +185,7 @@ public class BufferedChannel<T> implements Channel<T> {
                         if (closedMode != null) {
                             return nothing();
                         }
-                        ChannelPromise<T> receiverFuture = new ChannelPromise<>(coord);
+                        ChannelPromise<T> receiverFuture = new ChannelPromise<>(coordinator);
                         waitReceivers.add(receiverFuture);
                         return receiverFuture;
                     }
@@ -299,7 +289,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 lock.unlock();
             }
 
-            if (matchedReceiver.completeSuccess(value, this)) {
+            if (matchedReceiver.completeSuccess(value)) {
                 return Try.success(value);
             }
             // Receiver was cancelled concurrently -> retry
@@ -348,7 +338,7 @@ public class BufferedChannel<T> implements Channel<T> {
             if (failReceivers) {
                 f.completeFailure(ex);
             } else {
-                f.completeSuccess(null, this);
+                f.completeSuccess(null);
             }
         }
     }
@@ -442,7 +432,7 @@ public class BufferedChannel<T> implements Channel<T> {
         }
         
         boolean complete() {
-            return future.completeSuccess(value, BufferedChannel.this);
+            return future.completeSuccess(value);
         }
     }
     
