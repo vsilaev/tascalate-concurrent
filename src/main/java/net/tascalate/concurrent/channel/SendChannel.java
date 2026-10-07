@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent.channel;
 
+import java.time.Duration;
+
 import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.Try;
 
@@ -29,6 +31,14 @@ public interface SendChannel<T> extends ChannelBase {
      * a pending future if the channel is full, or a failed future if closed.
      */
     Promise<T> send(T value);
+    
+    default Promise<T> send(T value, long millis) {
+        return send(value, Duration.ofMillis(millis));
+    }
+    
+    default Promise<T> send(T value, Duration timeout) {
+        return send(value).orTimeout(timeout, true);
+    }
 
     /**
      * Non-blocking send. Returns {@code true} if the value was buffered
