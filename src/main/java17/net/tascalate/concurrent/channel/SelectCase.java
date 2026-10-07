@@ -15,38 +15,37 @@
  */
 package net.tascalate.concurrent.channel;
 
-public sealed interface SelectCase<T> permits SelectCase.Typed, SelectCase.Receive {
+/**
+ * A single case in a {@code select} statement.
+ * <p>
+ * Java 17+ version using {@code sealed interface} and {@code record}s,
+ * enabling exhaustive pattern-matching {@code switch} for downstream callers.
+ */
+public sealed interface SelectCase<T> permits SelectCase.Send, SelectCase.Receive, SelectCase.Default, SelectCase.Disabled {
 
-    public sealed interface Typed<T> extends SelectCase<T>
-           permits Send, Default, Disabled {}
+    record Send<T>(SelectableSendChannel<T> channel, T value) implements SelectCase<T> {}
 
-    public record Send<T>(SelectableSendChannel<T> channel, T value)
-           implements Typed<T> {}
+    record Receive<T>(SelectableReceiveChannel<T> channel) implements SelectCase<T> {}
 
-    public record Receive<T>(SelectableReceiveChannel<T> channel)
-           implements SelectCase<Void> {}
-
-    public record Default<T>()
-           implements Typed<T> {}
-
-    public record Disabled<T>()
-           implements Typed<T> {}
-
+    record Default<T>() implements SelectCase<T> {}
+    
+    record Disabled<T>() implements SelectCase<T> {}
+    
     // Factory helpers
 
-    public static <T, S extends T> Send<T> send(SelectableSendChannel<T> ch, S value) {
-        return new Send<T>(ch, value);
+    static <T, S extends T> Send<T> send(SelectableSendChannel<T> ch, S value) {
+        return new Send<>(ch, value);
     }
 
-    public static <T> Receive<T> receive(SelectableReceiveChannel<T> ch) {
+    static <T> Receive<T> receive(SelectableReceiveChannel<T> ch) {
         return new Receive<>(ch);
     }
 
-    public static <T> Default<T> defaultCase() {
+    static <T> Default<T> defaultCase() {
         return new Default<>();
     }
     
-    public static <T> Disabled<T> disabled() {
+    static <T> Disabled<T> disabled() {
         return new Disabled<>();
     }
 }

@@ -141,10 +141,10 @@ public class BufferedChannel<T> implements Channel<T> {
                     buffer.add(wrap(value));
                     return Promises.success(value);
                 } else {
-                    isWon = isWon || coordinator.tryWin();
-                    if (!isWon) {
-                        return canceled();
-                    }
+                    // DO NOT call tryWin() here! We are not completing, just waiting.
+                    // We attach the coordinator so that when an external receiver 
+                    // eventually tries to complete this sender, it can check tryWin().
+                    
                     // Attach coord to the WaitingSender so the receiver can check it
                     WaitingSender<T> ws = new WaitingSender<>(value, coordinator); 
                     waitSenders.add(ws);

@@ -167,20 +167,37 @@ public class TaskScope implements AutoCloseable {
     }
 
     // Might be added to the API as well
-    public Optional<Promise<Object>> take() throws InterruptedException {
+    public Promise<Object> take() throws InterruptedException {
         return take(ANY);
     }
     
-    public Optional<Promise<Object>> take(Predicate<Promise<?>> filter) throws InterruptedException {
+    public Promise<Object> take(Predicate<Promise<?>> filter) throws InterruptedException {
         checkOwner();
         while (!allFutures.isEmpty()) {
             Promise<Object> result = (Promise<Object>)completionService.take();
             allFutures.remove(result);
             if (filter.test(result)) {
-                return Optional.of(result);
+                return result;
             }
         }
-        return Optional.empty();
+        return null;
+    }
+    
+    // Might be added to the API as well
+    public Optional<Object> takeValue() throws InterruptedException {
+        return takeValue(ANY);
+    }
+    
+    public Optional<Object> takeValue(Predicate<Promise<?>> filter) throws InterruptedException {
+        checkOwner();
+        while (!allFutures.isEmpty()) {
+            Promise<Object> result = (Promise<Object>)completionService.take();
+            allFutures.remove(result);
+            if (filter.test(result)) {
+                return Optional.ofNullable(result.resultNow());
+            }
+        }
+        return null;
     }
     
     public static Predicate<Promise<?>> stateFilter(Promise.State state) {

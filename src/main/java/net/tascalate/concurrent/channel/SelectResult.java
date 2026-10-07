@@ -19,10 +19,10 @@ import java.util.Objects;
 
 public final class SelectResult<T> {
     private final int index;
-    private final SelectCase<?> match;
+    private final SelectCase<T> match;
     private final T value;
 
-    public SelectResult(int index, SelectCase<?> match, T value) {
+    public SelectResult(int index, SelectCase<T> match, T value) {
         this.index = index;
         this.match = match;
         this.value = value;
@@ -36,8 +36,8 @@ public final class SelectResult<T> {
         return value; 
     }
     
-    public boolean selectCase() { 
-        return selectCase(); 
+    public SelectCase<T> match() { 
+        return match; 
     }
 
     @Override

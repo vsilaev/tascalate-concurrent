@@ -26,10 +26,7 @@ import java.util.Objects;
  */
 public interface SelectCase<T> {
 
-    /** Marker for cases that carry a typed payload (Send, Default). */
-    public static interface Typed<T> extends SelectCase<T> {}
-
-    public static final class Send<T> implements Typed<T> {
+    public static final class Send<T> implements SelectCase<T> {
         private final SelectableSendChannel<T> channel;
         private final T value;
 
@@ -72,7 +69,7 @@ public interface SelectCase<T> {
      * so that mixing receive with typed sends forces the select
      * result type to {@code Object}.
      */
-    public static final class Receive<T> implements SelectCase<Void> {
+    public static final class Receive<T> implements SelectCase<T> {
         private final SelectableReceiveChannel<T> channel;
 
         public Receive(SelectableReceiveChannel<T> channel) {
@@ -103,7 +100,7 @@ public interface SelectCase<T> {
         }
     }
 
-    public static final class Default<T> implements Typed<T> {
+    public static final class Default<T> implements SelectCase<T> {
 
         public Default() {}
 
@@ -125,7 +122,7 @@ public interface SelectCase<T> {
      * never registers in Phase 2. Used to dynamically remove a case
      * from a select loop (Go nil-channel idiom).
      */
-    public static final class Disabled<T> implements Typed<T> {
+    public static final class Disabled<T> implements SelectCase<T> {
 
         public Disabled() {}
 

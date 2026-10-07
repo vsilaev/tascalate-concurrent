@@ -31,13 +31,13 @@ final class Select {
     private Select() {}
     
     // Internal wrapper to unify types for Promises.any and capture exceptions
-    static final class SelectResultHolder {
+    static final class SelectResultHolder<T> {
         final int index;
-        final SelectCase<?> match;
-        final Object value;
+        final SelectCase<T> match;
+        final T value;
         final Throwable error;
 
-        public SelectResultHolder(int index, SelectCase<?> match, Object value, Throwable error) {
+        public SelectResultHolder(int index, SelectCase<T> match, T value, Throwable error) {
             this.index = index;
             this.match = match;
             this.value = value;
@@ -45,34 +45,28 @@ final class Select {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    static <T> Promise<SelectResult<T>> select(SelectCase.Typed<T>... cases) {
-        Promise<SelectResult<Object>> future = select((SelectCase<T>[])cases);
-        return (Promise<SelectResult<T>>)(Object)future;
-    }
-    
-    static <T> Promise<SelectResult<Object>> select(@SuppressWarnings("unchecked") SelectCase<T>... cases) {
+    static <T> Promise<SelectResult<T>> select(@SuppressWarnings("unchecked") SelectCase<T>... cases) {
         if (cases == null || cases.length == 0) {
             return Promises.failure(new IllegalArgumentException("At least one case required"));
         }
 
-        // Keep a mapping from shuffled position → original index
-        int[] originalIndex = new int[cases.length];
-        for (int i = 0; i < cases.length; i++) originalIndex[i] = i;
-
+        // Keep a mapping from shuffled position -> original index
+        Integer[] order = new Integer[cases.length];
+        for (int i = 0; i < cases.length; i++) order[i] = i;
+        
         // Fisher-Yates shuffle (Go picks randomly among ready cases)
-        List<SelectCase<T>> shuffled = new ArrayList<>(Arrays.asList(cases));
-        Collections.shuffle(shuffled);
+        Collections.shuffle(Arrays.asList(order));
 
         // Phase 1: non-blocking try
         int defaultOriginalIdx = -1;
         Throwable firstFailure = null;
         Set<Integer> failedIndexes = new HashSet<>();
-        for (int i = 0; i < shuffled.size(); i++) {
-            SelectCase<T> c = shuffled.get(i);
+        for (int idx = 0; idx < order.length; idx++) {
+            int originalIdx = order[idx];
+            SelectCase<T> c = cases[originalIdx];
 
             if (c instanceof SelectCase.Default) {
-                defaultOriginalIdx = originalIndex[i];
+                defaultOriginalIdx = originalIdx;
                 continue;
             }
             
@@ -81,7 +75,6 @@ final class Select {
             }
 
             if (c instanceof SelectCase.Receive) {
-                @SuppressWarnings("unchecked")
                 SelectCase.Receive<T> trc = (SelectCase.Receive<T>)c;
                 Try<T> r = trc.channel().tryReceive();
                 
@@ -91,9 +84,9 @@ final class Select {
                     if (null == firstFailure) {
                         firstFailure = r.getCause();
                     }
-                    failedIndexes.add(i);
+                    failedIndexes.add(idx);
                 } else if (r.isSuccess()) {
-                    return success(originalIndex[i], trc, r.get() /*isSend=false*/);
+                    return success(originalIdx, trc, r.get() /*isSend=false*/);
                 } else {
                     throw new IllegalStateException();
                 }
@@ -108,10 +101,10 @@ final class Select {
                     if (firstFailure == null) {
                         firstFailure = r.getCause();
                     }
-                    failedIndexes.add(i);
+                    failedIndexes.add(idx);
                 } else if (r.isSuccess()) {
                     // Successfully sent!
-                    return success(originalIndex[i], tsc, r.get());
+                    return success(originalIdx, tsc, r.get());
                 }
             }
         }
@@ -122,14 +115,18 @@ final class Select {
         }
 
         // Phase 2: async wait using tascalate Promises
-        List<CompletionStage<SelectResultHolder>> stages = new ArrayList<>();
+        List<CompletionStage<SelectResultHolder<T>>> stages = new ArrayList<>();
         
         SelectCoordinator coordinator = SelectCoordinator.createFirstWins();
-        for (int i = 0; i < shuffled.size(); i++) {
-            if (failedIndexes.contains(i)) {
+        
+        for (int idx = 0; idx < order.length; idx++) {
+            if (failedIndexes.contains(idx)) {
                 continue;
             }
-            SelectCase<T> c = shuffled.get(i);
+            
+            int originalIdx = order[idx];
+            SelectCase<T> c = cases[originalIdx];
+
             if (c instanceof SelectCase.Default) {
                 continue;
             }
@@ -138,11 +135,10 @@ final class Select {
                 continue;
             }
 
-            int origIdx = originalIndex[i];
-            Promise<?> originalFuture;
+            Promise<T> originalFuture;
 
             if (c instanceof SelectCase.Receive) {
-                originalFuture = ((SelectCase.Receive<?>)c).channel().receive(coordinator);
+                originalFuture = ((SelectCase.Receive<T>)c).channel().receive(coordinator);
             } else if (c instanceof SelectCase.Send) {
                 SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
                 originalFuture = tsc.channel().send(tsc.value(), coordinator);
@@ -150,9 +146,9 @@ final class Select {
                 continue;
             }
 
-            CompletionStage<SelectResultHolder> stage = 
+            CompletionStage<SelectResultHolder<T>> stage = 
             originalFuture.dependent()
-                          .handle((val, ex) -> new SelectResultHolder(origIdx, c, val, ex), true);
+                          .handle((val, ex) -> new SelectResultHolder<>(originalIdx, c, val, ex), true);
             // No need to unwrap above - not exposed to the clients
 
             stages.add(stage);
@@ -181,7 +177,7 @@ final class Select {
         }
     }
     
-    private static <T> Promise<SelectResult<T>> success(int idx, SelectCase<?> selectCase, T value) {
+    private static <T> Promise<SelectResult<T>> success(int idx, SelectCase<T> selectCase, T value) {
         return Promises.success(new SelectResult<>(idx, selectCase, value));
     }
 }

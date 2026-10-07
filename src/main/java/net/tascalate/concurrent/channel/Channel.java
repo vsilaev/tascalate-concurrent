@@ -62,13 +62,8 @@ public interface Channel<T> extends SelectableSendChannel<T>, SelectableReceiveC
         return buffered(capacity, fair);
     }
     
-    @SuppressWarnings("unchecked")
-    public static <T> Promise<SelectResult<T>> select(SelectCase.Typed<T>... cases) {
-        return Select.select(cases);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T> Promise<SelectResult<Object>> select(SelectCase<T>... cases) {
+    @SafeVarargs
+    public static <T> Promise<SelectResult<T>> select(SelectCase<T>... cases) {
         return Select.select(cases);
     }
 }
