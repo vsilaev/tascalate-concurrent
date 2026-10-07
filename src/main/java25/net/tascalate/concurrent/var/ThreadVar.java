@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent;
+package net.tascalate.concurrent.var;
 
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
-public final class ThreadVar<T> {
+public final class ThreadVar<T> implements ContextVar<T> {
     private final ScopedValue<Object> scopedValue = ScopedValue.newInstance();
     private final String name;
     
@@ -26,7 +26,7 @@ public final class ThreadVar<T> {
         this.name = name;
     }
     
-    public T value() {
+    public T get() {
         Object result = scopedValue.orElse(NULL_SENTINEL);
         return unwrap(result);
     }
@@ -35,15 +35,7 @@ public final class ThreadVar<T> {
         ScopedValue.where(scopedValue, wrap(newValue)).run(code);
     }
     
-    public void runWith(T oldValue, T newValue, Runnable code) {
-        ScopedValue.where(scopedValue, wrap(newValue)).run(code);
-    }
-    
     public <V> V supplyWith(T newValue, Supplier<V> supplier) {
-        return ScopedValue.where(scopedValue, wrap(newValue)).call(supplier::get);
-    }
-    
-    public <V> V supplyWith(T oldValue, T newValue, Supplier<V> supplier) {
         return ScopedValue.where(scopedValue, wrap(newValue)).call(supplier::get);
     }
     
@@ -51,10 +43,6 @@ public final class ThreadVar<T> {
         return ScopedValue.where(scopedValue, wrap(newValue)).call(callable::call);
     }
     
-    public <V> V callWith(T oldValue, T newValue, Callable<V> callable) throws Exception {
-        return ScopedValue.where(scopedValue, wrap(newValue)).call(callable::call);
-    }
-
     @Override
     public String toString() {
         return getClass().getName() + '[' + name + ']';

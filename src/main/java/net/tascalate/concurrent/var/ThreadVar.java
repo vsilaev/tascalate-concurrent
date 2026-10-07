@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent;
+package net.tascalate.concurrent.var;
 
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
-public final class ThreadVar<T> {
+public final class ThreadVar<T> implements ContextVar<T> {
     private final ThreadLocal<T> threadLocal = new ThreadLocal<>(); 
     private final String name;
     
@@ -26,15 +26,15 @@ public final class ThreadVar<T> {
         this.name = name;
     }
     
-    public T value() {
+    public T get() {
         return threadLocal.get();
     }
 
     public void runWith(T newValue, Runnable code) {
-        runWith(value(), newValue, code);
+        runWith(get(), newValue, code);
     }
     
-    public void runWith(T oldValue, T newValue, Runnable code) {
+    private void runWith(T oldValue, T newValue, Runnable code) {
         threadLocal.set(newValue);
         try {
             code.run();
@@ -44,10 +44,10 @@ public final class ThreadVar<T> {
     }
     
     public <V> V supplyWith(T newValue, Supplier<V> supplier) {
-        return supplyWith(value(), newValue, supplier);
+        return supplyWith(get(), newValue, supplier);
     }
     
-    public <V> V supplyWith(T oldValue, T newValue, Supplier<V> supplier) {
+    private <V> V supplyWith(T oldValue, T newValue, Supplier<V> supplier) {
         threadLocal.set(newValue);
         try {
             return supplier.get();
@@ -57,10 +57,10 @@ public final class ThreadVar<T> {
     }
     
     public <V> V callWith(T newValue, Callable<V> callable) throws Exception {
-        return callWith(value(), newValue, callable);
+        return callWith(get(), newValue, callable);
     }
     
-    public <V> V callWith(T oldValue, T newValue, Callable<V> callable) throws Exception {
+    private <V> V callWith(T oldValue, T newValue, Callable<V> callable) throws Exception {
         threadLocal.set(newValue);
         try {
             return callable.call();
