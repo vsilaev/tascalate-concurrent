@@ -18,6 +18,8 @@ package net.tascalate.concurrent.channel;
 import java.util.concurrent.CompletableFuture;
 
 import net.tascalate.concurrent.CompletableFutureWrapper;
+import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.Promises;
 
 /**
  * A {@link net.tascalate.concurrent.Promise} implementation used as a waiter
@@ -155,4 +157,7 @@ class ChannelPromise<T> extends CompletableFutureWrapper<T> {
             throw new UnsupportedOperationException();
         }
     }
+    
+    static final Promise<Boolean> ASYNC_TRUE = Promises.success(Boolean.TRUE);
+    static final Promise<Boolean> ASYNC_FALSE = Promises.success(Boolean.FALSE);
 }

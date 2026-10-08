@@ -148,6 +148,11 @@ public final class NilChannel<T> implements Channel<T> {
     public int capacity() {
         return 0;
     }
+    
+    @Override
+    public boolean isExhausted() {
+        return false;
+    }
 
     /**
      * Creates a promise that never completes. Used by {@link #send} and

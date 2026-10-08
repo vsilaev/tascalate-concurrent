@@ -565,6 +565,17 @@ public class BufferedChannel<T> implements Channel<T> {
     public int capacity() {
         return capacity;   // immutable, no lock needed
     }
+    
+    @Override
+    public boolean isExhausted() {
+        lock.lock();
+        try {
+            return closedMode == CloseMode.FAIL_ALL
+                || (closedMode != null && buffer.isEmpty());
+        } finally {
+            lock.unlock();
+        }
+    }
 
     /**
      * Checks whether the given receiver promise is a "phantom" -- either

@@ -28,7 +28,7 @@ import java.util.Objects;
  * On Java 17+ (via Multi-Release JAR), the {@link Op} hierarchy is intended to be replaced by a
  * {@code sealed} interface, enabling exhaustive pattern-matching {@code switch} for downstream callers.
  *
- * @see Channel#select(Op[])
+ * @see Channel#select(Op...)
  */
 public final class Select {
     
