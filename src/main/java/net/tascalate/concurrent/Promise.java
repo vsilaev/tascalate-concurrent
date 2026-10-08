@@ -229,9 +229,6 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        if (isDone()) {
-            return this;
-        }
         Promise<Try<T>> onTimeout = Timeouts.delayed(null, duration);
         return
         this.dependent()
@@ -256,9 +253,6 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        if (isDone()) {
-            return this;
-        }
         Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
         return 
         this.dependent()
@@ -284,9 +278,6 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
-        if (isDone()) {
-            return this;
-        }
         // timeout converted to supplier
         Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.supplierCall(supplier), duration);
         return

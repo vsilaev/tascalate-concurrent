@@ -368,7 +368,7 @@ public class SelectTest {
         assertTrue(s.contains("hello"));
     }
     
-    // ── Concurrency Stress Tests (No Lost Items, No Duplicates) ───────
+    // Concurrency Stress Tests (No Lost Items, No Duplicates)
 
     @Test
     public void selectStressTestBufferedChannels() throws Exception {
@@ -410,7 +410,6 @@ public class SelectTest {
                     cases[i] = SelectCase.receive(channels[i]);
                 }
                 try {
-                    // ✅ FIX: Check count without incrementing
                     while (receivedCount.get() < TOTAL_ITEMS) {
                         SelectResult<Integer> res = Channel.select(cases).join();
                         Integer val = (Integer) res.value();
@@ -418,7 +417,6 @@ public class SelectTest {
                             if (!received.add(val)) {
                                 throw new AssertionError("Duplicate item received: " + val);
                             }
-                            // ✅ FIX: Increment ONLY after successful receive
                             receivedCount.incrementAndGet();
                         }
                     }
