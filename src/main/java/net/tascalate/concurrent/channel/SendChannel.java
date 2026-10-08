@@ -22,27 +22,98 @@ import net.tascalate.concurrent.Try;
 
 /**
  * Write-only view of a channel.
+ * <p>
  * Pass this to producers to prevent them from accidentally receiving.
+ * This is the Java analogue of Go's directional channel type
+ * {@code chan<- T}: the compiler enforces that holders of this reference
+ * can only send, never receive.
+ * <p>
+ * Sending is asynchronous. Every send returns a {@link Promise} that
+ * completes when the value has either been handed to a waiting receiver
+ * or placed into the buffer. On a rendezvous channel (capacity 0) the
+ * promise remains pending until a receiver arrives.
+ * <p>
+ * A failed send (e.g., to a closed channel) is reported through the
+ * returned promise rather than thrown synchronously, keeping the API
+ * uniformly asynchronous.
+ *
+ * @param <T> the element type accepted by this channel
  */
 public interface SendChannel<T> extends ChannelBase {
 
     /**
      * Sends a value. Returns a completed future if accepted or buffered,
      * a pending future if the channel is full, or a failed future if closed.
+     * <p>
+     * The returned promise completes with the sent value on success, which
+     * allows fluent chaining and makes it easy to confirm which value was
+     * delivered. The promise never completes with {@code null} for a
+     * successful send of a non-null value.
+     * <p>
+     * If the channel is closed before the send can be accepted, the
+     * promise fails with {@link IllegalStateException}.
+     *
+     * @param value the value to send; may be {@code null} if the channel
+     *              supports null elements
+     * @return a promise that completes when the value is accepted
      */
     Promise<T> send(T value);
-    
+
+    /**
+     * Sends a value with a timeout expressed in milliseconds.
+     * <p>
+     * If the value cannot be accepted within the given time, the returned
+     * promise fails with a timeout exception. This is a convenience
+     * overload delegating to {@link #send(Object, Duration)}.
+     *
+     * @param value  the value to send
+     * @param millis the maximum time to wait, in milliseconds
+     * @return a promise that completes on acceptance or fails on timeout
+     * @see #send(Object, Duration)
+     */
     default Promise<T> send(T value, long millis) {
         return send(value, Duration.ofMillis(millis));
     }
-    
+
+    /**
+     * Sends a value with a timeout expressed as a {@link Duration}.
+     * <p>
+     * If the value cannot be accepted within the given time, the returned
+     * promise fails with a timeout exception. The underlying send attempt
+     * is cancelled when the timeout fires, so no value is delivered after
+     * the deadline.
+     * <p>
+     * This is the preferred overload for expressing deadlines in a
+     * unit-agnostic way.
+     *
+     * @param value   the value to send
+     * @param timeout the maximum time to wait; must not be {@code null}
+     * @return a promise that completes on acceptance or fails on timeout
+     */
     default Promise<T> send(T value, Duration timeout) {
         return send(value).orTimeout(timeout, true);
     }
 
     /**
-     * Non-blocking send. Returns {@code true} if the value was buffered
-     * or handed to a waiting receiver, {@code false} if full or closed.
+     * Non-blocking send. Returns a successful {@link Try} if the value was
+     * buffered or handed to a waiting receiver, {@code null} if the channel
+     * is full, or a failed {@link Try} if closed.
+     * <p>
+     * This is the Java analogue of Go's two-value comma-ok send used
+     * inside a {@code select} with a {@code default} branch. It never
+     * blocks and never returns a pending future, making it suitable for
+     * Phase 1 (non-blocking) evaluation of a select statement.
+     * <p>
+     * Return value semantics:
+     * <ul>
+     *   <li>Success: the value was delivered or buffered.</li>
+     *   <li>{@code null}: the channel is full; a later send may succeed.</li>
+     *   <li>Failure: the channel is closed; no future send will succeed.</li>
+     * </ul>
+     *
+     * @param value the value to send
+     * @return a successful {@link Try}, a failed {@link Try}, or
+     *         {@code null} when the channel is full
      */
     Try<T> trySend(T value);
 }
