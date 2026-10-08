@@ -17,7 +17,9 @@ package net.tascalate.concurrent;
 
 import java.time.Duration;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeoutException;
@@ -25,6 +27,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * A monad representing a computation that may either result in a value ({@link Success})
@@ -55,19 +58,19 @@ public abstract class Try<R> {
     public abstract boolean isFailure();
 
     /** 
-     * Extracts the value if successful, or throws an {@link IllegalStateException}.
+     * Extracts the value if successful, or throws a {@link NoSuchElementException}.
      * <p>
      * Note: Unlike the package-private {@link #done()}, this method does not rethrow 
      * the underlying failure exception.
      * 
      * @return the value if this is a Success
-     * @throws IllegalStateException if this is a Failure
+     * @throws NoSuchElementException if this is a Failure
      */
-    public final R get() {
+    public final R value() {
         if (isSuccess()) {
             return done();
         } else {
-            throw new IllegalStateException("No result available for the failure");
+            throw new NoSuchElementException("No value present");
         }
     }
 
@@ -77,7 +80,7 @@ public abstract class Try<R> {
      * @return the cause of the failure
      * @throws UnsupportedOperationException if this is a {@link Success}
      */
-    public abstract Throwable getCause();
+    public abstract Throwable error();
 
     /**
      * Returns the contained value if successful, otherwise returns the provided default value.
@@ -111,7 +114,7 @@ public abstract class Try<R> {
         if (isSuccess()) {
             return done();
         } else {
-            throw exceptionProvider.apply(getCause());
+            throw exceptionProvider.apply(error());
         }
     }
 
@@ -211,7 +214,7 @@ public abstract class Try<R> {
     public final Try<R> recover(Function<? super Throwable, ? extends R> recovery) {
         if (isFailure()) {
             try {
-                return success(recovery.apply(getCause()));
+                return success(recovery.apply(error()));
             } catch (Throwable t) {
                 return failure(t);
             }
@@ -230,7 +233,7 @@ public abstract class Try<R> {
     public final Try<R> recoverWith(Function<? super Throwable, ? extends Try<? extends R>> recovery) {
         if (isFailure()) {
             try {
-                return (Try<R>) recovery.apply(getCause());
+                return (Try<R>) recovery.apply(error());
             } catch (Throwable t) {
                 return failure(t);
             }
@@ -263,7 +266,7 @@ public abstract class Try<R> {
      */
     public final Try<R> onFailure(Consumer<? super Throwable> action) {
         if (isFailure()) {
-            action.accept(getCause());
+            action.accept(error());
         }
         return this;
     }
@@ -279,10 +282,30 @@ public abstract class Try<R> {
      *
      * @return an Optional representing the success value
      */
-    public final Optional<R> toOptional() {
+    public final Optional<R> asOptional() {
         return isSuccess() ? Optional.ofNullable(done()) : Optional.empty();
     }
-
+    
+    /**
+     * Converts this {@code Try} into a sequential {@link Stream}.
+     * <p>
+     * If this is a {@link Success}, the returned stream contains exactly one element: the underlying value 
+     * (even if the value is {@code null}). If this is a {@link Failure}, an empty stream is returned.
+     * <p>
+     * This is particularly useful for flattening collections of {@code Try} objects:
+     * <pre>{@code
+     * List<Try<String>> results = ...;
+     * List<String> successfulValues = results.stream()
+     *     .flatMap(Try::asStream)
+     *     .collect(Collectors.toList());
+     * }</pre>
+     *
+     * @return a {@link Stream} containing the success value, or an empty stream if this is a failure
+     */
+    public final Stream<R> asStream() {
+        return isSuccess() ? Stream.of(done()) : Stream.empty();
+    }
+    
     // ==========================================
     // Factories
     // ==========================================
@@ -304,9 +327,99 @@ public abstract class Try<R> {
      * @param error the failure cause
      * @param <R> the type of the value (had it succeeded)
      * @return a Failure containing the exception
+     * @throws NullPointerException if error is null
      */
     public static <R> Try<R> failure(Throwable error) {
+        Objects.requireNonNull(error, "Error cause cannot be null");
         return new Failure<>(error);
+    }
+    
+    /**
+     * Executes the {@link Supplier} and wraps the result or exception in a {@code Try}.
+     *
+     * @param supplier the supplier to execute
+     * @param <R> the type of the value
+     * @return a {@link Success} containing the result, or a {@link Failure} containing the thrown exception
+     */
+    public static <R> Try<R> supply(Supplier<? extends R> supplier) {
+        try {
+            return success(supplier.get());
+        } catch (Throwable ex) {
+            return failure(ex);
+        }
+    }
+
+    /**
+     * Executes the {@link Callable} and wraps the result or exception in a {@code Try}.
+     * <p>
+     * This is particularly useful when bridging with legacy APIs that require a {@code Callable}.
+     *
+     * @param callable the callable to execute
+     * @param <R> the type of the value
+     * @return a {@link Success} containing the result, or a {@link Failure} containing the thrown exception
+     */
+    public static <R> Try<R> call(Callable<? extends R> callable) {
+        try {
+            return success(callable.call());
+        } catch (Throwable ex) {
+            return failure(ex);
+        }
+    }
+
+    /**
+     * Executes the {@link Runnable} and wraps the completion state in a {@code Try}.
+     * <p>
+     * Useful for operations that do not return a value but may throw exceptions.
+     *
+     * @param runnable the runnable to execute
+     * @return a {@link Success} containing {@code null}, or a {@link Failure} containing the thrown exception
+     */
+    public static Try<Void> run(Runnable runnable) {
+        try {
+            runnable.run();
+            return Try.<Void>success(null);
+        } catch (Throwable ex) {
+            return failure(ex);
+        }
+    }
+    /**
+     * Wraps a Supplier into a Supplier of Try, catching any thrown exceptions.
+     *
+     * @param supplier the supplier to wrap
+     * @param <R> the type of the value
+     * @return a Supplier that returns a Success or Failure
+     */
+    static <R> Supplier<Try<R>> supplierCall(Supplier<? extends R> supplier) {
+        return () -> {
+            try {
+                return Try.success(supplier.get());
+            } catch (Throwable ex) {
+                return Try.failure(ex);
+            }
+        };
+    }
+
+    
+    /**
+     * "Lifts" a {@link Promise} into a {@code Promise} of a {@code Try}.
+     * <p>
+     * This operation bridges the two monads by capturing any exceptional completion of the original {@code Promise} 
+     * and wrapping it inside a {@link Failure}, while a successful completion is wrapped in a {@link Success}.
+     * <p>
+     * The resulting {@code Promise} will always complete normally (with a {@code Try} value), 
+     * effectively shifting the error-handling responsibility from the {@code Promise} chain to the {@code Try} API. 
+     * This is particularly useful when you want to apply functional error-handling operations like 
+     * {@link #recover(Function)}, {@link #map(Function)}, or {@link #filter(Predicate)} without 
+     * short-circuiting subsequent asynchronous steps in the {@code Promise} pipeline.
+     *
+     * @param <R> the type of the success value
+     * @param promise the original {@code Promise} to lift
+     * @return a new {@code Promise} that completes successfully with a {@code Try} representing the original outcome
+     */
+    public static <R> Promise<Try<R>> lift(Promise<R> promise) {
+        return promise.dependent()
+                      .handle(Try::handle, true)
+                      .unwrap();
     }
 
     // ==========================================
@@ -326,28 +439,58 @@ public abstract class Try<R> {
             this.result = result;
         }
 
-        @Override public R done() { 
+        @Override 
+        R done() { 
             return result; 
         }
         
-        @Override public boolean isSuccess() { 
+        @Override 
+        public boolean isSuccess() { 
             return true; 
         }
         
-        @Override public boolean isFailure() { 
+        @Override 
+        public boolean isFailure() { 
             return false; 
         }
         
-        @Override public Throwable getCause() { 
+        @Override 
+        public Throwable error() { 
             throw new UnsupportedOperationException("Success has no cause"); 
         }
         
-        @Override Promise<R> asPromise() { 
+        @Override 
+        Promise<R> asPromise() { 
             return Promises.success(result); 
         }
         
-        @Override boolean isCancel() { 
+        @Override 
+        boolean isCancel() { 
             return false; 
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            
+            if (!(obj instanceof Success)) {
+                return false;
+            }
+            
+            Success<?> other = (Success<?>) obj;
+            return Objects.equals(this.result, other.result);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(result);
+        }
+
+        @Override
+        public String toString() {
+            return "Success(" + result + ")";
         }
     }
 
@@ -364,7 +507,8 @@ public abstract class Try<R> {
             this.error = error;
         }
 
-        @Override public R done() {
+        @Override 
+        R done() {
             if (error instanceof Error) {
                 throw (Error) error;
             } else if (error instanceof CancellationException) {
@@ -374,25 +518,54 @@ public abstract class Try<R> {
             }
         }
         
-        @Override public boolean isSuccess() { 
+        @Override 
+        public boolean isSuccess() { 
             return false; 
         }
         
-        @Override public boolean isFailure() { 
+        @Override 
+        public boolean isFailure() { 
             return true; 
         }
         
-        @Override public Throwable getCause() { 
+        @Override 
+        public Throwable error() { 
             return error; 
         }
         
-        @Override Promise<R> asPromise() { 
+        @Override 
+        Promise<R> asPromise() { 
             return Promises.failure(error); 
         }
         
-        @Override boolean isCancel() {
+        @Override 
+        boolean isCancel() {
             Throwable ex = SharedFunctions.unwrapCompletionException(error);
             return ex instanceof CancellationException;
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            
+            if (!(obj instanceof Failure)) {
+                return false;
+            }
+            
+            Failure<?> other = (Failure<?>) obj;
+            return Objects.equals(this.error, other.error);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(error);
+        }
+
+        @Override
+        public String toString() {
+            return "Failure(" + error + ")";
         }
     }
 
@@ -449,23 +622,6 @@ public abstract class Try<R> {
         return null != result ? result : Try.failure(new TimeoutException("Timeout after " + duration));
     }
     
-    /**
-     * Wraps a Supplier into a Supplier of Try, catching any thrown exceptions.
-     *
-     * @param supplier the supplier to wrap
-     * @param <R> the type of the value
-     * @return a Supplier that returns a Success or Failure
-     */
-    static <R> Supplier<Try<R>> call(Supplier<? extends R> supplier) {
-        return () -> {
-            try {
-                return Try.success(supplier.get());
-            } catch (Throwable ex) {
-                return Try.failure(ex);
-            }
-        };
-    }
-
     /**
      * Returns a cached, singleton Success containing null.
      *

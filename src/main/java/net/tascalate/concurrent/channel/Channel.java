@@ -64,6 +64,6 @@ public interface Channel<T> extends SelectableSendChannel<T>, SelectableReceiveC
     
     @SafeVarargs
     public static <T> Promise<SelectResult<T>> select(SelectCase<T>... cases) {
-        return Select.select(cases);
+        return SelectCall.select(cases);
     }
 }

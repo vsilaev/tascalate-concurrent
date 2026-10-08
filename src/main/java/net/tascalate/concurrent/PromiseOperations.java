@@ -47,24 +47,37 @@ public class PromiseOperations {
                       .unwrap();
     }
 
-    public static <T> Promise<Stream<T>> streamResult(CompletionStage<? extends T> promise) {
-        return streamResult(Promises.from(promise));
+    public static <T> Promise<Stream<T>> asStream(CompletionStage<? extends T> promise) {
+        return asStream(Promises.from(promise));
     }
 
-    public static <T> Promise<Stream<T>> streamResult(Promise<? extends T> promise) {
+    public static <T> Promise<Stream<T>> asStream(Promise<? extends T> promise) {
         return promise.dependent()
                       .handle((r, e) -> null == e ? Stream.<T>of(r) : Stream.<T>empty(), true)
                       .unwrap();
     }
 
-    public static <T> Promise<Optional<T>> optionalResult(CompletionStage<? extends T> promise) {
-        return optionalResult(Promises.from(promise));
+    public static <T> Promise<Optional<T>> asOptional(CompletionStage<? extends T> promise) {
+        return asOptional(Promises.from(promise));
     }
     
-    public static <T> Promise<Optional<T>> optionalResult(Promise<? extends T> promise) {
+    public static <T> Promise<Optional<T>> asOptional(Promise<? extends T> promise) {
         return promise.dependent()
                       .handle((r, e) -> Optional.<T>ofNullable(null == e ? r : null), true)
                       .unwrap();
+    }
+    
+    public static <T> Promise<Try<T>> asTry(CompletionStage<T> promise) {
+        return asTry(Promises.from(promise));
+    }
+    
+    public static <T> Promise<Try<T>> asTry(Promise<T> promise) {
+        return Try.lift(promise);
+    }
+    
+    public static <T, F extends Promise<T>> F peek(F promise, Consumer<? super F> fn) {
+        fn.accept(promise);
+        return promise;
     }
     
     public static <T, F extends Promise<T>> Function<F, F> peek(Consumer<? super F> fn) {
@@ -74,9 +87,19 @@ public class PromiseOperations {
         };
     }
     
+    public static <T, R extends AutoCloseable> Promise<T> 
+        tryApply(Promise<R> promise, Function<? super R, ? extends T> fn) { 
+        return unwrap(Promises.tryApply(promise.dependent(PromiseOrigin.ALL), fn));
+    }
+    
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
         tryApply(Function<? super R, ? extends T> fn) {
         return p -> unwrap(Promises.tryApply(p.dependent(PromiseOrigin.ALL), fn));
+    }
+    
+    public static <T, R extends AsyncCloseable> Promise<T> 
+        tryApplyEx(Promise<R> promise, Function<? super R, ? extends T> fn) {
+        return unwrap(Promises.tryApplyEx(promise.dependent(PromiseOrigin.ALL), fn));
     }
     
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
@@ -84,9 +107,19 @@ public class PromiseOperations {
         return p -> unwrap(Promises.tryApplyEx(p.dependent(PromiseOrigin.ALL), fn));
     }
     
+    public static <T, R extends AutoCloseable> Promise<T> 
+        tryCompose(Promise<R> promise, Function<? super R, ? extends CompletionStage<T>> fn) {
+        return unwrap(Promises.tryCompose(promise.dependent(PromiseOrigin.ALL), fn));
+    }
+    
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
         tryCompose(Function<? super R, ? extends CompletionStage<T>> fn) {
         return p -> unwrap(Promises.tryCompose(p.dependent(PromiseOrigin.ALL), fn));
+    }
+    
+    public static <T, R extends AsyncCloseable> Promise<T> 
+        tryComposeEx(Promise<R> promise, Function<? super R, ? extends CompletionStage<T>> fn) {
+        return unwrap(Promises.tryComposeEx(promise.dependent(PromiseOrigin.ALL), fn));
     }
 
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 

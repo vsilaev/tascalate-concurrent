@@ -200,17 +200,5 @@ public class TaskScope implements AutoCloseable {
         return null;
     }
     
-    public static Predicate<Promise<?>> stateFilter(Promise.State state) {
-        return p -> p.isIn(state);
-    }
-    
-    public static Predicate<Promise<?>> stateFilter(Promise.State... states) {
-        return p -> p.isIn(states);
-    }
-    
-    public static Predicate<Promise<?>> stateFilter(Set<Promise.State> states) {
-        return p -> p.isIn(states);
-    }
-
     private static Predicate<Promise<?>> ANY = p -> true;
 }

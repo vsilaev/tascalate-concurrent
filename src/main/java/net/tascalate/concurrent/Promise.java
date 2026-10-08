@@ -25,7 +25,6 @@ import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -60,7 +59,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     /**
      * Represents the computation state.
      */
-    enum State {
+    enum State implements Predicate<Promise<?>> {
         /**
          * The task has not completed.
          */
@@ -78,10 +77,17 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
          */
         CANCELLED;
         
-        public static final Set<State> PENDING             = EnumSet.of(RUNNING);
-        public static final Set<State> COMPLETED           = EnumSet.complementOf(EnumSet.of(RUNNING));
-        public static final Set<State> SUCCEEDED           = EnumSet.of(SUCCESS);
-        public static final Set<State> FAILED_OR_CANCELLED = EnumSet.of(FAILED, CANCELLED);
+        public static final Predicate<Promise<?>> COMPLETED = RUNNING.negate();
+        public static final Predicate<Promise<?>> FAILED_OR_CANCELLED = FAILED.or(CANCELLED);
+        
+        @Override
+        public boolean test(Promise<?> promise) {
+            return promise.isIn(this);
+        }
+        
+        public static Predicate<Promise<?>> anyOf(State... states) {
+            return p -> p.isIn(states);
+        }
     }
     
     default boolean isIn(State state) {
@@ -282,7 +288,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             return this;
         }
         // timeout converted to supplier
-        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.call(supplier), duration);
+        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.supplierCall(supplier), duration);
         return
         this.dependent()
             .handle((r, e) -> supply(Try.handle(r, e)), false)

@@ -108,7 +108,7 @@ public class BufferedChannel<T> implements Channel<T> {
             }
 
             if (handoff) {
-                if (matchedReceiver.completeSuccess(value)) {
+                if (matchedReceiver.success(value)) {
                     return matchedReceiver;
                 }
                 // receiver cancelled concurrently -> retry.
@@ -289,7 +289,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 lock.unlock();
             }
 
-            if (matchedReceiver.completeSuccess(value)) {
+            if (matchedReceiver.success(value)) {
                 return Try.success(value);
             }
             // Receiver was cancelled concurrently -> retry
@@ -332,13 +332,13 @@ public class BufferedChannel<T> implements Channel<T> {
 
         IllegalStateException ex = new IllegalStateException("Channel is closed");
         for (ChannelPromise<?> f : toFail) {
-            f.completeFailure(ex);
+            f.failure(ex);
         }
         for (ChannelPromise<T> f : toResolve) {
             if (failReceivers) {
-                f.completeFailure(ex);
+                f.failure(ex);
             } else {
-                f.completeSuccess(null);
+                f.success(null);
             }
         }
     }
@@ -432,7 +432,7 @@ public class BufferedChannel<T> implements Channel<T> {
         }
         
         boolean complete() {
-            return future.completeSuccess(value);
+            return future.success(value);
         }
     }
     

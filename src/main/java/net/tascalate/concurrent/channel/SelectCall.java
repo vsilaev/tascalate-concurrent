@@ -27,74 +27,43 @@ import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.Promises;
 import net.tascalate.concurrent.Try;
 
-final class Select {
+final class SelectCall<T> {
 
-    private Select() {}
+    private final SelectCase<T>[] cases;
+    private final Integer[] order;
+    private final Set<Integer> failedIndexes = new HashSet<>();
     
-    // Internal wrapper to unify types for Promises.any and capture exceptions
-    static final class SelectResultHolder<T> {
-        final int index;
-        final SelectCase<T> match;
-        final T value;
-        final Throwable error;
+    private SelectCall(SelectCase<T>[] cases) {
+        this.cases = cases;
+        this.order = new Integer[cases.length];
 
-        public SelectResultHolder(int index, SelectCase<T> match, T value, Throwable error) {
-            this.index = index;
-            this.match = match;
-            this.value = value;
-            this.error = error;
+        for (int i = 0; i < order.length; i++) {
+            order[i] = i;
         }
-    }
-
-    @SafeVarargs
-    static <T> Promise<SelectResult<T>> select(SelectCase<T>... cases) {
-        if (cases == null || cases.length == 0) {
-            return Promises.failure(new IllegalArgumentException("At least one case required"));
-        }
-
-        // Reject duplicate channels
-        Set<Object> seen = new HashSet<>();
-        for (SelectCase<T> c : cases) {
-            Object ch;
-            if (c instanceof SelectCase.Receive) {
-                ch = ((SelectCase.Receive<?>)c).channel();
-            } else if (c instanceof SelectCase.Send) {
-                ch = ((SelectCase.Send<?>)c).channel();
-            } else {
-                ch = null;
-            }
-            if (ch != null && !seen.add(ch)) {
-                return Promises.failure(
-                    new IllegalArgumentException("Duplicate channel in select: " + ch)
-                    );
-            }
-        }
-
-        // Keep a mapping from shuffled position -> original index
-        Integer[] order = new Integer[cases.length];
-        for (int i = 0; i < cases.length; i++) order[i] = i;
         
         // Fisher-Yates shuffle (Go picks randomly among ready cases)
         Collections.shuffle(Arrays.asList(order));
+    }
+    
+    
+    private Try<SelectResult<T>> phase1() {
+        Throwable firstFailure = null;
 
         // Phase 1: non-blocking try
         int defaultOriginalIdx = -1;
-        Throwable firstFailure = null;
-        Set<Integer> failedIndexes = new HashSet<>();
+        
         for (int idx = 0; idx < order.length; idx++) {
             int originalIdx = order[idx];
             SelectCase<T> c = cases[originalIdx];
 
             if (c instanceof SelectCase.Default) {
+                if (defaultOriginalIdx >= 0) {
+                    throw new IllegalArgumentException("Multiple default cases in select");
+                }
                 defaultOriginalIdx = originalIdx;
-                continue;
-            }
-            
-            if (c instanceof SelectCase.Disabled) {
-                continue;
-            }
-
-            if (c instanceof SelectCase.Receive) {
+            } else if (c instanceof SelectCase.Disabled) {
+                // Skip
+            } else if (c instanceof SelectCase.Receive) {
                 SelectCase.Receive<T> trc = (SelectCase.Receive<T>)c;
                 Try<T> r = trc.channel().tryReceive();
                 
@@ -102,11 +71,11 @@ final class Select {
                     continue; // not ready, try next case
                 } else if (r.isFailure()) {
                     if (null == firstFailure) {
-                        firstFailure = r.getCause();
+                        firstFailure = r.error();
                     }
                     failedIndexes.add(idx);
                 } else if (r.isSuccess()) {
-                    return success(originalIdx, trc, r.get() /*isSend=false*/);
+                    return success(originalIdx, trc, r.value() /*isSend=false*/);
                 } else {
                     throw new IllegalStateException();
                 }
@@ -119,21 +88,29 @@ final class Select {
                     continue; // Not ready (full), try next case
                 } else if (r.isFailure()) {
                     if (firstFailure == null) {
-                        firstFailure = r.getCause();
+                        firstFailure = r.error();
                     }
                     failedIndexes.add(idx);
                 } else if (r.isSuccess()) {
                     // Successfully sent!
-                    return success(originalIdx, tsc, r.get());
+                    return success(originalIdx, tsc, r.value());
                 }
+            } else {
+                throw new IllegalArgumentException("Unsupported SelectCase type: " + c.getClass().getName());
             }
         }
 
         // Nothing was immediately ready -> use default if present
         if (defaultOriginalIdx >= 0) {
             return success(defaultOriginalIdx, cases[defaultOriginalIdx], null /*isSend=false*/);
+        } else if (firstFailure != null) {
+            return Try.failure(firstFailure);
+        } else {
+            return null;
         }
-
+    }
+    
+    private List<CompletionStage<SelectResultHolder<T>>> phase2() {
         // Phase 2: async wait using tascalate Promises
         List<CompletionStage<SelectResultHolder<T>>> stages = new ArrayList<>();
         
@@ -147,13 +124,9 @@ final class Select {
             int originalIdx = order[idx];
             SelectCase<T> c = cases[originalIdx];
 
-            if (c instanceof SelectCase.Default) {
-                continue;
-            }
-            
-            if (c instanceof SelectCase.Disabled) {
-                continue;
-            }
+            if (c instanceof SelectCase.Default || c instanceof SelectCase.Disabled) {
+                continue; 
+            } 
 
             Promise<T> originalFuture;
 
@@ -163,7 +136,7 @@ final class Select {
                 SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
                 originalFuture = tsc.channel().send(tsc.value(), coordinator);
             } else {
-                continue;
+                throw new IllegalArgumentException("Unsupported SelectCase type: " + c.getClass().getName());
             }
 
             CompletionStage<SelectResultHolder<T>> stage = 
@@ -178,9 +151,19 @@ final class Select {
             stages.add(stage);
         }
 
+        return stages;
+      
+    }
+    
+    Promise<SelectResult<T>> execute() {
+        Try<SelectResult<T>> readyResult = phase1();
+        if (readyResult != null && readyResult.isSuccess()) {
+            return Promises.success(readyResult.value());
+        }
+        List<CompletionStage<SelectResultHolder<T>>> stages = phase2();
         if (stages.isEmpty()) {
-            if (firstFailure != null) {
-                return Promises.failure(firstFailure);
+            if (readyResult != null) {
+                return Promises.failure(readyResult.error());
             } else {
                 // All cases are Disabled (no Default present, otherwise Phase 1
                 // would have returned). Go semantics: select{} blocks forever.
@@ -196,12 +179,56 @@ final class Select {
                     .dependent()
                     .thenCompose(res -> 
                         res.error != null ? Promises.failure(res.error)
-                                          : success(res.index, res.match, res.value), true)
+                                          : Promises.success(selectResult(res.index, res.match, res.value)), true)
                     .unwrap();
-        }
+        }  
     }
     
-    private static <T> Promise<SelectResult<T>> success(int idx, SelectCase<T> selectCase, T value) {
-        return Promises.success(new SelectResult<>(idx, selectCase, value));
+    @SafeVarargs
+    static <T> Promise<SelectResult<T>> select(SelectCase<T>... cases) {
+        if (cases == null || cases.length == 0) {
+            throw new IllegalArgumentException("At least one case required");
+        }
+
+        Set<Channel<?>> seen = new HashSet<>();
+        for (SelectCase<T> c : cases) {
+            Object ch;
+            if (c instanceof SelectCase.Receive) {
+                ch = ((SelectCase.Receive<?>)c).channel();
+            } else if (c instanceof SelectCase.Send) {
+                ch = ((SelectCase.Send<?>)c).channel();
+            } else {
+                ch = null;
+            }
+            if (ch != null && !seen.add((Channel<?>)ch)) {
+                throw new IllegalArgumentException("Duplicate channel in select: " + ch);
+            }
+        }
+        
+        SelectCall<T> call = new SelectCall<>(cases);
+        return call.execute();
+    }
+    
+    // Internal wrapper to unify types for Promises.any and capture exceptions
+    static final class SelectResultHolder<T> {
+        final int index;
+        final SelectCase<T> match;
+        final T value;
+        final Throwable error;
+
+        public SelectResultHolder(int index, SelectCase<T> match, T value, Throwable error) {
+            this.index = index;
+            this.match = match;
+            this.value = value;
+            this.error = error;
+        }
+    }
+ 
+    private static <T> Try<SelectResult<T>> success(int idx, SelectCase<T> selectCase, T value) {
+        return Try.success(selectResult(idx, selectCase, value));
+    }
+    
+    private static <T> SelectResult<T> selectResult(int idx, SelectCase<T> selectCase, T value) {
+        return new SelectResult<>(idx, selectCase, value);
     }
 }

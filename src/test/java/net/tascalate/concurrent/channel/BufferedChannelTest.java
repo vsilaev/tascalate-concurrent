@@ -149,7 +149,7 @@ public class BufferedChannelTest {
         Try<String> r = ch.tryReceive();
         assertNotNull(r);
         assertTrue(r.isSuccess());
-        assertEquals("ready", r.get());
+        assertEquals("ready", r.value());
     }
 
     @Test
@@ -165,7 +165,7 @@ public class BufferedChannelTest {
         Try<String> r = ch.trySend("ok");
         assertNotNull(r);
         assertTrue(r.isSuccess());
-        assertEquals("ok", r.get());
+        assertEquals("ok", r.value());
     }
 
     @Test
@@ -273,7 +273,7 @@ public class BufferedChannelTest {
         Try<String> r = ch.tryReceive();
         assertNotNull(r);
         assertTrue(r.isSuccess());
-        assertNull(r.get());
+        assertNull(r.value());
     }
 
     @Test

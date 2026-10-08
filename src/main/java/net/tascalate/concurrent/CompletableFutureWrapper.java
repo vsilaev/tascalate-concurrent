@@ -32,26 +32,14 @@ public class CompletableFutureWrapper<T> extends CompletableFutureDecorator<T> {
         super(delegate);
     }
 
-    @SuppressWarnings("deprecation")
     protected boolean success(T value) {
-        return onSuccess(value);
-    }
-    
-    @Deprecated
-    protected boolean onSuccess(T value) {
         return delegate.complete(value);
     }
     
-    @SuppressWarnings("deprecation")
     protected boolean failure(Throwable ex) {
-        return onFailure(ex);
+        return delegate.completeExceptionally(ex);
     }
 
-    @Deprecated
-    protected boolean onFailure(Throwable ex) {
-        return delegate.completeExceptionally(ex);
-    }    
-    
     boolean complete(T value, Throwable ex) {
         return null == ex ? success(value) : failure(ex);
     }

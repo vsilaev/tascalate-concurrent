@@ -22,7 +22,7 @@ import net.tascalate.concurrent.Try;
  * A channel that is permanently blocked in both directions.
  * Mirrors Go's nil channel: sends and receives block forever.
  * <p>
- * Primary use: pass to {@link Select} as a dynamically disabled case,
+ * Primary use: pass to {@link SelectCall} as a dynamically disabled case,
  * or hold as a placeholder before a real channel is assigned.
  */
 public final class NilChannel<T> implements Channel<T> {
@@ -82,6 +82,6 @@ public final class NilChannel<T> implements Channel<T> {
     }
     
     static <T> Promise<T> incomplete() {
-        return new ChannelPromise<>(null);
+        return new ChannelPromise.Incomplete<>();
     }
 }

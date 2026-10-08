@@ -27,15 +27,33 @@ class ChannelPromise<T> extends CompletableFutureWrapper<T> {
         this.coordinator = coordinator;
     }
     
-    boolean completeSuccess(T value) {
-        return super.success(value);
-    }
-    
     boolean tryClaim(Channel<?> owner) {
         return null == coordinator || coordinator.tryClaim(owner);
     }
     
-    boolean completeFailure(Throwable failure) {
+    @Override
+    public boolean success(T value) {
+        return super.success(value);
+    }
+    
+    @Override
+    public boolean failure(Throwable failure) {
         return super.failure(failure);
+    }
+    
+    static class Incomplete<T> extends ChannelPromise<T> {
+        public Incomplete() {
+            super(null);
+        }
+        
+        @Override
+        public boolean success(T value) {
+            throw new UnsupportedOperationException();
+        }
+        
+        @Override
+        public boolean failure(Throwable exception) {
+            throw new UnsupportedOperationException();
+        }
     }
 }
