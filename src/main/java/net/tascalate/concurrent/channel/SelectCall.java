@@ -29,11 +29,11 @@ import net.tascalate.concurrent.Try;
 
 final class SelectCall<T> {
 
-    private final SelectCase<T>[] cases;
+    private final Select.Op<T>[] cases;
     private final Integer[] order;
     private final Set<Integer> failedIndexes = new HashSet<>();
     
-    private SelectCall(SelectCase<T>[] cases) {
+    private SelectCall(Select.Op<T>[] cases) {
         this.cases = cases;
         this.order = new Integer[cases.length];
 
@@ -46,7 +46,7 @@ final class SelectCall<T> {
     }
     
     
-    private Try<SelectResult<T>> phase1() {
+    private Try<Select.Result<T>> phase1() {
         Throwable firstFailure = null;
 
         // Phase 1: non-blocking try
@@ -54,17 +54,17 @@ final class SelectCall<T> {
         
         for (int idx = 0; idx < order.length; idx++) {
             int originalIdx = order[idx];
-            SelectCase<T> c = cases[originalIdx];
+            Select.Op<T> c = cases[originalIdx];
 
-            if (c instanceof SelectCase.Default) {
+            if (c instanceof Select.Default) {
                 if (defaultOriginalIdx >= 0) {
                     throw new IllegalArgumentException("Multiple default cases in select");
                 }
                 defaultOriginalIdx = originalIdx;
-            } else if (c instanceof SelectCase.Disabled) {
+            } else if (c instanceof Select.Disabled) {
                 // Skip
-            } else if (c instanceof SelectCase.Receive) {
-                SelectCase.Receive<T> trc = (SelectCase.Receive<T>)c;
+            } else if (c instanceof Select.Receive) {
+                Select.Receive<T> trc = (Select.Receive<T>)c;
                 Try<T> r = trc.channel().tryReceive();
                 
                 if (r == null) {
@@ -79,8 +79,8 @@ final class SelectCall<T> {
                 } else {
                     throw new IllegalStateException();
                 }
-            } else if (c instanceof SelectCase.Send) {
-                SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
+            } else if (c instanceof Select.Send) {
+                Select.Send<T> tsc = (Select.Send<T>)c; 
                 
                 Try<T> r = tsc.channel().trySend(tsc.value());
                 
@@ -122,18 +122,18 @@ final class SelectCall<T> {
             }
             
             int originalIdx = order[idx];
-            SelectCase<T> c = cases[originalIdx];
+            Select.Op<T> c = cases[originalIdx];
 
-            if (c instanceof SelectCase.Default || c instanceof SelectCase.Disabled) {
+            if (c instanceof Select.Default || c instanceof Select.Disabled) {
                 continue; 
             } 
 
             Promise<T> originalFuture;
 
-            if (c instanceof SelectCase.Receive) {
-                originalFuture = ((SelectCase.Receive<T>)c).channel().receive(coordinator);
-            } else if (c instanceof SelectCase.Send) {
-                SelectCase.Send<T> tsc = (SelectCase.Send<T>)c; 
+            if (c instanceof Select.Receive) {
+                originalFuture = ((Select.Receive<T>)c).channel().receive(coordinator);
+            } else if (c instanceof Select.Send) {
+                Select.Send<T> tsc = (Select.Send<T>)c; 
                 originalFuture = tsc.channel().send(tsc.value(), coordinator);
             } else {
                 throw new IllegalArgumentException("Unsupported SelectCase type: " + c.getClass().getName());
@@ -155,8 +155,8 @@ final class SelectCall<T> {
       
     }
     
-    Promise<SelectResult<T>> execute() {
-        Try<SelectResult<T>> readyResult = phase1();
+    Promise<Select.Result<T>> execute() {
+        Try<Select.Result<T>> readyResult = phase1();
         if (readyResult != null && readyResult.isSuccess()) {
             return Promises.success(readyResult.value());
         }
@@ -185,18 +185,18 @@ final class SelectCall<T> {
     }
     
     @SafeVarargs
-    static <T> Promise<SelectResult<T>> select(SelectCase<T>... cases) {
+    static <T> Promise<Select.Result<T>> select(Select.Op<T>... cases) {
         if (cases == null || cases.length == 0) {
             throw new IllegalArgumentException("At least one case required");
         }
 
         Set<Channel<?>> seen = new HashSet<>();
-        for (SelectCase<T> c : cases) {
+        for (Select.Op<T> c : cases) {
             Object ch;
-            if (c instanceof SelectCase.Receive) {
-                ch = ((SelectCase.Receive<?>)c).channel();
-            } else if (c instanceof SelectCase.Send) {
-                ch = ((SelectCase.Send<?>)c).channel();
+            if (c instanceof Select.Receive) {
+                ch = ((Select.Receive<?>)c).channel();
+            } else if (c instanceof Select.Send) {
+                ch = ((Select.Send<?>)c).channel();
             } else {
                 ch = null;
             }
@@ -212,11 +212,11 @@ final class SelectCall<T> {
     // Internal wrapper to unify types for Promises.any and capture exceptions
     static final class SelectResultHolder<T> {
         final int index;
-        final SelectCase<T> match;
+        final Select.Op<T> match;
         final T value;
         final Throwable error;
 
-        public SelectResultHolder(int index, SelectCase<T> match, T value, Throwable error) {
+        public SelectResultHolder(int index, Select.Op<T> match, T value, Throwable error) {
             this.index = index;
             this.match = match;
             this.value = value;
@@ -224,11 +224,11 @@ final class SelectCall<T> {
         }
     }
  
-    private static <T> Try<SelectResult<T>> success(int idx, SelectCase<T> selectCase, T value) {
+    private static <T> Try<Select.Result<T>> success(int idx, Select.Op<T> selectCase, T value) {
         return Try.success(selectResult(idx, selectCase, value));
     }
     
-    private static <T> SelectResult<T> selectResult(int idx, SelectCase<T> selectCase, T value) {
-        return new SelectResult<>(idx, selectCase, value);
+    private static <T> Select.Result<T> selectResult(int idx, Select.Op<T> selectCase, T value) {
+        return new Select.Result<>(idx, selectCase, value);
     }
 }

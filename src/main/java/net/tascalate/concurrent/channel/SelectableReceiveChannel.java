@@ -25,7 +25,7 @@ public interface SelectableReceiveChannel<T> extends ReceiveChannel<T> {
     
     Promise<T> receive(SelectCoordinator coordinator);
     
-    default SelectCase.Receive<T> receiving() {
-        return SelectCase.receive(this);
+    default Select.Receive<T> receiving() {
+        return Select.receive(this);
     }
 }

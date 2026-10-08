@@ -25,7 +25,7 @@ public interface SelectableSendChannel<T> extends SendChannel<T> {
     
     Promise<T> send(T value, SelectCoordinator coordinator);
     
-    default <S extends T> SelectCase.Send<T> sending(S value) {
-        return SelectCase.send(this, value);
+    default <S extends T> Select.Send<T> sending(S value) {
+        return Select.send(this, value);
     }
 }

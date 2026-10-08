@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.fail;
 
@@ -36,13 +35,13 @@ public class SelectTest {
         Channel<String> ch = Channel.buffered(4);
         ch.send("ready").join();
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.receive(ch)
+        Select.Result<String> result = Channel.select(
+            Select.receive(ch)
         ).join();
 
         assertEquals(0, result.index());
         assertEquals("ready", result.value());
-        assertFalse(result.match() instanceof SelectCase.Send);
+        assertFalse(result.match() instanceof Select.Send);
     }
 
     @Test
@@ -51,9 +50,9 @@ public class SelectTest {
         Channel<String> ch2 = Channel.buffered(4);
         ch2.send("from-ch2").join();
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.receive(ch1),
-            SelectCase.receive(ch2)
+        Select.Result<String> result = Channel.select(
+            Select.receive(ch1),
+            Select.receive(ch2)
         ).join();
 
         assertEquals("from-ch2", result.value());
@@ -64,15 +63,15 @@ public class SelectTest {
     public void selectWaitsForAsyncValue() {
         Channel<String> ch = Channel.buffered(4);
 
-        CompletableFuture<SelectResult<String>> future =
-            Channel.select(SelectCase.receive(ch)).toCompletableFuture();
+        CompletableFuture<Select.Result<String>> future =
+            Channel.select(Select.receive(ch)).toCompletableFuture();
 
         // JUnit 4 requires the message string as the FIRST parameter
         assertFalse("Should be waiting", future.isDone());
 
         ch.send("arrived").join();
 
-        SelectResult<String> result = future.join();
+        Select.Result<String> result = future.join();
         assertEquals("arrived", result.value());
     }
 
@@ -82,12 +81,12 @@ public class SelectTest {
     public void selectSendToReadyChannel() {
         Channel<String> ch = Channel.buffered(4);
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.send(ch, "sent-value")
+        Select.Result<String> result = Channel.select(
+            Select.send(ch, "sent-value")
         ).join();
 
         assertEquals(0, result.index());
-        assertTrue(result.match() instanceof SelectCase.Send);
+        assertTrue(result.match() instanceof Select.Send);
         assertEquals("sent-value", ch.receive().join());
     }
 
@@ -96,14 +95,14 @@ public class SelectTest {
         Channel<String> ch = Channel.buffered(1);
         ch.send("full").join();
 
-        Promise<SelectResult<String>> future =
-            Channel.select(SelectCase.send(ch, "waiting"));
+        Promise<Select.Result<String>> future =
+            Channel.select(Select.send(ch, "waiting"));
 
         assertFalse(future.isDone());
 
         ch.receive().join(); // make space
-        SelectResult<String> result = future.join();
-        assertTrue(result.match() instanceof SelectCase.Send);
+        Select.Result<String> result = future.join();
+        assertTrue(result.match() instanceof Select.Send);
     }
 
     // Default Case
@@ -112,9 +111,9 @@ public class SelectTest {
     public void selectDefaultWhenNothingReady() {
         Channel<String> ch = Channel.buffered(4);
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.receive(ch),
-            SelectCase.defaultCase()
+        Select.Result<String> result = Channel.select(
+            Select.receive(ch),
+            Select.otherwise()
         ).join();
 
         assertNull(result.value());
@@ -126,9 +125,9 @@ public class SelectTest {
         Channel<String> ch = Channel.buffered(4);
         ch.send("data").join();
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.receive(ch),
-            SelectCase.defaultCase()
+        Select.Result<String> result = Channel.select(
+            Select.receive(ch),
+            Select.otherwise()
         ).join();
 
         assertEquals("data", result.value());
@@ -143,10 +142,10 @@ public class SelectTest {
         Channel<String> ch2 = Channel.buffered(4);
         ch2.send("active").join();
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.disabled(),
-            SelectCase.receive(ch1),
-            SelectCase.receive(ch2)
+        Select.Result<String> result = Channel.select(
+            Select.disabled(),
+            Select.receive(ch1),
+            Select.receive(ch2)
         ).join();
 
         assertEquals("active", result.value());
@@ -155,10 +154,10 @@ public class SelectTest {
 
     @Test
     public void selectAllDisabledWithDefaultUsesDefault() {
-        SelectResult<Object> result = Channel.select(
-            SelectCase.disabled(),
-            SelectCase.disabled(),
-            SelectCase.defaultCase()
+        Select.Result<Object> result = Channel.select(
+            Select.disabled(),
+            Select.disabled(),
+            Select.otherwise()
         ).join();
 
         assertEquals(2, result.index());
@@ -172,9 +171,9 @@ public class SelectTest {
         Channel<String> recvCh = Channel.buffered(4);
         recvCh.send("incoming").join();
 
-        SelectResult<String> result = Channel.select(
+        Select.Result<String> result = Channel.select(
             recvCh.receiving(),
-            SelectCase.send(sendCh, "outgoing")
+            Select.send(sendCh, "outgoing")
         ).join();
 
         // recvCh is ready, so receive should win (or send to buffered sendCh)
@@ -190,7 +189,7 @@ public class SelectTest {
         ch.close(ChannelBase.CloseMode.FAIL_ALL);
 
         ExecutionException ex = assertThrows(ExecutionException.class, () ->
-            Channel.select(SelectCase.receive(ch)).toCompletableFuture().get()
+            Channel.select(Select.receive(ch)).toCompletableFuture().get()
         );
         assertTrue(ex.getCause() instanceof IllegalStateException);
     }
@@ -213,17 +212,17 @@ public class SelectTest {
             Channel<Integer> ch1 = Channel.buffered(1);
             Channel<Integer> ch2 = Channel.buffered(1);
 
-            CompletableFuture<SelectResult<Integer>> selectFuture =
+            CompletableFuture<Select.Result<Integer>> selectFuture =
                 Channel.select(
-                    SelectCase.receive(ch1),
-                    SelectCase.receive(ch2)
+                    Select.receive(ch1),
+                    Select.receive(ch2)
                 ).toCompletableFuture();
 
             // Race: both channels get values concurrently
             pool.submit(() -> ch1.send(1).join());
             pool.submit(() -> ch2.send(2).join());
 
-            SelectResult<Integer> result = selectFuture.get(5, TimeUnit.SECONDS);
+            Select.Result<Integer> result = selectFuture.get(5, TimeUnit.SECONDS);
             assertNotNull(result);
             assertNotNull(result.value());
             assertTrue(result.value().equals(1) || result.value().equals(2));
@@ -236,15 +235,15 @@ public class SelectTest {
         Channel<String> ch1 = Channel.buffered(4);
         Channel<String> ch2 = Channel.buffered(4);
 
-        CompletableFuture<SelectResult<String>> selectFuture =
+        CompletableFuture<Select.Result<String>> selectFuture =
             Channel.select(
-                SelectCase.receive(ch1),
-                SelectCase.receive(ch2)
+                Select.receive(ch1),
+                Select.receive(ch2)
             ).toCompletableFuture();
 
         // ch1 completes first
         ch1.send("winner").join();
-        SelectResult<String> result = selectFuture.join();
+        Select.Result<String> result = selectFuture.join();
         assertEquals("winner", result.value());
 
         // ch2 should still be usable (its waiter was cancelled, not consumed)
@@ -263,9 +262,9 @@ public class SelectTest {
             ch1.send(1).join();
             ch2.send(2).join();
 
-            SelectResult<?> result = Channel.select(
-                SelectCase.receive(ch1),
-                SelectCase.receive(ch2)
+            Select.Result<?> result = Channel.select(
+                Select.receive(ch1),
+                Select.receive(ch2)
             ).join();
 
             // One value is consumed, the other must remain
@@ -310,11 +309,11 @@ public class SelectTest {
         Channel<String> ch = Channel.buffered(4);
         ch.send("typed").join();
 
-        Promise<SelectResult<String>> promise = Channel.select(
-            SelectCase.send(ch, "typed")
+        Promise<Select.Result<String>> promise = Channel.select(
+            Select.send(ch, "typed")
         );
 
-        SelectResult<String> result = promise.join();
+        Select.Result<String> result = promise.join();
         assertEquals("typed", result.value());
     }
 
@@ -326,9 +325,9 @@ public class SelectTest {
         Channel<String> real = Channel.buffered(4);
         real.send("real").join();
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.receive(nil),
-            SelectCase.receive(real)
+        Select.Result<String> result = Channel.select(
+            Select.receive(nil),
+            Select.receive(real)
         ).join();
 
         assertEquals("real", result.value());
@@ -339,9 +338,9 @@ public class SelectTest {
     public void nilChannelWithDefaultUsesDefault() {
         Channel<String> nil = Channel.nil();
 
-        SelectResult<String> result = Channel.select(
-            SelectCase.receive(nil),
-            SelectCase.defaultCase()
+        Select.Result<String> result = Channel.select(
+            Select.receive(nil),
+            Select.otherwise()
         ).join();
 
         assertEquals(1, result.index());
@@ -351,9 +350,9 @@ public class SelectTest {
 
     @Test
     public void selectResultEquality() {
-        SelectResult<String> a = new SelectResult<>(0, SelectCase.receive(Channel.nil()), "v");
-        SelectResult<String> b = new SelectResult<>(0, SelectCase.receive(Channel.nil()), "v");
-        SelectResult<String> c = new SelectResult<>(1, SelectCase.send(Channel.nil(), "v"), "v");
+        Select.Result<String> a = new Select.Result<>(0, Select.receive(Channel.nil()), "v");
+        Select.Result<String> b = new Select.Result<>(0, Select.receive(Channel.nil()), "v");
+        Select.Result<String> c = new Select.Result<>(1, Select.send(Channel.nil(), "v"), "v");
 
         assertEquals(a, b);
         assertNotEquals(a, c);
@@ -362,7 +361,7 @@ public class SelectTest {
 
     @Test
     public void selectResultToString() {
-        SelectResult<String> r = new SelectResult<>(0, SelectCase.receive(Channel.nil()), "hello");
+        Select.Result<String> r = new Select.Result<>(0, Select.receive(Channel.nil()), "hello");
         String s = r.toString();
         assertTrue(s.contains("index=0"));
         assertTrue(s.contains("hello"));
@@ -405,13 +404,13 @@ public class SelectTest {
         for (int c = 0; c < NUM_CONSUMERS; c++) {
             consumerFutures.add(pool.submit(() -> {
                 @SuppressWarnings("unchecked")
-                SelectCase<Integer>[] cases = new SelectCase[NUM_CHANNELS];
+                Select.Op<Integer>[] cases = new Select.Op[NUM_CHANNELS];
                 for (int i = 0; i < NUM_CHANNELS; i++) {
-                    cases[i] = SelectCase.receive(channels[i]);
+                    cases[i] = Select.receive(channels[i]);
                 }
                 try {
                     while (receivedCount.get() < TOTAL_ITEMS) {
-                        SelectResult<Integer> res = Channel.select(cases).join();
+                        Select.Result<Integer> res = Channel.select(cases).join();
                         Integer val = (Integer) res.value();
                         if (val != null) {
                             if (!received.add(val)) {
@@ -432,11 +431,11 @@ public class SelectTest {
                 for (int i = 0; i < ITEMS_PER_PRODUCER; i++) {
                     int item = itemIdGenerator.getAndIncrement();
                     @SuppressWarnings("unchecked")
-                    SelectCase<Integer>[] cases = new SelectCase[NUM_CHANNELS];
+                    Select.Op<Integer>[] cases = new Select.Op[NUM_CHANNELS];
                     //int c = (int)(Math.random() * NUM_CHANNELS);
                     //channels[c].send(item);
                     for (int c = 0; c < NUM_CHANNELS; c++) {
-                        cases[c] = SelectCase.send(channels[c], item);
+                        cases[c] = Select.send(channels[c], item);
                     }
                     Channel.select(cases).join();
                 }
