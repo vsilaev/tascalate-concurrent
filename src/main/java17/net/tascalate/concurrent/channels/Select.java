@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.tascalate.concurrent.channel;
+package net.tascalate.concurrent.channels;
 
 /**
  * Namespace and factory class for channel {@code select} statements.
