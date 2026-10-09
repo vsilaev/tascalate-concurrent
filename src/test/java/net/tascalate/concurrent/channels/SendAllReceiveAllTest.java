@@ -46,43 +46,6 @@ public class SendAllReceiveAllTest {
     }
 
     @Test
-    public void sendAllWithGreedyBatchSize() {
-        Channel<Integer> ch = Channel.buffered(20);
-        List<Integer> items = new ArrayList<>();
-        for (int i = 0; i < 15; i++) {
-            items.add(i);
-        }
-
-        // batchSize = 0 -> greedy synchronous send
-        int sent = ch.sendAll(items, 0L).join();
-
-        assertEquals(15, sent);
-        assertEquals(15, ch.size());
-    }
-
-    @Test
-    public void sendAllWithBatchSizeOne() {
-        Channel<Integer> ch = Channel.buffered(10);
-        List<Integer> items = Arrays.asList(1, 2, 3, 4, 5);
-
-        int sent = ch.sendAll(items, 1L).join();
-
-        assertEquals(5, sent);
-        assertEquals(5, ch.size());
-    }
-
-    @Test
-    public void sendAllWithBatchSizeLargerThanItems() {
-        Channel<Integer> ch = Channel.buffered(10);
-        List<Integer> items = Arrays.asList(1, 2, 3);
-
-        // batchSize (100) > items.size() (3) -> all sent in one batch
-        int sent = ch.sendAll(items, 100L).join();
-
-        assertEquals(3, sent);
-    }
-
-    @Test
     public void sendAllPreservesOrder() {
         Channel<Integer> ch = Channel.buffered(20);
         List<Integer> items = new ArrayList<>();
@@ -266,40 +229,6 @@ public class SendAllReceiveAllTest {
         List<Integer> received = ch.receiveAll(100).join();
 
         assertEquals(3, received.size());
-    }
-
-    @Test
-    public void receiveAllWithBatchSize() {
-        Channel<Integer> ch = Channel.buffered(20);
-        for (int i = 0; i < 15; i++) {
-            ch.send(i).join();
-        }
-        ch.close(CloseMode.DRAIN);
-
-        // batchSize = 3 -> should still collect all 15 elements
-        List<Integer> received = ch.receiveAll(0, 3).join();
-
-        assertEquals(15, received.size());
-        for (int i = 0; i < 15; i++) {
-            assertEquals(Integer.valueOf(i), received.get(i));
-        }
-    }
-
-    @Test
-    public void receiveAllWithMaxItemsAndBatchSize() {
-        Channel<Integer> ch = Channel.buffered(20);
-        for (int i = 0; i < 10; i++) {
-            ch.send(i).join();
-        }
-
-        // maxItems = 6, batchSize = 2
-        List<Integer> received = ch.receiveAll(6, 2).join();
-
-        assertEquals(6, received.size());
-        for (int i = 0; i < 6; i++) {
-            assertEquals(Integer.valueOf(i), received.get(i));
-        }
-        assertEquals(4, ch.size());
     }
 
     @Test

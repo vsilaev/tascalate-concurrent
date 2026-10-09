@@ -159,89 +159,6 @@ public class ReceiveChannelForEachTest {
         assertEquals(3, received.size());
     }
 
-    // ── batchSize variants ────────────────────────────────────────────
-
-    @Test
-    public void forEachWithBatchSizeConsumesAll() throws Exception {
-        Channel<Integer> ch = Channel.buffered(20);
-        for (int i = 0; i < 15; i++) {
-            ch.send(i).join();
-        }
-        ch.close(CloseMode.DRAIN);
-
-        List<Integer> received = new CopyOnWriteArrayList<>();
-        // Batch size of 3: should still consume all 15 elements
-        ch.forEach(received::add, 3).join();
-
-        assertEquals(15, received.size());
-        for (int i = 0; i < 15; i++) {
-            assertEquals(Integer.valueOf(i), received.get(i));
-        }
-    }
-
-    @Test
-    public void forEachWithBatchSizeOne() throws Exception {
-        Channel<Integer> ch = Channel.buffered(10);
-        for (int i = 0; i < 5; i++) {
-            ch.send(i).join();
-        }
-        ch.close(CloseMode.DRAIN);
-
-        List<Integer> received = new CopyOnWriteArrayList<>();
-        ch.forEach(received::add, 1).join();
-
-        assertEquals(5, received.size());
-    }
-
-    @Test
-    public void forEachWithBatchSizeAndCondition() throws Exception {
-        Channel<Integer> ch = Channel.buffered(20);
-        for (int i = 0; i < 10; i++) {
-            ch.send(i).join();
-        }
-        ch.close(CloseMode.DRAIN);
-
-        List<Integer> received = new CopyOnWriteArrayList<>();
-        // Batch size 2, stop at value >= 6
-        ch.forEach(received::add, v -> v < 6, 2).join();
-
-        assertEquals(6, received.size());
-        for (int i = 0; i < 6; i++) {
-            assertEquals(Integer.valueOf(i), received.get(i));
-        }
-    }
-
-    @Test
-    public void forEachWithZeroBatchSizeDrainsAll() throws Exception {
-        Channel<Integer> ch = Channel.buffered(10);
-        for (int i = 0; i < 8; i++) {
-            ch.send(i).join();
-        }
-        ch.close(CloseMode.DRAIN);
-
-        List<Integer> received = new CopyOnWriteArrayList<>();
-        // batchSize = 0 means greedy synchronous drain
-        ch.forEach(received::add, 0).join();
-
-        assertEquals(8, received.size());
-    }
-
-    @Test
-    public void forEachWithNegativeBatchSizeDrainsAll() throws Exception {
-        Channel<Integer> ch = Channel.buffered(10);
-        for (int i = 0; i < 6; i++) {
-            ch.send(i).join();
-        }
-        ch.close(CloseMode.DRAIN);
-
-        List<Integer> received = new CopyOnWriteArrayList<>();
-        ch.forEach(received::add, -1).join();
-
-        assertEquals(6, received.size());
-    }
-
-    // ── Null values ───────────────────────────────────────────────────
-
     @Test
     public void forEachHandlesNullValues() throws Exception {
         Channel<String> ch = Channel.buffered(4);
@@ -287,28 +204,6 @@ public class ReceiveChannelForEachTest {
         }
     }
 
-    @Test
-    public void forEachWithConcurrentProducerAndBatchSize() throws Exception {
-        Channel<Integer> ch = Channel.buffered(8);
-        int totalItems = 30;
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try {
-            pool.submit(() -> {
-                for (int i = 0; i < totalItems; i++) {
-                    ch.send(i).join();
-                }
-                ch.close(CloseMode.DRAIN);
-            });
-
-            List<Integer> received = new CopyOnWriteArrayList<>();
-            ch.forEach(received::add, 5).join();
-
-            assertEquals(totalItems, received.size());
-        } finally {
-            pool.shutdownNow();
-        }
-    }
-
     // ── Large buffer stress ───────────────────────────────────────────
 
     @Test
@@ -330,21 +225,6 @@ public class ReceiveChannelForEachTest {
         assertTrue("Greedy drain took too long: " + elapsed + "ms", elapsed < 1000);
     }
 
-    @Test
-    public void forEachLargeBufferWithSmallBatch() throws Exception {
-        int totalItems = 1_000;
-        Channel<Integer> ch = Channel.buffered(totalItems);
-        for (int i = 0; i < totalItems; i++) {
-            ch.send(i).join();
-        }
-        ch.close(CloseMode.DRAIN);
-
-        AtomicInteger count = new AtomicInteger(0);
-        ch.forEach(v -> count.incrementAndGet(), 10).join();
-
-        assertEquals(totalItems, count.get());
-    }
-
     // ── Argument validation ───────────────────────────────────────────
 
     @Test(expected = NullPointerException.class)
@@ -362,18 +242,18 @@ public class ReceiveChannelForEachTest {
     @Test(expected = NullPointerException.class)
     public void forEachWithBatchRejectsNullAction() {
         Channel<Integer> ch = Channel.buffered(1);
-        ch.forEach(null, 5);
+        ch.forEach(null);
     }
 
     @Test(expected = NullPointerException.class)
     public void forEachFullSignatureRejectsNullAction() {
         Channel<Integer> ch = Channel.buffered(1);
-        ch.forEach(null, v -> true, 5);
+        ch.forEach(null, v -> true);
     }
 
     @Test(expected = NullPointerException.class)
     public void forEachFullSignatureRejectsNullCondition() {
         Channel<Integer> ch = Channel.buffered(1);
-        ch.forEach(v -> {}, null, 5);
+        ch.forEach(v -> {}, null);
     }
 }

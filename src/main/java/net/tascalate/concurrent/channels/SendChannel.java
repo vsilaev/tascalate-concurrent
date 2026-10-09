@@ -124,45 +124,20 @@ public interface SendChannel<T> extends ChannelBase {
     /**
      * Asynchronously sends all elements from the given iterable to the channel.
      * <p>
-     * Equivalent to calling {@link #sendAll(Iterable, long)} with a batch size of {@code 0}
-     * (greedy synchronous send).
-     *
-     * @param items the elements to send; must not be {@code null}
-     * @return a promise that completes with the total number of successfully sent elements 
-     *         when all elements have been sent, or fails exceptionally if the channel 
-     *         is closed or an error occurs
-     */
-    default Promise<Integer> sendAll(Iterable<T> items) {
-        return sendAll(items, 0L);
-    }
-    
-    /**
-     * Asynchronously sends all elements from the given iterable to the channel,
-     * processing elements in synchronous batches to maximize throughput.
-     * <p>
-     * To maximize throughput for buffered channels, this method employs a synchronous 
-     * fast-path. It will greedily send elements synchronously as long as the channel 
-     * accepts them immediately. 
-     * <ul>
-     *   <li>If {@code batchSize <= 0}, it sends <i>all</i> elements synchronously until 
-     *       the channel's buffer is full (or a rendezvous wait is required), at which point 
-     *       it yields control back to the event loop.</li>
-     *   <li>If {@code batchSize > 0}, it yields control back to the event loop after 
-     *       sending the specified number of elements, preventing carrier-thread 
-     *       starvation in highly contested environments.</li>
-     * </ul>
+     * This method employs a synchronous fast-path for buffered channels. If the channel
+     * accepts an element immediately (the returned promise is already complete), the
+     * underlying {@link Promises#loop} will immediately execute the next iteration
+     * without yielding to the event loop, maximizing throughput.
      * <p>
      * If the channel is closed or an error occurs during the operation, the returned 
      * promise fails exceptionally with the underlying cause. The exact number of items 
      * successfully sent prior to the failure is not exposed via the failed promise.
      *
-     * @param items     the elements to send; must not be {@code null}
-     * @param batchSize the maximum number of elements to send synchronously before yielding.
-     *                  If {@code <= 0}, sends all available elements synchronously until a wait is required.
+     * @param items the elements to send; must not be {@code null}
      * @return a promise that completes with the total number of successfully sent elements, 
      *         or fails exceptionally if the channel is closed or an error occurs
      */
-    default Promise<Integer> sendAll(Iterable<T> items, long batchSize) {
+    default Promise<Integer> sendAll(Iterable<T> items) {
         Objects.requireNonNull(items, "items");
         
         // Array is used instead of AtomicInteger to avoid object allocation overhead on every increment.
@@ -173,44 +148,37 @@ public interface SendChannel<T> extends ChannelBase {
             items.iterator(),
             Iterator::hasNext,
             iterator -> {
-                // Greedy sync send: 
-                // If batchSize <= 0, loop until we hit a pending Promise (buffer full / rendezvous wait) or run out of items.
-                // If batchSize > 0, loop up to batchSize, then yield to prevent starvation.
-                for (long processed = 0; (batchSize <= 0 || processed < batchSize) && iterator.hasNext(); processed++) {
-
-                    T item = iterator.next();
-                    Promise<T> next = send(item);
-                    
-                    // 1. ASYNC PATH: Promise is not yet complete (buffer is full or waiting for receiver)
-                    if (!next.isDone()) {
-                        // Yield to the asynchronous event loop. When the promise completes,
-                        // increment the counter and signal Promises.loop to continue with the iterator.
-                        // If the send failed (e.g., channel closed), thenApply is skipped and 
-                        // the failure propagates automatically, aborting the loop.
-                        return next.dependent().thenApply(value -> {
-                            sent[0]++;
-                            return iterator;
-                        }, true);
-                    } else {
-                        // 2. SYNC FAST-PATH: Promise is already complete (buffered or handed off)
-                    
-                        // Handle closed channel or other exceptional completions
-                        if (next.isCompletedExceptionally()) {
-                            // Returning the failed promise aborts Promises.loop exceptionally.
-                            // We use thenApply to satisfy the CompletionStage<Iterator> return type 
-                            // without actually executing the lambda, as the promise is already failed.
-                            return next.thenApply($ -> iterator); 
-                        }
-                        
-                        // Successfully sent synchronously. Increment counter and loop to grab the next item!
+                T item = iterator.next();
+                Promise<T> next = send(item);
+                
+                // 1. ASYNC PATH: Promise is not yet complete (buffer is full or waiting for receiver)
+                if (!next.isDone()) {
+                    // Yield to the asynchronous event loop. When the promise completes,
+                    // increment the counter and signal Promises.loop to continue with the iterator.
+                    // If the send failed (e.g., channel closed), thenApply is skipped and 
+                    // the failure propagates automatically, aborting the loop.
+                    return next.dependent().thenApply(value -> {
                         sent[0]++;
+                        return iterator;
+                    }, true);
+                } else {
+                    // 2. SYNC FAST-PATH: Promise is already complete (buffered or handed off)
+                
+                    // Handle closed channel or other exceptional completions
+                    if (next.isCompletedExceptionally()) {
+                        // Returning the failed promise aborts Promises.loop exceptionally.
+                        // We use thenApply to satisfy the CompletionStage<Iterator> return type 
+                        // without actually executing the lambda, as the promise is already failed.
+                        return next.thenApply($ -> iterator); 
                     }
-               }
-               
-               // Batch limit reached or iterator exhausted. 
-               // Yield control back to Promises.loop to prevent carrier-thread starvation, 
-               // then resume processing the next batch (or terminate if !hasNext).
-               return Promises.success(iterator); 
+                    
+                    // Successfully sent synchronously. Increment counter.
+                    // Because we return a completed Promise, Promises.loop will immediately 
+                    // re-evaluate the condition and call this step function again, creating 
+                    // a tight synchronous loop without thread-yielding overhead!
+                    sent[0]++;
+                    return Promises.success(iterator);
+                }
             }
         ).dependent()
          .thenApply(b -> sent[0], true)

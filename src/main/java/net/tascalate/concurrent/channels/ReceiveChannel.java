@@ -126,67 +126,28 @@ public interface ReceiveChannel<T> extends ChannelBase {
      * Asynchronously consumes all elements from the channel until it is closed and drained.
      * Mirrors Go's {@code for v := range ch { action(v) }}.
      * <p>
-     * Equivalent to calling {@link #forEach(Consumer, Predicate, long)} with a condition that
-     * always returns {@code true} and a batch size of {@code 0} (greedy synchronous drain).
+     * Equivalent to calling {@link #forEach(Consumer, Predicate)} with a condition that
+     * always returns {@code true}.
      *
      * @param action the callback invoked for each received element; must not be {@code null}
      * @return a promise that completes when the channel is fully drained
      */
     default Promise<Void> forEach(Consumer<? super T> action) {
-        return forEach(action, v -> true, 0L);
+        return forEach(action, v -> true);
     }
     
-    /**
-     * Asynchronously consumes all elements from the channel until it is closed and drained,
-     * processing elements in synchronous batches to maximize throughput.
-     * <p>
-     * Equivalent to calling {@link #forEach(Consumer, Predicate, long)} with a condition that
-     * always returns {@code true}.
-     *
-     * @param action    the callback invoked for each received element; must not be {@code null}
-     * @param batchSize the maximum number of elements to process synchronously in a single batch
-     *                  before yielding control back to the event loop. If {@code <= 0}, drains all 
-     *                  available elements synchronously until a wait is required.
-     * @return a promise that completes when the channel is fully drained
-     */
-    default Promise<Void> forEach(Consumer<? super T> action, long batchSize) {
-        return forEach(action, v -> true, batchSize);
-    }
-
     /**
      * Asynchronously consumes elements until the channel is closed, drained,
      * or the condition returns {@code false}.
-     * <p>
-     * Equivalent to calling {@link #forEach(Consumer, Predicate, long)} with a batch size of 
-     * {@code 0} (greedy synchronous drain).
-     *
-     * @param action            the callback invoked for each received element; must not be {@code null}
-     * @param continueCondition the predicate tested before each action; must not be {@code null}
-     * @return a promise that completes when the loop terminates
-     */
-    default Promise<Void> forEach(Consumer<? super T> action, Predicate<? super T> continueCondition) {
-        return forEach(action, continueCondition, 0L);
-    }
-    
-    /**
-     * Asynchronously consumes elements until the channel is closed, drained,
-     * or the condition returns {@code false}, processing elements in synchronous batches.
      * <p>
      * The condition is evaluated <i>before</i> the action. If it returns
      * {@code false}, the loop terminates immediately and the action is NOT
      * executed for that specific element (similar to {@code Stream.takeWhile}).
      * <p>
-     * To maximize throughput for buffered channels, this method employs a synchronous 
-     * fast-path (even on initial invocation, before returning). It will greedily process 
-     * elements synchronously as long as they are immediately available in the buffer. 
-     * <ul>
-     *   <li>If {@code batchSize <= 0}, it drains <i>all</i> currently buffered elements 
-     *       synchronously, only yielding control back to the event loop when the channel 
-     *       is empty and an asynchronous wait is required.</li>
-     *   <li>If {@code batchSize > 0}, it yields control back to the event loop after 
-     *       processing the specified number of elements, preventing carrier-thread 
-     *       starvation in highly contested environments.</li>
-     * </ul>
+     * This method employs a synchronous fast-path for buffered channels. If an element
+     * is immediately available in the buffer (the returned promise is already complete),
+     * the underlying {@link Promises#loop} will immediately execute the next iteration
+     * without yielding to the event loop, maximizing throughput.
      * <p>
      * Mirrors Go's:
      * <pre>{@code
@@ -200,89 +161,78 @@ public interface ReceiveChannel<T> extends ChannelBase {
      *                          must not be {@code null}
      * @param continueCondition the predicate tested before each action;
      *                          must not be {@code null}
-     * @param batchSize         the maximum number of elements to process synchronously
-     *                          before yielding. If {@code <= 0}, drains all available 
-     *                          elements synchronously until a wait is required.
      * @return a promise that completes when the loop terminates
      */
-    default Promise<Void> forEach(Consumer<? super T> action, Predicate<? super T> continueCondition, long batchSize) {
+    default Promise<Void> forEach(Consumer<? super T> action, Predicate<? super T> continueCondition) {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(continueCondition, "continueCondition");
+        
+        // Detect if the condition requires a pre-fetch guard to prevent read-ahead consumption.
         @SuppressWarnings("unchecked")
         ReceivePreCheck<T> preCheck = continueCondition instanceof ReceivePreCheck ?
-                                      (ReceivePreCheck<T>)continueCondition
-                                      :
-                                      null;
+                                      (ReceivePreCheck<T>)continueCondition : null;
         
-        // Micro-optimizing Promises.loop as well as controlling batchSzie
-        // Otherwise Promises.loop may itself run completed promises without async
         return Promises.loop(
             Boolean.TRUE,
             continueLoop -> continueLoop,
             continueLoop -> {
-                // Greedy sync drain: 
-                // If batchSize <= 0, loop until we hit a pending Promise (empty buffer).
-                // If batchSize > 0, loop up to batchSize, then yield to prevent starvation.
-                for (long processed = 0; batchSize <= 0 || processed < batchSize; processed++) {
-                    if (null != preCheck && !preCheck.mayReceive()) {
-                        return Promises.FALSE;
+                // PRE-FETCH GUARD: If we know we shouldn't receive any more items,
+                // break immediately WITHOUT calling receive(). This prevents consuming
+                // an extra item from the buffer just to evaluate a count-based limit.
+                if (null != preCheck && !preCheck.mayReceive()) {
+                    return Promises.FALSE;
+                }
+                
+                Promise<T> next = receive();
+                
+                // 1. ASYNC PATH: Promise is not yet complete (buffer is empty)
+                if (!next.isDone()) {
+                    // Yield to the asynchronous event loop. When the promise completes,
+                    // evaluate the EOF and break conditions, then signal Promises.loop.
+                    return next.dependent().thenApply(value -> {
+                        if (value == null && isExhausted()) {
+                            return Boolean.FALSE; // EOF
+                        }
+                        if (!continueCondition.test(value)) {
+                            return Boolean.FALSE; // Break condition met
+                        }
+                        action.accept(value);
+                        return Boolean.TRUE; // Continue loop
+                    }, true);
+                } else {
+                    // 2. SYNC FAST-PATH: Promise is already complete (data is in buffer)
+                
+                    // Handle FAIL_ALL close or other exceptional completions
+                    if (next.isCompletedExceptionally()) {
+                        // Returning the failed promise aborts Promises.loop exceptionally.
+                        return next.thenApply($ -> Boolean.FALSE); 
                     }
-                    Promise<T> next = receive();
+                
+                    // Safe to extract value synchronously (won't block because isDone() is true)
+                    T value = next.join(); 
                     
-                    // 1. ASYNC PATH: Promise is not yet complete (buffer is empty)
-                    if (!next.isDone()) {
-                        // Yield to the asynchronous event loop. When the promise completes,
-                        // evaluate the EOF and break conditions, then signal Promises.loop.
-                        return next.dependent().thenApply(value -> {
-                            if (value == null && isExhausted()) {
-                                return Boolean.FALSE; // EOF
-                            }
-                            if (!continueCondition.test(value)) {
-                                return Boolean.FALSE; // Break condition met
-                            }
-                            action.accept(value);
-                            return Boolean.TRUE; // Continue ASYNC loop
-                        }, true);
+                    if (null == value && isExhausted()) {
+                        return Promises.FALSE; // Channel is over
+                    } else if (!continueCondition.test(value)) {
+                        return Promises.FALSE; // Break condition met
                     } else {
-                        // 2. SYNC FAST-PATH: Promise is already complete (data is in buffer)
-                    
-                        // Handle FAIL_ALL close or other exceptional completions
-                        if (next.isCompletedExceptionally()) {
-                            // Returning the failed promise aborts Promises.loop exceptionally.
-                            // We use thenApply to satisfy the Promise<Boolean> return type without
-                            // actually executing the lambda, as the promise is already failed.
-                            return next.thenApply($ -> Boolean.FALSE); 
-                            // not dependent while settled already 
-                        }
-                    
-                        // Safe to extract value synchronously (won't block because isDone() is true)
-                        T value = next.join(); 
-                        
-                        if (null == value && isExhausted()) {
-                            return Promises.FALSE; // Channel is over
-                        } else if (!continueCondition.test(value)) {
-                            return Promises.FALSE; // Break condition met
-                        } else {
-                            action.accept(value);
-                            // Loop continues synchronously to grab the next buffered item!
-                        }
+                        action.accept(value);
+                        // Because we return a completed Promise, Promises.loop will immediately 
+                        // re-evaluate the condition and call this step function again, creating 
+                        // a tight synchronous drain loop without thread-yielding overhead!
+                        return Promises.TRUE; 
                     }
-               }
-               
-               // Batch limit reached. Yield control back to Promises.loop to prevent 
-               // carrier-thread starvation, then resume processing the next batch.
-               return Promises.TRUE; 
+                }
             }
         ).dependent()
          .thenAccept(b -> {}, true)
          .unwrap();
     }
-    
+
     /**
      * Asynchronously receives all elements from the channel until it is closed and drained.
      * <p>
-     * Equivalent to calling {@link #receiveAll(int, int)} with no item limit and a 
-     * batch size of {@code 0} (greedy synchronous drain).
+     * Equivalent to calling {@link #receiveAll(int)} with no item limit.
      *
      * @return a promise that completes with a list of all received elements when the 
      *         channel is fully drained, or fails exceptionally if the channel is closed 
@@ -296,34 +246,16 @@ public interface ReceiveChannel<T> extends ChannelBase {
      * Asynchronously receives up to {@code maxItems} elements from the channel.
      * <p>
      * If {@code maxItems <= 0}, receives all elements until the channel is closed and drained.
-     * Equivalent to calling {@link #receiveAll(int, int)} with a batch size of {@code 0}.
-     *
-     * @param maxItems the maximum number of elements to receive; if {@code <= 0}, 
-     *                 no limit is applied and all elements are received.
-     * @return a promise that completes with a list of the received elements.
-     */
-    default Promise<List<T>> receiveAll(int maxItems) {
-        return receiveAll(maxItems, 0);
-    }
-    
-    /**
-     * Asynchronously receives up to {@code maxItems} elements from the channel, 
-     * processing elements in synchronous batches to maximize throughput.
-     * <p>
-     * If {@code maxItems <= 0}, receives all elements until the channel is closed and drained.
      * <p>
      * This method uses a {@link ReceivePreCheck} internally to ensure that the 
      * {@code maxItems + 1}th element is NOT consumed from the channel buffer, avoiding 
      * the "read-ahead" consumption bug inherent in standard stream predicates.
      *
-     * @param maxItems  the maximum number of elements to receive; if {@code <= 0}, 
-     *                  no limit is applied.
-     * @param batchSize the maximum number of elements to process synchronously before 
-     *                  yielding to the event loop. If {@code <= 0}, drains all available 
-     *                  elements synchronously until a wait is required.
+     * @param maxItems the maximum number of elements to receive; if {@code <= 0}, 
+     *                 no limit is applied.
      * @return a promise that completes with a list of the received elements.
      */
-    default Promise<List<T>> receiveAll(int maxItems, int batchSize) {
+    default Promise<List<T>> receiveAll(int maxItems) {
         List<T> result = new ArrayList<>();
         
         Predicate<T> condition = (maxItems <= 0) 
@@ -336,7 +268,7 @@ public interface ReceiveChannel<T> extends ChannelBase {
                 }
             };
             
-        return forEach(result::add, condition, batchSize)
+        return forEach(result::add, condition)
             .dependent()
             .thenApply($ -> result, true)
             .unwrap();
