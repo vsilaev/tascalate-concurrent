@@ -191,7 +191,7 @@ public class BufferedChannel<T> implements Channel<T> {
                     }
                     isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
-                        return canceled();
+                        return Promises.canceled();
                     }
                     matchedReceiver = matched;
                     waitReceivers.poll(); // actually consume it now
@@ -203,7 +203,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 } else if (buffer.size() < capacity) {
                     isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
-                        return canceled();
+                        return Promises.canceled();
                     }
                     buffer.add(wrap(value));
                     return Promises.success(value);
@@ -278,14 +278,14 @@ public class BufferedChannel<T> implements Channel<T> {
                         return channelClosed();
                     }
                     if (buffer.isEmpty() && waitSenders.isEmpty()) {
-                        return nothing();
+                        return Promises.nothing();
                     } 
                 }
                 boolean completedImmediately = false;
                 if (!buffer.isEmpty()) {
                     isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
-                        return canceled();
+                        return Promises.canceled();
                     }
                     // BUFFER PATH
                     resultFromBuffer = unwrap(buffer.poll());
@@ -312,7 +312,7 @@ public class BufferedChannel<T> implements Channel<T> {
                         }
                         isWon = isWon || coordinator.tryClaim(this);
                         if (!isWon) {
-                            return canceled();
+                            return Promises.canceled();
                         }
                         waitSenders.poll(); 
                         rendezvousSender = ws;
@@ -321,7 +321,7 @@ public class BufferedChannel<T> implements Channel<T> {
                     }
                     if (!completedImmediately) {
                         if (closedMode != null) {
-                            return nothing();
+                            return Promises.nothing();
                         }
                         ChannelPromise<T> receiverFuture = new ChannelPromise<>(coordinator);
                         waitReceivers.add(receiverFuture);
@@ -717,49 +717,10 @@ public class BufferedChannel<T> implements Channel<T> {
     }
 
     /**
-     * Shared singleton promise representing end-of-stream (DRAIN close
-     * with empty buffer). Returns {@code null} as the received value.
-     */
-    private static final Promise<Object> PROMISE_NOTHING = Promises.success(null);
-
-    /**
-     * Returns the shared end-of-stream promise, cast to the required type.
-     *
-     * @param <T> the nominal element type
-     * @return a promise that completes with {@code null}
-     */
-    @SuppressWarnings("unchecked")
-    private static <T> Promise<T> nothing() {
-        return (Promise<T>) PROMISE_NOTHING;
-    }
-
-    /**
-     * Shared singleton cancelled promise, returned when a coordinator
-     * has already been won by another channel.
-     */
-    private static final Promise<Object> PROMISE_CANCELED; 
-    static {
-        PROMISE_CANCELED = new ChannelPromise<>(null);
-        PROMISE_CANCELED.cancel(true);
-    }
-
-    /**
-     * Returns the shared cancelled promise, cast to the required type.
-     *
-     * @param <T> the nominal element type
-     * @return a promise that is already cancelled
-     */
-    @SuppressWarnings("unchecked")
-    private static <T> Promise<T> canceled() {
-        return (Promise<T>)PROMISE_CANCELED;
-    }
-    
-    /**
      * Shared singleton promise representing closed channel reply
      * Reports @link{#IllegalStateException} as the exceptional result.
      */
     private static final Promise<Object> PROMISE_CLOSED = Promises.failure(new IllegalStateException("Channel is closed"));
-    
     
     /**
      * Returns the shared channel closed promise, cast to the required type.

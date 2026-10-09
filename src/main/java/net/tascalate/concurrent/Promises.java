@@ -56,6 +56,10 @@ public final class Promises {
 
     private Promises() {}
     
+    
+    public static final Promise<Boolean> TRUE = Promises.success(Boolean.TRUE);
+    public static final Promise<Boolean> FALSE = Promises.success(Boolean.FALSE);
+    
     /**
      * Method to create a successfully resolved {@link Promise} with a value provided 
      * @param <T>
@@ -85,7 +89,28 @@ public final class Promises {
         delegate.completeExceptionally(exception);
         return new CompletableFutureWrapper<>(delegate);
     }
+    
+    /**
+     * Returns the shared null-completed promise, cast to the required type.
+     *
+     * @param <T> the nominal element type
+     * @return a promise that completes with {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> Promise<T> nothing() {
+        return (Promise<T>) PROMISE_NOTHING;
+    }
 
+    /**
+     * Returns the shared cancelled promise, cast to the required type.
+     *
+     * @param <T> the nominal element type
+     * @return a promise that is already cancelled
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> Promise<T> canceled() {
+        return (Promise<T>)PROMISE_CANCELED;
+    }
     
     public static <T> Promise<T> maybe(Optional<T> maybeValue) {
         return maybeValue.map(Promises::success)
@@ -118,6 +143,17 @@ public final class Promises {
 
     public static Throwable unwrapCompletionException(Throwable ex) {
         return SharedFunctions.unwrapCompletionException(ex);
+    }
+    
+    public static <T> Promise<Void> forEach(Iterable<? extends T> source, Function<? super T, ? extends CompletionStage<Boolean>> loopBody) {
+        return loop(source.iterator(), Iterator::hasNext, iterator -> {
+            T item = iterator.next();
+            return from(loopBody.apply(item))
+                   .dependent()
+                   .thenApply(resume -> resume ? iterator : Collections.emptyIterator());
+        }).dependent()
+          .thenAccept($ -> {}, true)
+          ;
     }
     
     public static <T> Promise<T> loop(T initialValue, 
@@ -1234,5 +1270,19 @@ public final class Promises {
                          .limit(maxCount)
                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
+    }
+    
+    /**
+     * Shared singleton promise. Returns {@code null} as the received value.
+     */
+    private static final Promise<Object> PROMISE_NOTHING = Promises.success(null);
+    
+    /**
+     * Shared singleton cancelled promise
+     */
+    private static final Promise<Object> PROMISE_CANCELED; 
+    static {
+        PROMISE_CANCELED = new CompletableFutureWrapper<>();
+        PROMISE_CANCELED.cancel(true);
     }
 }
