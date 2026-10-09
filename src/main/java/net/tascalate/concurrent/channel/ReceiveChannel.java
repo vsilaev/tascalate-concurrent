@@ -175,8 +175,8 @@ public interface ReceiveChannel<T> extends ChannelBase {
      * executed for that specific element (similar to {@code Stream.takeWhile}).
      * <p>
      * To maximize throughput for buffered channels, this method employs a synchronous 
-     * fast-path. It will greedily process elements synchronously as long as they are 
-     * immediately available in the buffer. 
+     * fast-path (even on initial invocation, before returning). It will greedily process 
+     * elements synchronously as long as they are immediately available in the buffer. 
      * <ul>
      *   <li>If {@code batchSize <= 0}, it drains <i>all</i> currently buffered elements 
      *       synchronously, only yielding control back to the event loop when the channel 
@@ -207,6 +207,8 @@ public interface ReceiveChannel<T> extends ChannelBase {
         Objects.requireNonNull(action, "action");
         Objects.requireNonNull(continueCondition, "continueCondition");
 
+        // Micro-optimizing Promises.loop as well as controlling batchSzie
+        // Otherwise Promises.loop may itself run completed promises without async
         return Promises.loop(
             Boolean.TRUE,
             continueLoop -> continueLoop,

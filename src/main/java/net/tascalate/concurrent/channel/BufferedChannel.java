@@ -18,6 +18,7 @@ package net.tascalate.concurrent.channel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -166,16 +167,13 @@ public class BufferedChannel<T> implements Channel<T> {
      * owning select is still active before completing it.
      *
      * @param value       the value to send
-     * @param coordinator the select coordinator; {@code null} is treated
-     *                    as {@link SelectCoordinator#anyWins()}
+     * @param coordinator the select coordinator; no-null
      * @return a promise that completes when the value is accepted, or a
      *         cancelled promise if the coordinator was already won
      */
     @Override
     public Promise<T> send(T value, SelectCoordinator coordinator) {
-        if (coordinator == null) {
-            coordinator = SelectCoordinator.anyWins();
-        }
+        Objects.requireNonNull(coordinator, "action");
         boolean isWon = false;
         while (true) {
             ChannelPromise<T> matchedReceiver = null;
@@ -183,7 +181,7 @@ public class BufferedChannel<T> implements Channel<T> {
             lock.lock();
             try {
                 if (closedMode != null) {
-                    return Promises.failure(new IllegalStateException("Channel is closed"));
+                    return channelClosed();
                 }
                 ChannelPromise<T> matched;
                 // Use peek() to check before committing, just like receive
@@ -262,16 +260,13 @@ public class BufferedChannel<T> implements Channel<T> {
      * coordinator is attached to the receiver promise so that a future
      * sender can verify the owning select is still active.
      *
-     * @param coordinator the select coordinator; {@code null} is treated
-     *                    as {@link SelectCoordinator#anyWins()}
+     * @param coordinator the select coordinator; non-null
      * @return a promise that completes with the received value, or a
      *         cancelled promise if the coordinator was already won
      */
     @Override
     public Promise<T> receive(SelectCoordinator coordinator) {
-        if (null == coordinator) {
-            coordinator = SelectCoordinator.anyWins();
-        }
+        Objects.requireNonNull(coordinator, "coordinator");
         boolean isWon = false;
         while (true) {
             T resultFromBuffer = null;
@@ -280,7 +275,7 @@ public class BufferedChannel<T> implements Channel<T> {
             try {
                 if (closedMode != null) {
                     if (closedMode == CloseMode.FAIL_ALL) {
-                        return Promises.failure(new IllegalStateException("Channel is closed"));
+                        return channelClosed();
                     }
                     if (buffer.isEmpty() && waitSenders.isEmpty()) {
                         return nothing();
@@ -757,6 +752,24 @@ public class BufferedChannel<T> implements Channel<T> {
     @SuppressWarnings("unchecked")
     private static <T> Promise<T> canceled() {
         return (Promise<T>)PROMISE_CANCELED;
+    }
+    
+    /**
+     * Shared singleton promise representing closed channel reply
+     * Reports @link{#IllegalStateException} as the exceptional result.
+     */
+    private static final Promise<Object> PROMISE_CLOSED = Promises.failure(new IllegalStateException("Channel is closed"));
+    
+    
+    /**
+     * Returns the shared channel closed promise, cast to the required type.
+     *
+     * @param <T> the nominal element type
+     * @return a promise that is already cancelled
+     */    
+    @SuppressWarnings("unchecked")
+    private static <T> Promise<T> channelClosed() {
+        return (Promise<T>) PROMISE_CLOSED;
     }
 
     /**

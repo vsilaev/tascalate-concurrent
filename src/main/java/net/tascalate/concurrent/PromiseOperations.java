@@ -81,10 +81,7 @@ public class PromiseOperations {
     }
     
     public static <T, F extends Promise<T>> Function<F, F> peek(Consumer<? super F> fn) {
-        return p -> {
-            fn.accept(p);
-            return p;
-        };
+        return p -> peek(p, fn);
     }
     
     public static <T, R extends AutoCloseable> Promise<T> 
@@ -94,7 +91,7 @@ public class PromiseOperations {
     
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
         tryApply(Function<? super R, ? extends T> fn) {
-        return p -> unwrap(Promises.tryApply(p.dependent(PromiseOrigin.ALL), fn));
+        return p -> tryApply(p, fn);
     }
     
     public static <T, R extends AsyncCloseable> Promise<T> 
@@ -104,7 +101,7 @@ public class PromiseOperations {
     
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
         tryApplyEx(Function<? super R, ? extends T> fn) {
-        return p -> unwrap(Promises.tryApplyEx(p.dependent(PromiseOrigin.ALL), fn));
+        return p -> tryApplyEx(p, fn);
     }
     
     public static <T, R extends AutoCloseable> Promise<T> 
@@ -114,7 +111,7 @@ public class PromiseOperations {
     
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
         tryCompose(Function<? super R, ? extends CompletionStage<T>> fn) {
-        return p -> unwrap(Promises.tryCompose(p.dependent(PromiseOrigin.ALL), fn));
+        return p -> tryCompose(p, fn);
     }
     
     public static <T, R extends AsyncCloseable> Promise<T> 
@@ -124,55 +121,94 @@ public class PromiseOperations {
 
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
         tryComposeEx(Function<? super R, ? extends CompletionStage<T>> fn) {
-        return p -> unwrap(Promises.tryComposeEx(p.dependent(PromiseOrigin.ALL), fn));
+        return p -> tryComposeEx(p, fn);
     }
     
-    public static <S, T, A, R> Function<Promise<Iterable<S>>, Promise<R>> 
-        partitionedItems(int batchSize, 
-                         Function<? super S, CompletionStage<? extends T>> spawner,
-                         Collector<T, A, R> downstream) {
-        
-        return p -> p.dependent()
-                     .thenCompose(values -> 
-                         Promises.partitioned(values, batchSize, spawner, downstream), true)
-                     .unwrap();
-    }
+    public static <S, T, A, R> Promise<R> 
+        chunkedItems(Promise<Iterable<S>> promise,
+                     int batchSize, 
+                     Function<? super S, CompletionStage<? extends T>> spawner,
+                     Collector<T, A, R> downstream) {
     
-    public static <S, T, A, R> Function<Promise<Iterable<S>>, Promise<R>> 
-        partitionedItems(int batchSize, 
-                         Function<? super S, CompletionStage<? extends T>> spawner, 
-                         Collector<T, A, R> downstream,
-                         Executor downstreamExecutor) {
-        
-        return p -> p.dependent()
-                     .thenCompose(values -> 
-                         Promises.partitioned(values, batchSize, spawner, downstream, downstreamExecutor), true)
-                     .unwrap();
-    }
-    
-    public static <S, T, A, R> Function<Promise<Stream<S>>, Promise<R>> 
-        partitionedStream(int batchSize, 
-                          Function<? super S, CompletionStage<? extends T>> spawner, 
-                          Collector<T, A, R> downstream) {
-        
-         return p -> p.dependent()
+        return promise.dependent()
                       .thenCompose(values -> 
-                          Promises.partitioned(values, batchSize, spawner, downstream), true)
+                          Promises.chunked(values, batchSize, spawner, downstream), true)
                       .unwrap();
-     }
-    
-    public static <S, T, A, R> Function<Promise<Stream<S>>, Promise<R>> 
-        partitionedStream(int batchSize, 
-                          Function<? super S, CompletionStage<? extends T>> spawner, 
-                          Collector<T, A, R> downstream,
-                          Executor downstreamExecutor) {
-        
-        return p -> p.dependent()
-                     .thenCompose(values -> 
-                         Promises.partitioned(values, batchSize, spawner, downstream, downstreamExecutor), true)
-                     .unwrap();
     }
     
+    public static <S, T, A, R> Function<Promise<Iterable<S>>, Promise<R>> 
+        chunkedItems(int batchSize, 
+                     Function<? super S, CompletionStage<? extends T>> spawner,
+                     Collector<T, A, R> downstream) {
+        
+        return p -> chunkedItems(p, batchSize,  spawner, downstream);
+    }
+    
+    
+    public static <S, T, A, R> Promise<R> 
+        chunkedItems(Promise<Iterable<S>> promise,
+                     int batchSize, 
+                     Function<? super S, CompletionStage<? extends T>> spawner, 
+                     Collector<T, A, R> downstream,
+                     Executor downstreamExecutor) {
+    
+        return promise.dependent()
+                      .thenCompose(values -> 
+                          Promises.chunked(values, batchSize, spawner, downstream, downstreamExecutor), true)
+                      .unwrap();
+    }
+    
+    public static <S, T, A, R> Function<Promise<Iterable<S>>, Promise<R>> 
+        chunkedItems(int batchSize, 
+                     Function<? super S, CompletionStage<? extends T>> spawner, 
+                     Collector<T, A, R> downstream,
+                     Executor downstreamExecutor) {
+        
+        return p -> chunkedItems(p, batchSize, spawner, downstream, downstreamExecutor);
+    }
+    
+    public static <S, T, A, R> Promise<R> 
+        chunkedStrem(Promise<Stream<S>> promise,
+                     int batchSize, 
+                     Function<? super S, CompletionStage<? extends T>> spawner,
+                     Collector<T, A, R> downstream) {
+
+        return promise.dependent()
+                      .thenCompose(values -> 
+                          Promises.chunked(values, batchSize, spawner, downstream), true)
+                      .unwrap();
+    }
+
+    public static <S, T, A, R> Function<Promise<Stream<S>>, Promise<R>> 
+        chunkedStream(int batchSize, 
+                      Function<? super S, CompletionStage<? extends T>> spawner,
+                      Collector<T, A, R> downstream) {
+    
+        return p -> chunkedStrem(p, batchSize,  spawner, downstream);
+    }
+    
+    public static <S, T, A, R> Promise<R> 
+        chunkedStrem(Promise<Stream<S>> promise,
+                     int batchSize, 
+                     Function<? super S, CompletionStage<? extends T>> spawner,
+                     Collector<T, A, R> downstream,
+                     Executor downstreamExecutor) {
+
+        return promise.dependent()
+                      .thenCompose(values -> 
+                          Promises.chunked(values, batchSize, spawner, downstream, downstreamExecutor), true)
+                      .unwrap();
+    }
+
+    public static <S, T, A, R> Function<Promise<Stream<S>>, Promise<R>> 
+        chunkedStream(int batchSize, 
+                      Function<? super S, CompletionStage<? extends T>> spawner,
+                      Collector<T, A, R> downstream,
+                      Executor downstreamExecutor) {
+
+        return p -> chunkedStrem(p, batchSize,  spawner, downstream, downstreamExecutor);
+    }
+
     private static <T> Promise<T> unwrap(Promise<T> p) {
         return p.unwrap();
     }

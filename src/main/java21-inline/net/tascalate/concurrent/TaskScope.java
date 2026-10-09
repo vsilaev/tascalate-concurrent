@@ -1,17 +1,26 @@
 /**
  * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 package net.tascalate.concurrent;
 
@@ -33,57 +42,105 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import net.tascalate.concurrent.var.ContextTrampoline;
+
 public class TaskScope implements AutoCloseable {
     private static final AtomicLong SCOPE_ID = new AtomicLong(0);
     
     private final String name;
     private final ExecutorService executorService;
-    private final boolean ownExecutor;
     private final TaskCompletionService<Object> completionService;
+    private final ContextTrampoline<Object> contextualizer;
     
     private final Set<Promise<?>> allFutures = new HashSet<>();
     private final Thread owner = Thread.currentThread();
     
     public TaskScope() {
-        this(nextGeneratedName());
+        this((ContextTrampoline<Object>)null);
+    }
+    
+    public TaskScope(ContextTrampoline<Object> contextualizer) {
+        this(nextGeneratedName(), contextualizer);
     }
     
     public TaskScope(String name) {
-        this(nextGeneratedName(), Executors.newVirtualThreadPerTaskExecutor(), true);
+        this(name, Executors.newVirtualThreadPerTaskExecutor(), true, null);
+    }
+    
+    public TaskScope(String name, ContextTrampoline<Object> contextualizer) {
+        this(name, Executors.newVirtualThreadPerTaskExecutor(), true, contextualizer);
     }
     
     public TaskScope(ThreadFactory threadFactory) {
-        this(nextGeneratedName(), threadFactory);
+        this(threadFactory, (ContextTrampoline<Object>)null);
+    }
+    
+    public TaskScope(ThreadFactory threadFactory, ContextTrampoline<Object> contextualizer) {
+        this(nextGeneratedName(), threadFactory, contextualizer);
     }
     
     public TaskScope(String name, ThreadFactory threadFactory) {
-        this(name, Executors.newThreadPerTaskExecutor(threadFactory), true);
+        this(name, threadFactory, (ContextTrampoline<Object>)null);
+    }
+    
+    public TaskScope(String name, 
+                     ThreadFactory threadFactory, 
+                     ContextTrampoline<Object> contextualizer) {
+        this(name, Executors.newThreadPerTaskExecutor(threadFactory), true, contextualizer);
     }
     
     public TaskScope(ExecutorService executorService) {
-        this(executorService, false);
+        this(executorService, (ContextTrampoline<Object>)null);
     }
+    
+    public TaskScope(ExecutorService executorService, 
+                     ContextTrampoline<Object> contextualizer) {
+        this(executorService, false, contextualizer);
+    }
+    
     
     public TaskScope(ExecutorService executorService, boolean ownExecutor) {
-        this(nextGeneratedName(), executorService, ownExecutor);
+        this(executorService, ownExecutor, (ContextTrampoline<Object>)null);
     }
     
+    public TaskScope(ExecutorService executorService, 
+                     boolean ownExecutor, 
+                     ContextTrampoline<Object> contextualizer) {
+        this(nextGeneratedName(), executorService, ownExecutor, contextualizer);
+    }
+    
+    
     public TaskScope(String name, ExecutorService executorService) {
-        this(name, executorService, false);
+        this(name, executorService, null);
+    }
+    
+    public TaskScope(String name, 
+                     ExecutorService executorService, 
+                     ContextTrampoline<Object> contextualizer) {
+        this(name, executorService, false, contextualizer);
     }
     
     public TaskScope(String name, ExecutorService executorService, boolean ownExecutor) {
+        this(name, executorService, ownExecutor, null);
+    }
+    
+    public TaskScope(String name, ExecutorService executorService, boolean ownExecutor, ContextTrampoline<Object> contextualizer) {
         Objects.requireNonNull(executorService, "executorService may not be null");
         this.name = name;
-        this.executorService = executorService;
-        this.ownExecutor = ownExecutor;
+        if (ownExecutor) {
+            this.executorService = executorService;
+        } else {
+            this.executorService = null;
+        }
         this.completionService = new TaskExecutorCompletionService<>(executorService);
+        this.contextualizer = contextualizer;
     }
     
     @SuppressWarnings("unchecked")
     public Promise<Void> fork(Runnable code) {
         checkOwner();
-        Promise<?> result = completionService.submit(code, null);
+        Runnable contextualized = null == contextualizer ? code : contextualizer.contextual(code);
+        Promise<?> result = completionService.submit(contextualized, null);
         allFutures.add(result);
         return (Promise<Void>)result;
     }
@@ -91,7 +148,8 @@ public class TaskScope implements AutoCloseable {
     @SuppressWarnings("unchecked")
     public <T> Promise<T> fork(Callable<T> code) {
         checkOwner();
-        Promise<?> result = completionService.submit((Callable<Object>)(Object)code);
+        Callable<T> contextualized = null == contextualizer ? code : contextualizer.contextual(code);
+        Promise<?> result = completionService.submit((Callable<Object>) contextualized);
         allFutures.add(result);
         return (Promise<T>)result;
     }
@@ -146,7 +204,7 @@ public class TaskScope implements AutoCloseable {
     @Override
     public void close() {
         reset();
-        if (ownExecutor) {
+        if (null != executorService) {
             executorService.shutdownNow();
         }
     }

@@ -38,8 +38,8 @@ import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
 import net.tascalate.concurrent.var.ContextTrampoline;
 
-import static net.tascalate.concurrent.PromiseOperations.partitionedItems;
-import static net.tascalate.concurrent.PromiseOperations.partitionedStream;
+import static net.tascalate.concurrent.PromiseOperations.chunkedItems;
+import static net.tascalate.concurrent.PromiseOperations.chunkedStream;
 import static net.tascalate.concurrent.PromiseOperations.tryCompose;
 import static net.tascalate.concurrent.PromiseOperations.peek;
 
@@ -184,7 +184,7 @@ public class J8Examples {
                       )
         .thenApply(v -> {System.out.println("PARTITIONED SOURCE: " + v); return v;})
                 .thenApply(Collection::stream)
-                .as(partitionedStream(2, i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 1000), executorService), Collectors.toList()))
+                .as(chunkedStream(2, i -> CompletableTask.supplyAsync(() -> awaitAndProduce1(i, 1000), executorService), Collectors.toList()))
                 .whenComplete((r, e) -> {
                     System.out.println("PARTITIONED: " + r + " ON " + Thread.currentThread());
                     //System.exit(0);

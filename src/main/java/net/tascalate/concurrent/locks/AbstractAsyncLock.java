@@ -16,8 +16,11 @@
 package net.tascalate.concurrent.locks;
 
 import java.util.Optional;
+import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
 
 import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.Promises;
 
 public interface AbstractAsyncLock<T extends AbstractAsyncLock.Token> {
     /**
@@ -63,5 +66,9 @@ public interface AbstractAsyncLock<T extends AbstractAsyncLock.Token> {
         default void close() {
             release();
         }
+    }
+    
+    default <V> Promise<V> guard(Supplier<? extends CompletionStage<V>> action) {
+        return Promises.tryCompose(this.acquire(), $ -> action.get());
     }
 }

@@ -87,7 +87,7 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
                         success(currentValue);
                         break;
                     }
-                } catch (final Throwable ex) {
+                } catch (Throwable ex) {
                     failure(ex);
                     break;
                 }
