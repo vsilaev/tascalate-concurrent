@@ -1,4 +1,4 @@
-package net.tascalate.concurrent.channel;
+package net.tascalate.concurrent.channels;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
-import net.tascalate.concurrent.channel.ChannelBase.CloseMode;
+import net.tascalate.concurrent.channels.ChannelBase.CloseMode;
 
 public class ReceiveChannelForEachTest {
 

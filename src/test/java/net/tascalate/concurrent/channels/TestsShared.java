@@ -1,4 +1,4 @@
-package net.tascalate.concurrent.channel;
+package net.tascalate.concurrent.channels;
 
 class TestsShared {
     // Helper to mimic JUnit 5's assertThrows so we don't have to rewrite test logic

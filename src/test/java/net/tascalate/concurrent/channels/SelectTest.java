@@ -1,6 +1,6 @@
-package net.tascalate.concurrent.channel;
+package net.tascalate.concurrent.channels;
 
-import static net.tascalate.concurrent.channel.TestsShared.assertThrows;
+import static net.tascalate.concurrent.channels.TestsShared.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
