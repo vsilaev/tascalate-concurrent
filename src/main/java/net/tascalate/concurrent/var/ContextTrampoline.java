@@ -43,7 +43,7 @@ public class ContextTrampoline<X> {
     }
     
     private Contextualization<X> captureContextualization() {
-        return new Contextualization<>(contextVars, contextVars.get());
+        return Contextualization.create(contextVars, contextVars.get());
     }
     
     public Runnable contextual(Runnable action) {
@@ -160,4 +160,28 @@ public class ContextTrampoline<X> {
         return ctr.apply(delegate, captureContextualization());
     }
   
+    
+    public static void main(String[] args) {
+        ThreadLocal<String> S_VALUE = new ThreadLocal<>();
+        ThreadLocal<Integer> I_VALUE = new ThreadLocal<>();
+        ThreadLocalVar<String> tlS = new ThreadLocalVar.Optimized<>(S_VALUE); 
+        ThreadLocalVar<Integer> tlI = new ThreadLocalVar.Optimized<>(I_VALUE);
+        ContextVar<String> cxS = new ContextVar<String>() {
+            @Override
+            public String get() {
+                return "SUPER";
+            }
+
+            @Override
+            public <V> V callWith(String capturedValue, Callable<V> code) throws Exception {
+                return code.call();
+            }
+        };
+        ContextVar.bind(tlS, "ABC")
+                  .bind(tlI.strict(), 1234)
+                  .bind(cxS, "IGNORE")
+                  .run(() -> {
+                     System.out.print("HERE"); 
+                  });
+    }
 }

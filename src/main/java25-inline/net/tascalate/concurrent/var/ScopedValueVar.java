@@ -17,11 +17,12 @@ package net.tascalate.concurrent.var;
 
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class ScopedValueVar<T> implements ContextVar<T> {
 
-    private final ScopedValue<T> delegate;
+    final ScopedValue<T> delegate;
     
     private ScopedValueVar(ScopedValue<T> delegate) {
         this.delegate = delegate;
@@ -30,6 +31,11 @@ public class ScopedValueVar<T> implements ContextVar<T> {
     @Override
     public T get() {
         return delegate.isBound() ? delegate.get() : null;
+    }
+
+    @Override
+    public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+        return ScopedValueVarGroup.FACTORY;
     }
     
     @Override

@@ -15,8 +15,10 @@
  */
 package net.tascalate.concurrent.var;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -87,4 +89,14 @@ class ScopedValueVarGroup<T> implements ContextVar<List<T>> {
         return c;
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static final Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> FACTORY = vars -> {
+        List<ScopedValue<?>> svs = new ArrayList<>();
+        vars.forEach(v -> {
+            ScopedValueVar<?> tv = (ScopedValueVar<?>)v;
+            svs.add(tv.delegate);
+            
+        });
+        return new ScopedValueVarGroup(svs);
+    };
 }

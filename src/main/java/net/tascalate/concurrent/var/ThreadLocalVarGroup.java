@@ -15,9 +15,11 @@
  */
 package net.tascalate.concurrent.var;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
@@ -72,6 +74,11 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
         public Optimized<T> optimized() {
             return new Optimized<>(threadLocals);
         }
+        
+        @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ModifiableContextVarGroup.FACTORY_STRICT;
+        }
 
         
         @Override
@@ -108,6 +115,11 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
         }
         
         @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
+        }
+        
+        @Override
         public String toString() {
             return String.format("<thread-local-ctx-vars-optimized>%s", threadLocals);
         }
@@ -128,4 +140,26 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
             }
         }
     }
+    
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static final Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> FACTORY_OPTIMIZED = vars -> {
+        List<ThreadLocal<?>> tls = new ArrayList<>();
+        vars.forEach(v -> {
+            ThreadLocalVar<?> tv = (ThreadLocalVar<?>)v;
+            tls.add(tv.delegate);
+            
+        });
+        return new ThreadLocalVarGroup.Optimized(tls);
+    };
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static final Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> FACTORY_STRICT = vars -> {
+        List<ThreadLocal<?>> tls = new ArrayList<>();
+        vars.forEach(v -> {
+            ThreadLocalVar<?> tv = (ThreadLocalVar<?>)v;
+            tls.add(tv.delegate);
+            
+        });
+        return new ThreadLocalVarGroup.Strict(tls);
+    };
 }

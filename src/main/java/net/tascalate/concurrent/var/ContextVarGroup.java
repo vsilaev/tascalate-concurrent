@@ -18,9 +18,10 @@ package net.tascalate.concurrent.var;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-class ContextVarGroup<T> implements ContextVar<List<T>> {
+abstract class ContextVarGroup<T> implements ContextVar<List<T>> {
 
     final List<? extends ContextVar<? extends T>> vars;
     
@@ -79,6 +80,11 @@ class ContextVarGroup<T> implements ContextVar<List<T>> {
         Optimized(List<? extends ContextVar<? extends T>> vars) {
             super(ContextVarHelper.convertList(vars, ContextVar::optimized));
         }
+        
+        Optimized(List<? extends ContextVar<? extends T>> vars, boolean noTransform) {
+            super(vars);
+        }
+
      
         @Override
         public Strict<T> strict() {
@@ -95,4 +101,9 @@ class ContextVarGroup<T> implements ContextVar<List<T>> {
             return String.format("<generic-ctx-vars-optimized>%s", vars);
         }
     }
+    
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static final Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> FACTORY = vars -> 
+        new ContextVarGroup.Optimized(vars);
+    ;
 }

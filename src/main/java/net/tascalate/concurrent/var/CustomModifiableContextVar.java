@@ -16,8 +16,10 @@
  */
 package net.tascalate.concurrent.var;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> {
@@ -83,6 +85,11 @@ abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> 
         }
         
         @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ModifiableContextVarGroup.FACTORY_STRICT;
+        }
+        
+        @Override
         public String toString() {
             return String.format("<custom-ctx-var-strict>[%s]", name);
         }
@@ -105,6 +112,11 @@ abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> 
         @Override
         public Strict<T> strict() {
             return new Strict<>(name, reader, writer, eraser);
+        }
+        
+        @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
         }
         
         @Override

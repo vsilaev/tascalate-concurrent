@@ -22,8 +22,7 @@ class Contextualization<T> {
     private final ContextVar<T> contextVar;
     private final T capturedContext;
     
-    Contextualization(ContextVar<T> contextVar, 
-                      T capturedContext) {
+    private Contextualization(ContextVar<T> contextVar, T capturedContext) {
         
         this.contextVar = null == contextVar ? ContextVar.empty() : contextVar; 
         this.capturedContext = capturedContext;        
@@ -39,5 +38,9 @@ class Contextualization<T> {
     
     <V> V callWith(Callable<V> code) throws Exception {
         return contextVar.callWith(capturedContext, code);        
+    }
+    
+    static <T> Contextualization<T> create(ContextVar<T> contextVar, T capturedValue) {
+        return new Contextualization<>(contextVar, capturedValue);
     }
 }

@@ -18,11 +18,12 @@ package net.tascalate.concurrent.var;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 
 public abstract class ThreadLocalVar<T> implements ModifiableContextVar<T> {
     final ThreadLocal<T> delegate;
     
-    ThreadLocalVar(ThreadLocal<T> delegate) {
+    private ThreadLocalVar(ThreadLocal<T> delegate) {
         this.delegate = delegate;
     }
     
@@ -72,6 +73,11 @@ public abstract class ThreadLocalVar<T> implements ModifiableContextVar<T> {
         }
         
         @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ThreadLocalVarGroup.FACTORY_STRICT;
+        }
+        
+        @Override
         public String toString() {
             return String.format("<thread-local-ctx-var-strict>[%s]", delegate);
         }
@@ -104,10 +110,19 @@ public abstract class ThreadLocalVar<T> implements ModifiableContextVar<T> {
         }
         
         @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ThreadLocalVarGroup.FACTORY_OPTIMIZED;
+        }
+        
+        @Override
         public String toString() {
             return String.format("<thread-local-ctx-var-optimized>[%s]", delegate);
         }
         
+    }
+    
+    public static <T> ThreadLocalVar<T> newInstance() {
+        return of(new ThreadLocal<>());
     }
     
     public static <T> ThreadLocalVar<T> of(ThreadLocal<T> threadLocal) {

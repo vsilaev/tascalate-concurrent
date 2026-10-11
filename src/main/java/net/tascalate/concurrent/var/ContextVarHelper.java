@@ -27,9 +27,9 @@ class ContextVarHelper {
     static String generateVarName() {
         return "<anonymous" + COUNTER.getAndIncrement() + ">";
     }
-    
-    static <T> void applyValues(List<? extends ModifiableContextVar<? extends T>> threadLocals, List<? extends T> data) {
-        Iterator<? extends ContextVar<?>> vars = threadLocals.iterator();
+
+    static <T> void applyValues(List<? extends ModifiableContextVar<? extends T>> variables, List<? extends T> data) {
+        Iterator<? extends ContextVar<?>> vars = variables.iterator();
         Iterator<? extends T> values = data.iterator();
         while (vars.hasNext() && values.hasNext()) {
             @SuppressWarnings("unchecked")

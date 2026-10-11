@@ -17,20 +17,14 @@ package net.tascalate.concurrent.var;
 
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 
-abstract class ModifiableContextVarGroup<T> implements ModifiableContextVar<List<T>> {
+abstract class ModifiableContextVarGroup<T> extends ContextVarGroup<T> implements ModifiableContextVar<List<T>> {
     final List<? extends ModifiableContextVar<? extends T>> vars;
     
     ModifiableContextVarGroup(List<? extends ModifiableContextVar<? extends T>> vars) {
+        super(vars);
         this.vars = vars;
-    }
-    
-    @Override
-    public List<T> get() {
-        return vars.stream()
-                   .map(ContextVar::get)
-                   .collect(Collectors.toList());
     }
     
     @Override
@@ -110,4 +104,15 @@ abstract class ModifiableContextVarGroup<T> implements ModifiableContextVar<List
             return String.format("<custom-ctx-vars-optimized>%s", vars);
         } 
     }
+    
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static final Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> FACTORY_OPTIMIZED = vars -> 
+        new ModifiableContextVarGroup.Optimized(vars);
+    ;
+    
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static final Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> FACTORY_STRICT = vars -> 
+        new ModifiableContextVarGroup.Strict(vars);
+    ;
+
 }

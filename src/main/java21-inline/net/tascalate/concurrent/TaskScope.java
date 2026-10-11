@@ -124,6 +124,10 @@ public class TaskScope implements AutoCloseable {
         this(name, executorService, ownExecutor, null);
     }
     
+    public ContextTrampoline contextualizer() {
+        return contextualizer;
+    }
+    
     public TaskScope(String name, ExecutorService executorService, boolean ownExecutor, ContextTrampoline<Object> contextualizer) {
         Objects.requireNonNull(executorService, "executorService may not be null");
         this.name = name;

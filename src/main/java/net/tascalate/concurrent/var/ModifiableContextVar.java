@@ -18,6 +18,7 @@ package net.tascalate.concurrent.var;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public interface ModifiableContextVar<T> extends ContextVar<T> {
@@ -35,6 +36,11 @@ public interface ModifiableContextVar<T> extends ContextVar<T> {
     @Override
     default ModifiableContextVar<T> optimized() {
         return this;
+    }
+    
+    @Override
+    default Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+        return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
     }
     
     public static <T> ModifiableContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer) {
