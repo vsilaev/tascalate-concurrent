@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
+abstract class ThreadLocalVarGroup<T> extends ModifiableContextVar<List<T>> {
 
     List<? extends ThreadLocal<? extends T>> threadLocals;
     
@@ -38,12 +38,12 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
     }
     
     @Override
-    public void set(List<T> value) {
+    void set(List<T> value) {
         applyValues(threadLocals, value);
     }
     
     @Override
-    public void remove() {
+    void remove() {
         threadLocals.forEach(ThreadLocal::remove);
     }
     
@@ -112,11 +112,6 @@ abstract class ThreadLocalVarGroup<T> implements ModifiableContextVar<List<T>> {
         @Override
         public Optimized<T> optimized() {
             return this;
-        }
-        
-        @Override
-        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
-            return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
         }
         
         @Override

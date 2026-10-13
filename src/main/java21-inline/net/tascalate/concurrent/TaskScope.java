@@ -42,7 +42,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import net.tascalate.concurrent.var.ContextTrampoline;
+import net.tascalate.concurrent.var.ContextRelay;
 
 public class TaskScope implements AutoCloseable {
     private static final AtomicLong SCOPE_ID = new AtomicLong(0);
@@ -50,16 +50,16 @@ public class TaskScope implements AutoCloseable {
     private final String name;
     private final ExecutorService executorService;
     private final TaskCompletionService<Object> completionService;
-    private final ContextTrampoline<Object> contextualizer;
+    private final ContextRelay<Object> contextualizer;
     
     private final Set<Promise<?>> allFutures = new HashSet<>();
     private final Thread owner = Thread.currentThread();
     
     public TaskScope() {
-        this((ContextTrampoline<Object>)null);
+        this((ContextRelay<Object>)null);
     }
     
-    public TaskScope(ContextTrampoline<Object> contextualizer) {
+    public TaskScope(ContextRelay<Object> contextualizer) {
         this(nextGeneratedName(), contextualizer);
     }
     
@@ -67,45 +67,45 @@ public class TaskScope implements AutoCloseable {
         this(name, Executors.newVirtualThreadPerTaskExecutor(), true, null);
     }
     
-    public TaskScope(String name, ContextTrampoline<Object> contextualizer) {
+    public TaskScope(String name, ContextRelay<Object> contextualizer) {
         this(name, Executors.newVirtualThreadPerTaskExecutor(), true, contextualizer);
     }
     
     public TaskScope(ThreadFactory threadFactory) {
-        this(threadFactory, (ContextTrampoline<Object>)null);
+        this(threadFactory, (ContextRelay<Object>)null);
     }
     
-    public TaskScope(ThreadFactory threadFactory, ContextTrampoline<Object> contextualizer) {
+    public TaskScope(ThreadFactory threadFactory, ContextRelay<Object> contextualizer) {
         this(nextGeneratedName(), threadFactory, contextualizer);
     }
     
     public TaskScope(String name, ThreadFactory threadFactory) {
-        this(name, threadFactory, (ContextTrampoline<Object>)null);
+        this(name, threadFactory, (ContextRelay<Object>)null);
     }
     
     public TaskScope(String name, 
                      ThreadFactory threadFactory, 
-                     ContextTrampoline<Object> contextualizer) {
+                     ContextRelay<Object> contextualizer) {
         this(name, Executors.newThreadPerTaskExecutor(threadFactory), true, contextualizer);
     }
     
     public TaskScope(ExecutorService executorService) {
-        this(executorService, (ContextTrampoline<Object>)null);
+        this(executorService, (ContextRelay<Object>)null);
     }
     
     public TaskScope(ExecutorService executorService, 
-                     ContextTrampoline<Object> contextualizer) {
+                     ContextRelay<Object> contextualizer) {
         this(executorService, false, contextualizer);
     }
     
     
     public TaskScope(ExecutorService executorService, boolean ownExecutor) {
-        this(executorService, ownExecutor, (ContextTrampoline<Object>)null);
+        this(executorService, ownExecutor, (ContextRelay<Object>)null);
     }
     
     public TaskScope(ExecutorService executorService, 
                      boolean ownExecutor, 
-                     ContextTrampoline<Object> contextualizer) {
+                     ContextRelay<Object> contextualizer) {
         this(nextGeneratedName(), executorService, ownExecutor, contextualizer);
     }
     
@@ -116,7 +116,7 @@ public class TaskScope implements AutoCloseable {
     
     public TaskScope(String name, 
                      ExecutorService executorService, 
-                     ContextTrampoline<Object> contextualizer) {
+                     ContextRelay<Object> contextualizer) {
         this(name, executorService, false, contextualizer);
     }
     
@@ -124,11 +124,11 @@ public class TaskScope implements AutoCloseable {
         this(name, executorService, ownExecutor, null);
     }
     
-    public ContextTrampoline contextualizer() {
+    public ContextRelay contextualizer() {
         return contextualizer;
     }
     
-    public TaskScope(String name, ExecutorService executorService, boolean ownExecutor, ContextTrampoline<Object> contextualizer) {
+    public TaskScope(String name, ExecutorService executorService, boolean ownExecutor, ContextRelay<Object> contextualizer) {
         Objects.requireNonNull(executorService, "executorService may not be null");
         this.name = name;
         if (ownExecutor) {

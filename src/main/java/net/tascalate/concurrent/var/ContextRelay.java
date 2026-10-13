@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -35,15 +34,15 @@ import net.tascalate.concurrent.decorators.CustomizableDependentPromiseDecorator
 import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
-public class ContextTrampoline<X> {
-    private final ContextVar<X> contextVars;
+public class ContextRelay<X> {
+    private final ContextVar<X> contextVar;
     
-    ContextTrampoline(ContextVar<X> contextVar) {
-        this.contextVars = contextVar == null ? ContextVar.empty() : contextVar;
+    ContextRelay(ContextVar<X> contextVar) {
+        this.contextVar = contextVar == null ? ContextVar.empty() : contextVar;
     }
     
     private Contextualization<X> captureContextualization() {
-        return Contextualization.create(contextVars, contextVars.get());
+        return Contextualization.create(contextVar, contextVar.get());
     }
     
     public Runnable contextual(Runnable action) {
@@ -120,41 +119,6 @@ public class ContextTrampoline<X> {
         return bindExecutor(executorService, ContextualScheduledExecutorService::new);
     }
     
-    public static <T> ContextTrampoline<T> relay(ContextVar<T> contextVar) {
-        return new ContextTrampoline<>(contextVar);
-    }
-    
-    public static <T> ContextTrampoline<T> relay(ThreadLocal<T> threadLocal) {
-        return relay(ThreadLocalVar.of(threadLocal));
-    }
-
-    @SafeVarargs
-    public static <T> ContextVar<List<T>> genericVars(ContextVar<? extends T>... contextVars) {
-        return ContextVar.of(contextVars);
-    }
-    
-    public static <T> ContextVar<List<T>> genericVars(List<? extends ContextVar<? extends T>> contextVars) {
-        return ContextVar.of(contextVars);
-    }
-    
-    @SafeVarargs
-    public static <T> ContextVar<List<T>> modifiableVars(ModifiableContextVar<? extends T>... contextVars) {
-        return ModifiableContextVar.of(contextVars);
-    }
-    
-    public static <T> ContextVar<List<T>> modifiableVars(List<? extends ModifiableContextVar<? extends T>> contextVars) {
-        return ModifiableContextVar.of(contextVars);
-    }
-    
-    @SafeVarargs
-    public static <T> ContextVar<List<T>> threadLocals(ThreadLocal<? extends T>... contextVars) {
-        return ThreadLocalVar.of(contextVars);
-    }
-    
-    public static <T> ContextVar<List<T>> threadLocals(List<? extends ThreadLocal<? extends T>> contextVars) {
-        return ThreadLocalVar.of(contextVars);
-    }
-    
     private <D extends Executor> D bindExecutor(D delegate,
                                                 BiFunction<D, Contextualization<?>, D> ctr) {
         return ctr.apply(delegate, captureContextualization());
@@ -164,8 +128,8 @@ public class ContextTrampoline<X> {
     public static void main(String[] args) {
         ThreadLocal<String> S_VALUE = new ThreadLocal<>();
         ThreadLocal<Integer> I_VALUE = new ThreadLocal<>();
-        ThreadLocalVar<String> tlS = new ThreadLocalVar.Optimized<>(S_VALUE); 
-        ThreadLocalVar<Integer> tlI = new ThreadLocalVar.Optimized<>(I_VALUE);
+        ThreadLocalVar<String> tlS = ThreadLocalVar.of("S_VALUE", S_VALUE); 
+        ThreadLocalVar<Integer> tlI = ThreadLocalVar.of("I_VALUE", I_VALUE);
         ContextVar<String> cxS = new ContextVar<String>() {
             @Override
             public String get() {
@@ -177,8 +141,10 @@ public class ContextTrampoline<X> {
                 return code.call();
             }
         };
+        ContextRelay<?> tx = ContextVar.relay(tlI, tlS, cxS);
+        System.out.println(tx);
         ContextVar.bind(tlS, "ABC")
-                  .bind(tlI.strict(), 1234)
+                  .bind(tlI, 1234)
                   .bind(cxS, "IGNORE")
                   .run(() -> {
                      System.out.print("HERE"); 

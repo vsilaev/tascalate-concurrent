@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@ package net.tascalate.concurrent.var;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -60,7 +62,16 @@ public interface ContextVar<T> {
             return result;
         }
         
+        Contextualization<T> createContextualization() {
+            return Contextualization.create(variable, value);
+        }
+        
         static Contextualization<?> createContextualization(Binding<?> top) {
+            if (null == top.previous) {
+                return top.createContextualization(); 
+            }
+            
+            
             Map<Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>>, List<VarAssignment<Object>>>
                 gfm = new HashMap<>();
             
@@ -144,8 +155,8 @@ public interface ContextVar<T> {
         }
     }
     
-    default ContextTrampoline<T> relay() {
-        return new ContextTrampoline<T>(this);
+    default ContextRelay<T> relay() {
+        return new ContextRelay<T>(this);
     }
     
     /**
@@ -191,15 +202,77 @@ public interface ContextVar<T> {
     }
     
     @SafeVarargs
-    public static <T> ContextVar<List<T>> of(ContextVar<? extends T>... vars) {
-        return of(Arrays.asList(vars));
+    public static ContextVar<?> of(ContextVar<?>... contextVars) {
+        Objects.requireNonNull(contextVars, "contextVars");
+        switch (contextVars.length) {
+            case 0: return empty();
+            case 1: return contextVars[0];
+            default: return of(Arrays.asList(contextVars)); 
+        }
     }
     
-    public static <T> ContextVar<List<T>> of(List<? extends ContextVar<? extends T>> vars) {
-        if (null == vars || vars.isEmpty()) {
-            return ContextVar.empty();
-        } else {
-            return new ContextVarGroup.Optimized<>(vars);
+    public static ContextVar<?> of(List<? extends ContextVar<?>> contextVars) {
+        Objects.requireNonNull(contextVars, "contextVars");
+        switch (contextVars.size()) {
+            case 0: return empty();
+            case 1: return contextVars.get(0);
+            default:
+                Map<Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>>, List<ContextVar<?>>>
+                gfm = new HashMap<>();
+            
+            for (ContextVar<?> contextVar : contextVars) {
+                Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> key = contextVar.groupFactory();
+                List<ContextVar<?>> list = gfm.get(key);
+                if (list == null) {
+                    list = new ArrayList<>();
+                    list.add(contextVar);
+                    gfm.put(key, list);
+                } else {
+                    list.addAll(Collections.singletonList(contextVar));
+                }
+            }
+            
+            // This groups separate ThreadLocalVar-s and (most importantly) ScopedLocalVar-s
+            // into the single ThreadLocalVarGroup and ScopedLocalVarGroup
+            List<ContextVar<?>> groupped =
+            gfm.entrySet()
+               .stream()
+               .map(e -> {
+                   List<ContextVar<?>> list = e.getValue();
+                   if (list.size() == 1) {
+                       return list.get(0);
+                   }
+                   ContextVar<List<?>> group = (ContextVar<List<?>>) e.getKey().apply(list);
+                   return group;
+               })
+               .collect(Collectors.toList());
+            
+            if (groupped.isEmpty()) {
+                return ContextVar.empty();
+            } else if (groupped.size() == 1) {
+                return groupped.get(0);
+            } else {
+                return new ContextVarGroup.Optimized<>(groupped, true);
+            }
+        }
+    }
+    
+    @SafeVarargs
+    public static ContextRelay<?> relay(ContextVar<?>... contextVars) {
+        Objects.requireNonNull(contextVars, "contextVars");
+        switch (contextVars.length) {
+            case 0: return empty().relay();
+            case 1: return contextVars[0].relay();
+            default: return of(contextVars).relay(); 
+        }
+    }
+    
+    public static ContextRelay<?> relay(List<ContextVar<?>> contextVars) {
+        Objects.requireNonNull(contextVars, "contextVars");
+        switch (contextVars.size()) {
+            case 0: return empty().relay();
+            case 1: return contextVars.get(0).relay();
+            default: return of(contextVars).relay(); 
         }
     }
 }

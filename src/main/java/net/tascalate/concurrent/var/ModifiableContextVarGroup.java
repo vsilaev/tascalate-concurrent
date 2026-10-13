@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,30 +18,37 @@ package net.tascalate.concurrent.var;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
-abstract class ModifiableContextVarGroup<T> extends ContextVarGroup<T> implements ModifiableContextVar<List<T>> {
+abstract class ModifiableContextVarGroup<T> extends ModifiableContextVar<List<T>>  {
     final List<? extends ModifiableContextVar<? extends T>> vars;
     
     ModifiableContextVarGroup(List<? extends ModifiableContextVar<? extends T>> vars) {
-        super(vars);
         this.vars = vars;
     }
     
     @Override
-    public void set(List<T> value) {
+    public List<T> get() {
+        return vars.stream()
+                   .map(ContextVar::get)
+                   .collect(Collectors.toList());
+    } 
+    
+    @Override
+    void set(List<T> value) {
         ContextVarHelper.applyValues(vars, value);
     }
     
     @Override
-    public void remove() {
+    void remove() {
         vars.forEach(ModifiableContextVar::remove);
     }
     
-    final static class Strict<T> extends ModifiableContextVarGroup<T> {
+    static final class Strict<T> extends ModifiableContextVarGroup<T> {
         
         Strict(List<? extends ModifiableContextVar<? extends T>> vars) {
             // No conversion necessary due to inner logic
-            super(vars/*ContextVarHelper.convertList(vars, ModifiableContextVar::strict)*/);
+            super(vars);
         }
         
         @Override
@@ -64,18 +71,23 @@ abstract class ModifiableContextVarGroup<T> extends ContextVarGroup<T> implement
         public Optimized<T> optimized() {
             return new Optimized<>(vars);
         }
+        
+        @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ModifiableContextVarGroup.FACTORY_STRICT;
+        }
 
         @Override
         public String toString() {
             return String.format("<custom-ctx-vars-strict>%s", vars);
-        } 
+        }
     }
     
-    final static class Optimized<T> extends ModifiableContextVarGroup<T> {
+    static final class Optimized<T> extends ModifiableContextVarGroup<T> {
         
         Optimized(List<? extends ModifiableContextVar<? extends T>> vars) {
             // No conversion necessary due to inner logic
-            super(vars/*ContextVarHelper.convertList(vars, ModifiableContextVar::optimized)*/);
+            super(vars);
         }
         
         @Override

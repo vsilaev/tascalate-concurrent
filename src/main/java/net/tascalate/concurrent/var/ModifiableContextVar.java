@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,61 +15,18 @@
  */
 package net.tascalate.concurrent.var;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-public interface ModifiableContextVar<T> extends ContextVar<T> {
-    void set(T value);
+abstract class ModifiableContextVar<T> implements ContextVar<T> {
+    abstract void set(T value);
     
-    default void remove() {
+    void remove() {
         set(null);
     }
     
     @Override
-    default ModifiableContextVar<T> strict() {
-        return this;
-    }
-    
-    @Override
-    default ModifiableContextVar<T> optimized() {
-        return this;
-    }
-    
-    @Override
-    default Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+    public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
         return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
     }
-    
-    public static <T> ModifiableContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer) {
-        return define(reader, writer, null);
-    }
-    
-    public static <T> ModifiableContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer) {
-        return define(name, reader, writer, null);
-    }
-    
-    public static <T> ModifiableContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return define(ContextVarHelper.generateVarName(), reader, writer, eraser);
-    }
-    
-    public static <T> ModifiableContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return new CustomModifiableContextVar.Optimized<>(name, reader, writer, eraser);
-    }
-    
-    @SafeVarargs
-    public static <T> ContextVar<List<T>> of(ModifiableContextVar<? extends T>... vars) {
-        return of(Arrays.asList(vars));
-    }
-    
-    public static <T> ContextVar<List<T>> of(List<? extends ModifiableContextVar<? extends T>> vars) {
-        if (null == vars || vars.isEmpty()) {
-            return ContextVar.empty();
-        }
-        
-        return new ModifiableContextVarGroup.Optimized<T>(vars);
-    }
-    
 }

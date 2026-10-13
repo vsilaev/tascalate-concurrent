@@ -1,6 +1,6 @@
 
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,14 +22,14 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> {
+public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
     final String name;
     
     final Supplier<? extends T> reader;
     final Consumer<? super T> writer; 
     final Runnable eraser;
     
-    CustomModifiableContextVar(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
+    CustomContextVar(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
         this.name = name;
         this.reader = reader;
         this.writer = writer;
@@ -42,12 +42,12 @@ abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> 
     }
     
     @Override
-    public void set(T value) {
+    void set(T value) {
         writer.accept(value);
     }
 
     @Override
-    public void remove() {
+    void remove() {
         if (null != eraser) {
             eraser.run();
         } else {
@@ -55,7 +55,7 @@ abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> 
         }
     }
     
-    static final class Strict<T> extends CustomModifiableContextVar<T> {
+    static final class Strict<T> extends CustomContextVar<T> {
         Strict(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
             super(name, reader, writer, eraser);
         }
@@ -95,7 +95,7 @@ abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> 
         }
     }
     
-    static final class Optimized<T> extends CustomModifiableContextVar<T> {
+    static final class Optimized<T> extends CustomContextVar<T> {
         Optimized(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
             super(name, reader, writer, eraser);
         }
@@ -128,5 +128,22 @@ abstract class CustomModifiableContextVar<T> implements ModifiableContextVar<T> 
         public String toString() {
             return String.format("<custom-ctx-var-optimized>[%s]", name);
         }
+    }
+    
+    
+    public static <T> ModifiableContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer) {
+        return define(reader, writer, null);
+    }
+    
+    public static <T> ModifiableContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer) {
+        return define(name, reader, writer, null);
+    }
+    
+    public static <T> ModifiableContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
+        return define(ContextVarHelper.generateVarName(), reader, writer, eraser);
+    }
+    
+    public static <T> ModifiableContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
+        return new Optimized<>(name, reader, writer, eraser);
     }
 }

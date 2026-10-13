@@ -15,71 +15,105 @@
  */
 package net.tascalate.concurrent.var;
 
+import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
-public final class ThreadVar<T> implements ContextVar<T> {
-    private final ThreadLocal<T> threadLocal = new ThreadLocal<>(); 
-    private final String name;
+public class ThreadVar<T> extends ModifiableContextVar<T> {
+    final String name;
+    final ThreadLocal<T> threadLocal; 
     
-    public ThreadVar(String name) {
+    ThreadVar(String name, ThreadLocal<T> threadLocal) {
         this.name = name;
+        this.threadLocal = threadLocal;
     }
     
     public T get() {
         return threadLocal.get();
     }
 
-    public void runWith(T newValue, Runnable code) {
-        runWith(get(), newValue, code);
+    @Override
+    void set(T value) {
+        threadLocal.set(value);
     }
-    
-    private void runWith(T oldValue, T newValue, Runnable code) {
-        threadLocal.set(newValue);
+
+    @Override
+    void remove() {
+        threadLocal.remove();
+    }
+
+    @Override
+    public <V> V callWith(T capturedValue, Callable<V> code) throws Exception {
         try {
-            code.run();
+            return code.call();
         } finally {
-            reset(oldValue);
-        }        
-    }
-    
-    public <V> V supplyWith(T newValue, Supplier<V> supplier) {
-        return supplyWith(get(), newValue, supplier);
-    }
-    
-    private <V> V supplyWith(T oldValue, T newValue, Supplier<V> supplier) {
-        threadLocal.set(newValue);
-        try {
-            return supplier.get();
-        } finally {
-            reset(oldValue);
-        }
-    }
-    
-    public <V> V callWith(T newValue, Callable<V> callable) throws Exception {
-        return callWith(get(), newValue, callable);
-    }
-    
-    private <V> V callWith(T oldValue, T newValue, Callable<V> callable) throws Exception {
-        threadLocal.set(newValue);
-        try {
-            return callable.call();
-        } finally {
-            reset(oldValue);
-        }
-    }
-    
-    private void reset(T previous) {
-        if (null == previous) {
             threadLocal.remove();
-        } else {
-            threadLocal.set(previous);
         }
     }
     
     @Override
+    public Strict<T> strict() {
+        return new Strict<>(name, threadLocal);
+    }
+    
+    @Override
+    public ThreadVar<T> optimized() {
+        return this;
+    }
+    
+    static final class Strict<T> extends ThreadVar<T> {
+        
+        Strict(String name, ThreadLocal<T> delegate) {
+            super(name, delegate);
+        }
+        
+        @Override
+        public <V> V callWith(T capturedValue, Callable<V> code) throws Exception {
+            T prevValue = threadLocal.get();
+            try {
+                return code.call();
+            } finally {
+                if (null == prevValue) {
+                    threadLocal.remove();
+                } else {
+                    threadLocal.set(prevValue);
+                }
+            }
+        }
+        
+        @Override
+        public Strict<T> strict() {
+            return this;
+        }
+        
+        @Override
+        public ThreadVar<T> optimized() {
+            return new ThreadVar<T>(name, threadLocal);
+        }
+        
+        @Override
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ModifiableContextVarGroup.FACTORY_STRICT;
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("<thread-var-strict>[%s = %s]", name, threadLocal);
+        }
+        
+    }
+    
+    @Override
     public String toString() {
-        return getClass().getName() + '[' + name + ']';
+        return String.format("<thread-var-optimized>[%s = %s]", name, threadLocal);
+    }
+    
+    public static <T> ThreadVar<T> newInstance() {
+        return newInstance(ContextVarHelper.generateVarName());
+    }
+    
+    public static <T> ThreadVar<T> newInstance(String name) {
+        return new ThreadVar<>(name, new ThreadLocal<>());
     }
     
 }

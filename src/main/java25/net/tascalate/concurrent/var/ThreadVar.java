@@ -15,20 +15,33 @@
  */
 package net.tascalate.concurrent.var;
 
+import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-public final class ThreadVar<T> implements ContextVar<T> {
-    private final ScopedValue<Object> scopedValue = ScopedValue.newInstance();
-    private final String name;
+public final class ThreadVar<T> extends ModifiableContextVar<T> {
+    final String name;
+    final ScopedValue<Object> scopedValue;
     
-    public ThreadVar(String name) {
+    ThreadVar(String name, ScopedValue<Object> scopedValue) {
         this.name = name;
+        this.scopedValue = scopedValue;
     }
     
     public T get() {
         Object result = scopedValue.orElse(NULL_SENTINEL);
         return unwrap(result);
+    }
+    
+    @Override
+    void set(T value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    void remove() {
+        throw new UnsupportedOperationException();
     }
 
     public void runWith(T newValue, Runnable code) {
@@ -44,18 +57,31 @@ public final class ThreadVar<T> implements ContextVar<T> {
     }
     
     @Override
+    public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+        return ThreadVarGroup.FACTORY;
+    }
+    
+    @Override
     public String toString() {
-        return getClass().getName() + '[' + name + ']';
+        return String.format("<thread-var>[%s = %s]", name, scopedValue);
+    }
+    
+    public static <T> ThreadVar<T> newInstance() {
+        return newInstance(ContextVarHelper.generateVarName());
+    }
+    
+    public static <T> ThreadVar<T> newInstance(String name) {
+        return new ThreadVar<>(name, ScopedValue.<Object>newInstance());
     }
     
     private static final Object NULL_SENTINEL = new Object();
 
-    private static Object wrap(Object value) {
+    static Object wrap(Object value) {
         return value == null ? NULL_SENTINEL : value;
     }
 
     @SuppressWarnings("unchecked")
-    private T unwrap(Object raw) {
+    static <T> T unwrap(Object raw) {
         return raw == NULL_SENTINEL ? null : (T) raw;
     }
 }

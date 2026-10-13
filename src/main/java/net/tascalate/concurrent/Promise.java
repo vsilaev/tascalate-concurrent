@@ -77,6 +77,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
          */
         CANCELLED;
         
+        public static final Predicate<Promise<?>> PENDING = RUNNING;
         public static final Predicate<Promise<?>> COMPLETED = RUNNING.negate();
         public static final Predicate<Promise<?>> FAILED_OR_CANCELLED = FAILED.or(CANCELLED);
         

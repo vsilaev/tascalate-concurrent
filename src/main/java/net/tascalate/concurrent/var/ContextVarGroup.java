@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,11 +50,6 @@ abstract class ContextVarGroup<T> implements ContextVar<List<T>> {
         return code.call();            
     }
 
-    @Override
-    public String toString() {
-        return String.format("<generic-ctx-vars>%s", vars);
-    }
-    
     static final class Strict<T> extends ContextVarGroup<T> {
         Strict(List<? extends ContextVar<? extends T>> vars) {
             super(ContextVarHelper.convertList(vars, ContextVar::strict));

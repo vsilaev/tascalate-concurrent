@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 class ContextVarHelper {
@@ -65,6 +66,16 @@ class ContextVarHelper {
         @Override
         public <V> V callWith(Object capturedValue, Callable<V> code) throws Exception {
             return code.call();
+        }
+        
+        @Override
+        public void runWith(Object capturedValue, Runnable code) {
+            code.run();
+        }
+        
+        @Override
+        public <V> V supplyWith(Object capturedValue, Supplier<V> code) {
+            return code.get();
         }
         
         @Override

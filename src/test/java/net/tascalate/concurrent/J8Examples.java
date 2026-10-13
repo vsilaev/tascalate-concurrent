@@ -36,7 +36,8 @@ import net.tascalate.concurrent.decorators.AbstractCompletionStageDecorator;
 import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.ExtendedPromiseDecorator;
 import net.tascalate.concurrent.locks.AsyncSemaphoreLock;
-import net.tascalate.concurrent.var.ContextTrampoline;
+import net.tascalate.concurrent.var.ContextVar;
+import net.tascalate.concurrent.var.ThreadLocalVar;
 
 import static net.tascalate.concurrent.PromiseOperations.chunkedItems;
 import static net.tascalate.concurrent.PromiseOperations.chunkedStream;
@@ -490,7 +491,9 @@ public class J8Examples {
     final static ThreadLocal<String> V_STRING = new ThreadLocal<>();
     final static ThreadLocal<Date> V_DATE = new ThreadLocal<>();
     static {
-        Function<Runnable, Runnable> customizer = ContextTrampoline.threadLocals(V_STRING, V_DATE).relay()::contextual;
+        Function<Runnable, Runnable> customizer = ContextVar.relay(
+            ThreadLocalVar.of(V_STRING), ThreadLocalVar.of(V_DATE)
+        )::contextual;
         customizer.apply(() -> {});
     }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2025 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,11 @@ import java.util.function.Supplier;
 
 public class ScopedValueVar<T> implements ContextVar<T> {
 
+    final String name;
     final ScopedValue<T> delegate;
     
-    private ScopedValueVar(ScopedValue<T> delegate) {
+    private ScopedValueVar(String name, ScopedValue<T> delegate) {
+        this.name = name;
         this.delegate = delegate;
     }
     
@@ -55,24 +57,22 @@ public class ScopedValueVar<T> implements ContextVar<T> {
     
     @Override
     public String toString() {
-        return String.format("<scoped-value-ctx-var>[%s]", delegate);
+        return String.format("<scoped-value-ctx-var>[%s = %s]", name, delegate);
     } 
     
+    public static <T> ScopedValueVar<T> newInstance() {
+        return newInstance(ContextVarHelper.generateVarName());
+    }
+    
+    public static <T> ScopedValueVar<T> newInstance(String name) {
+        return of(name, ScopedValue.newInstance());
+    }
+    
     public static <T> ScopedValueVar<T> of(ScopedValue<T> scopedValue) {
-        return new ScopedValueVar<>(scopedValue);
+        return of(ContextVarHelper.generateVarName(), scopedValue);
     }
     
-    @SafeVarargs
-    public static <T> ContextVar<List<T>> of(ScopedValue<? extends T>... scopedValues) {
-        return of(List.of(scopedValues));
+    public static <T> ScopedValueVar<T> of(String name, ScopedValue<T> scopedValue) {
+        return new ScopedValueVar<>(name, scopedValue);
     }
-    
-    public static <T> ContextVar<List<T>> of(List<? extends ScopedValue<? extends T>> scopedValues) {
-        if (null == scopedValues || scopedValues.isEmpty()) {
-            return ContextVar.empty();
-        } else {
-            return new ScopedValueVarGroup<>(scopedValues);
-        }
-    }
-
 }
