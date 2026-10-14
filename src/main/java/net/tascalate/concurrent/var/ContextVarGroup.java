@@ -47,12 +47,16 @@ abstract class ContextVarGroup<T> implements ContextVar<List<T>> {
             T contextVal = valuesIterator.next();
             wrappedCode = ContextVarHelper.nextCallable(contextVar, contextVal, wrappedCode);
         }
-        return code.call();            
+        return wrappedCode.call();            
     }
 
     static final class Strict<T> extends ContextVarGroup<T> {
         Strict(List<? extends ContextVar<? extends T>> vars) {
             super(ContextVarHelper.convertList(vars, ContextVar::strict));
+        }
+        
+        Strict(List<? extends ContextVar<? extends T>> vars, boolean noTransform) {
+            super(vars);
         }
      
         @Override
@@ -76,11 +80,6 @@ abstract class ContextVarGroup<T> implements ContextVar<List<T>> {
             super(ContextVarHelper.convertList(vars, ContextVar::optimized));
         }
         
-        Optimized(List<? extends ContextVar<? extends T>> vars, boolean noTransform) {
-            super(vars);
-        }
-
-     
         @Override
         public Strict<T> strict() {
             return new Strict<>(vars);

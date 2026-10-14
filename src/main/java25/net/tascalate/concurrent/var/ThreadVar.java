@@ -71,7 +71,7 @@ public final class ThreadVar<T> extends ModifiableContextVar<T> {
     }
     
     public static <T> ThreadVar<T> newInstance(String name) {
-        return new ThreadVar<>(name, ScopedValue.<Object>newInstance());
+        return new ThreadVar<>(name, ScopedValue.newInstance());
     }
     
     private static final Object NULL_SENTINEL = new Object();

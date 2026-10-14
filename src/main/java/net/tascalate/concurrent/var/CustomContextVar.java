@@ -144,6 +144,6 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
     }
     
     public static <T> ModifiableContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
-        return new Optimized<>(name, reader, writer, eraser);
+        return new Strict<>(name, reader, writer, eraser);
     }
 }

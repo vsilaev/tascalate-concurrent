@@ -19,11 +19,11 @@ import java.util.concurrent.Executor;
 
 class ContextualExecutor<D extends Executor> implements Executor {
     protected final D delegate;
-    protected final Contextualization<?> ctxz;
+    protected final ContextRelay<?> ctxRelay;
     
-    ContextualExecutor(D delegate, Contextualization<?> ctxz) {
+    ContextualExecutor(D delegate, ContextRelay<?> ctxRelay) {
         this.delegate = delegate;
-        this.ctxz = ctxz;
+        this.ctxRelay = ctxRelay;
     }
     
     @Override
@@ -32,6 +32,6 @@ class ContextualExecutor<D extends Executor> implements Executor {
     }
 
     Runnable contextualRunnable(Runnable original) {
-        return () -> ctxz.runWith(original);
+        return ctxRelay.contextual(original);
     }
 }

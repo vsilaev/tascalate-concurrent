@@ -29,8 +29,8 @@ class ContextualExecutorService<D extends ExecutorService>
     extends ContextualExecutor<D> 
     implements ExecutorService {
     
-    ContextualExecutorService(D delegate, Contextualization<?> ctxz) {
-        super(delegate, ctxz);
+    ContextualExecutorService(D delegate, ContextRelay<?> ctxRelay) {
+        super(delegate, ctxRelay);
     }
 
     @Override
@@ -100,6 +100,6 @@ class ContextualExecutorService<D extends ExecutorService>
     }
     
     <T> Callable<T> contextualCallable(Callable<T> original) {
-        return () -> ctxz.callWith(original);
+        return ctxRelay.contextual(original);
     }
 }

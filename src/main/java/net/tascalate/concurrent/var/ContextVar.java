@@ -16,12 +16,11 @@
 package net.tascalate.concurrent.var;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -119,7 +118,7 @@ public interface ContextVar<T> {
                     topGroups.add(i.variable);
                     topValues.add(i.value);
                 }
-                return Contextualization.create(new ContextVarGroup.Optimized<>(topGroups, true), topValues);
+                return Contextualization.create(new ContextVarGroup.Strict<>(topGroups, true), topValues);
             }
         }
     }
@@ -202,77 +201,29 @@ public interface ContextVar<T> {
     }
     
     @SafeVarargs
-    public static ContextVar<?> of(ContextVar<?>... contextVars) {
-        Objects.requireNonNull(contextVars, "contextVars");
-        switch (contextVars.length) {
-            case 0: return empty();
-            case 1: return contextVars[0];
-            default: return of(Arrays.asList(contextVars)); 
-        }
-    }
-    
-    public static ContextVar<?> of(List<? extends ContextVar<?>> contextVars) {
-        Objects.requireNonNull(contextVars, "contextVars");
-        switch (contextVars.size()) {
-            case 0: return empty();
-            case 1: return contextVars.get(0);
-            default:
-                Map<Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>>, List<ContextVar<?>>>
-                gfm = new HashMap<>();
-            
-            for (ContextVar<?> contextVar : contextVars) {
-                Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> key = contextVar.groupFactory();
-                List<ContextVar<?>> list = gfm.get(key);
-                if (list == null) {
-                    list = new ArrayList<>();
-                    list.add(contextVar);
-                    gfm.put(key, list);
-                } else {
-                    list.addAll(Collections.singletonList(contextVar));
-                }
-            }
-            
-            // This groups separate ThreadLocalVar-s and (most importantly) ScopedLocalVar-s
-            // into the single ThreadLocalVarGroup and ScopedLocalVarGroup
-            List<ContextVar<?>> groupped =
-            gfm.entrySet()
-               .stream()
-               .map(e -> {
-                   List<ContextVar<?>> list = e.getValue();
-                   if (list.size() == 1) {
-                       return list.get(0);
-                   }
-                   ContextVar<List<?>> group = (ContextVar<List<?>>) e.getKey().apply(list);
-                   return group;
-               })
-               .collect(Collectors.toList());
-            
-            if (groupped.isEmpty()) {
-                return ContextVar.empty();
-            } else if (groupped.size() == 1) {
-                return groupped.get(0);
-            } else {
-                return new ContextVarGroup.Optimized<>(groupped, true);
-            }
-        }
-    }
-    
-    @SafeVarargs
-    public static ContextRelay<?> relay(ContextVar<?>... contextVars) {
+    public static ContextRelay<Object> relay(ContextVar<?>... contextVars) {
         Objects.requireNonNull(contextVars, "contextVars");
         switch (contextVars.length) {
             case 0: return empty().relay();
-            case 1: return contextVars[0].relay();
-            default: return of(contextVars).relay(); 
+            case 1: {
+                @SuppressWarnings("unchecked")
+                ContextVar<Object> solo = (ContextVar<Object>)contextVars[0]; 
+                return solo.relay();
+            }
+            default: return ContextVarHelper.cast(ContextVarHelper.merge(contextVars)).relay(); 
         }
     }
     
-    public static ContextRelay<?> relay(List<ContextVar<?>> contextVars) {
+    public static ContextRelay<Object> relay(Set<ContextVar<?>> contextVars) {
         Objects.requireNonNull(contextVars, "contextVars");
         switch (contextVars.size()) {
             case 0: return empty().relay();
-            case 1: return contextVars.get(0).relay();
-            default: return of(contextVars).relay(); 
+            case 1: {
+                @SuppressWarnings("unchecked")
+                ContextVar<Object> solo = (ContextVar<Object>)contextVars.iterator().next(); 
+                return solo.relay();
+            }
+            default: return ContextVarHelper.cast(ContextVarHelper.merge(contextVars)).relay(); 
         }
     }
 }

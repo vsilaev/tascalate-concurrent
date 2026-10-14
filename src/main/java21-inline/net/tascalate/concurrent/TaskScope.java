@@ -124,7 +124,7 @@ public class TaskScope implements AutoCloseable {
         this(name, executorService, ownExecutor, null);
     }
     
-    public ContextRelay contextualizer() {
+    public ContextRelay<Object> contextualizer() {
         return contextualizer;
     }
     

@@ -44,68 +44,70 @@ public class ThreadVar<T> extends ModifiableContextVar<T> {
 
     @Override
     public <V> V callWith(T capturedValue, Callable<V> code) throws Exception {
+        T prevValue = threadLocal.get();
+        threadLocal.set(capturedValue);
         try {
             return code.call();
         } finally {
-            threadLocal.remove();
+            if (null == prevValue) {
+                threadLocal.remove();
+            } else {
+                threadLocal.set(prevValue);
+            }
         }
     }
-    
+
     @Override
-    public Strict<T> strict() {
-        return new Strict<>(name, threadLocal);
+    public ThreadVar<T> strict() {
+        return this;
     }
     
     @Override
     public ThreadVar<T> optimized() {
-        return this;
+        return new Optimized<>(name, threadLocal);
     }
     
-    static final class Strict<T> extends ThreadVar<T> {
+    static final class Optimized<T> extends ThreadVar<T> {
         
-        Strict(String name, ThreadLocal<T> delegate) {
+        Optimized(String name, ThreadLocal<T> delegate) {
             super(name, delegate);
         }
         
         @Override
         public <V> V callWith(T capturedValue, Callable<V> code) throws Exception {
-            T prevValue = threadLocal.get();
+            threadLocal.set(capturedValue);
             try {
                 return code.call();
             } finally {
-                if (null == prevValue) {
-                    threadLocal.remove();
-                } else {
-                    threadLocal.set(prevValue);
-                }
+                threadLocal.remove();
             }
         }
         
         @Override
-        public Strict<T> strict() {
-            return this;
-        }
-        
-        @Override
-        public ThreadVar<T> optimized() {
+        public ThreadVar<T> strict() {
             return new ThreadVar<T>(name, threadLocal);
         }
         
         @Override
+        public ThreadVar<T> optimized() {
+            return this;
+        }
+        
+        @Override
         public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
-            return ModifiableContextVarGroup.FACTORY_STRICT;
+            return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
         }
         
         @Override
         public String toString() {
-            return String.format("<thread-var-strict>[%s = %s]", name, threadLocal);
+            return String.format("<thread-var-optimized>[%s = %s]", name, threadLocal);
         }
         
     }
     
     @Override
     public String toString() {
-        return String.format("<thread-var-optimized>[%s = %s]", name, threadLocal);
+        return String.format("<thread-var-strict>[%s = %s]", name, threadLocal);
     }
     
     public static <T> ThreadVar<T> newInstance() {

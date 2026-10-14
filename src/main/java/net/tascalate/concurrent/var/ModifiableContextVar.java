@@ -27,6 +27,6 @@ abstract class ModifiableContextVar<T> implements ContextVar<T> {
     
     @Override
     public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
-        return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
+        return ModifiableContextVarGroup.FACTORY_STRICT;
     }
 }

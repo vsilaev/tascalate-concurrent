@@ -85,7 +85,7 @@ public class BufferedChannel<T> implements Channel<T> {
      * permit null elements. This avoids per-element {@code Optional}
      * allocation.
      */
-    private final Queue<Object> buffer = new ArrayDeque<>();
+    private final Queue<Object> buffer;
 
     /**
      * FIFO queue of senders waiting for buffer space or a matching
@@ -133,6 +133,7 @@ public class BufferedChannel<T> implements Channel<T> {
             throw new IllegalArgumentException("Capacity must be >= 0");
         }
         this.capacity = capacity;
+        this.buffer = capacity == 0 ? new ArrayDeque<>(1) :  new ArrayDeque<>(capacity); 
         this.lock = new ReentrantLock(fair);
     }
 

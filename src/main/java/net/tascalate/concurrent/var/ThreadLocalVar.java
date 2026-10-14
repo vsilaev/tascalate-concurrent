@@ -52,6 +52,7 @@ public abstract class ThreadLocalVar<T> extends ModifiableContextVar<T> {
         @Override
         public <V> V callWith(T capturedValue, Callable<V> code) throws Exception {
             T prevValue = this.get();
+            delegate.set(capturedValue);
             try {
                 return code.call();
             } finally {
@@ -80,7 +81,7 @@ public abstract class ThreadLocalVar<T> extends ModifiableContextVar<T> {
         
         @Override
         public String toString() {
-            return String.format("<thread-local-ctx-var-strict>[%s = %s]", name, delegate);
+            return String.format("<thread-local-var-strict>[%s = %s]", name, delegate);
         }
         
     }
@@ -93,6 +94,7 @@ public abstract class ThreadLocalVar<T> extends ModifiableContextVar<T> {
         
         @Override
         public <V> V callWith(T capturedValue, Callable<V> code) throws Exception {
+            delegate.set(capturedValue);
             try {
                 return code.call();
             } finally {
@@ -112,7 +114,7 @@ public abstract class ThreadLocalVar<T> extends ModifiableContextVar<T> {
 
         @Override
         public String toString() {
-            return String.format("<thread-local-ctx-var-optimized>[%s = %s]", name, delegate);
+            return String.format("<thread-local-var-optimized>[%s = %s]", name, delegate);
         }
         
     }
@@ -130,6 +132,6 @@ public abstract class ThreadLocalVar<T> extends ModifiableContextVar<T> {
     }
     
     public static <T> ThreadLocalVar<T> of(String name, ThreadLocal<T> threadLocal) {
-        return new ThreadLocalVar.Optimized<>(name, threadLocal);
+        return new ThreadLocalVar.Strict<>(name, threadLocal);
     }
 }

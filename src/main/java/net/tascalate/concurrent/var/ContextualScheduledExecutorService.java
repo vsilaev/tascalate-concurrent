@@ -24,8 +24,8 @@ class ContextualScheduledExecutorService<D extends ScheduledExecutorService>
     extends ContextualExecutorService<D> 
     implements ScheduledExecutorService {
     
-    ContextualScheduledExecutorService(D delegate, Contextualization<?> ctxz) {
-        super(delegate, ctxz);
+    ContextualScheduledExecutorService(D delegate, ContextRelay<?> ctxRelay) {
+        super(delegate, ctxRelay);
     }
 
     @Override

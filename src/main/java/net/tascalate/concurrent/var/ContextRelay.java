@@ -41,6 +41,14 @@ public class ContextRelay<X> {
         this.contextVar = contextVar == null ? ContextVar.empty() : contextVar;
     }
     
+    public ContextRelay<X> strict() {
+        return new ContextRelay<>(contextVar.strict());
+    }
+    
+    public ContextRelay<X> optimized() {
+        return new ContextRelay<>(contextVar.optimized());
+    }
+    
     private Contextualization<X> captureContextualization() {
         return Contextualization.create(contextVar, contextVar.get());
     }
@@ -90,18 +98,32 @@ public class ContextRelay<X> {
         return (t, u) -> ctxz.supplyWith(() -> action.test(t, u));
     }   
     
-    public <T> Function<Promise<T>, Promise<T>> boundPromises() {
-        PromiseCustomizer customizer = new ContextualPromiseCustomizer(captureContextualization());
+    public <T> Function<Promise<T>, Promise<T>> staticBoundPromises() {
+        PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
         return p -> p instanceof DependentPromise ?
             new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
             :
             new CustomizablePromiseDecorator<>(p, customizer);
     }
     
-    public <T> Function<DependentPromise<T>, DependentPromise<T>> boundPromisesʹ() {
-        PromiseCustomizer customizer = new ContextualPromiseCustomizer(captureContextualization());
+    public <T> Function<DependentPromise<T>, DependentPromise<T>> staticBoundPromisesʹ() {
+        PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
         return p -> new CustomizableDependentPromiseDecorator<>(p, customizer);
     }
+    
+    public <T> Function<Promise<T>, Promise<T>> dynamicBoundPromises() {
+        PromiseCustomizer customizer = new DynamicContextualPromiseCustomizer(this);
+        return p -> p instanceof DependentPromise ?
+            new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
+            :
+            new CustomizablePromiseDecorator<>(p, customizer);
+    }
+    
+    public <T> Function<DependentPromise<T>, DependentPromise<T>> dynamicBoundPromisesʹ() {
+        PromiseCustomizer customizer = new DynamicContextualPromiseCustomizer(this);
+        return p -> new CustomizableDependentPromiseDecorator<>(p, customizer);
+    }
+
 
     public Executor bind(Executor executor) {
         return bindExecutor(executor, ContextualExecutor::new);
@@ -120,34 +142,66 @@ public class ContextRelay<X> {
     }
     
     private <D extends Executor> D bindExecutor(D delegate,
-                                                BiFunction<D, Contextualization<?>, D> ctr) {
-        return ctr.apply(delegate, captureContextualization());
+                                                BiFunction<D, ContextRelay<?>, D> ctr) {
+        return ctr.apply(delegate, this);
     }
   
     
-    public static void main(String[] args) {
-        ThreadLocal<String> S_VALUE = new ThreadLocal<>();
-        ThreadLocal<Integer> I_VALUE = new ThreadLocal<>();
-        ThreadLocalVar<String> tlS = ThreadLocalVar.of("S_VALUE", S_VALUE); 
-        ThreadLocalVar<Integer> tlI = ThreadLocalVar.of("I_VALUE", I_VALUE);
-        ContextVar<String> cxS = new ContextVar<String>() {
-            @Override
-            public String get() {
-                return "SUPER";
-            }
+    static final ContextVar<String>  TL_VAR_S = ThreadLocalVar.newInstance("tl_s");
+    static final ContextVar<Integer> TL_VAR_I = ThreadLocalVar.newInstance("tl_i");
+    static final ContextVar<String>  SL_VAR_S = ThreadLocalVar.newInstance("sl_s");//ScopedValueVar.newInstance("sl_s");
+    static final ContextVar<Integer> SL_VAR_I = ThreadLocalVar.newInstance("sl_i");//ScopedValueVar.newInstance("sl_i");
+    static final ContextVar<String>  T_VAR_S  = ThreadVar.newInstance("tvar_s");
+    static final ContextVar<Integer> T_VAR_I  = ThreadVar.newInstance("tvar_i");
+    
+    static final ContextVar<String> cxS = new ContextVar<String>() {
+        @Override
+        public String get() {
+            return "SUPER";
+        }
 
-            @Override
-            public <V> V callWith(String capturedValue, Callable<V> code) throws Exception {
-                return code.call();
-            }
-        };
-        ContextRelay<?> tx = ContextVar.relay(tlI, tlS, cxS);
+        @Override
+        public <V> V callWith(String capturedValue, Callable<V> code) throws Exception {
+            return code.call();
+        }
+    };
+    
+    
+    public static void main(String[] args) {
+        ContextRelay<?> tx = ContextVar.relay(TL_VAR_S, TL_VAR_I, SL_VAR_S, SL_VAR_I, T_VAR_S, T_VAR_I, cxS);
         System.out.println(tx);
-        ContextVar.bind(tlS, "ABC")
-                  .bind(tlI, 1234)
+        ContextVar.bind(TL_VAR_S, "ABC")
+                  .bind(TL_VAR_I, 1234)
+                  .bind(SL_VAR_S, "XYZ")
+                  .bind(SL_VAR_I, 999)
+                  .bind(T_VAR_S, "@@@")
+                  .bind(T_VAR_I, 777)
                   .bind(cxS, "IGNORE")
+                  .bind(ContextVar.empty(), "ZZZ")
                   .run(() -> {
-                     System.out.print("HERE"); 
+
+                      System.out.println(TL_VAR_S + " = " + TL_VAR_S.get()); 
+                      System.out.println(TL_VAR_I + " = " + TL_VAR_I.get());
+                      System.out.println(SL_VAR_S + " = " + SL_VAR_S.get()); 
+                      System.out.println(SL_VAR_I + " = " + SL_VAR_I.get());
+                      System.out.println(T_VAR_S + " = " + T_VAR_S.get()); 
+                      System.out.println(T_VAR_I + " = " + T_VAR_I.get());                      
+                      
+                      System.out.println("+++++++++++++++++++++++++++");
+                      
+                      new Thread(tx.contextual(() -> {
+                          System.out.println(TL_VAR_S + " = " + TL_VAR_S.get()); 
+                          System.out.println(TL_VAR_I + " = " + TL_VAR_I.get());
+                          System.out.println(SL_VAR_S + " = " + SL_VAR_S.get()); 
+                          System.out.println(SL_VAR_I + " = " + SL_VAR_I.get());
+                          System.out.println(T_VAR_S + " = " + T_VAR_S.get()); 
+                          System.out.println(T_VAR_I + " = " + T_VAR_I.get());
+                          T_VAR_I.strict().bind(10000).run(() -> {
+                              System.out.println("ALTERED:: " + T_VAR_I + " = " + T_VAR_I.get());
+                          });
+                          System.out.println(T_VAR_I + " = " + T_VAR_I.get());
+
+                     })).run();
                   });
     }
 }
