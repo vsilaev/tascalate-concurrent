@@ -20,7 +20,7 @@ import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ScopedValueVar<T> implements ContextVar<T> {
+public final class ScopedValueVar<T> implements ContextVar<T> {
 
     final String name;
     final ScopedValue<T> delegate;

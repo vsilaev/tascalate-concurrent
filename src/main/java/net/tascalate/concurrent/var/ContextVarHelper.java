@@ -32,7 +32,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-class ContextVarHelper {
+final class ContextVarHelper {
+    
+    private ContextVarHelper() {
+        
+    }
     
     static String generateVarName() {
         return "<anonymous" + COUNTER.getAndIncrement() + ">";

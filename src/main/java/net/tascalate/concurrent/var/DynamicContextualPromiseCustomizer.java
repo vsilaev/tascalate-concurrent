@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
-class DynamicContextualPromiseCustomizer implements PromiseCustomizer {
+final class DynamicContextualPromiseCustomizer implements PromiseCustomizer {
     private final ContextRelay<?> ctxRelay;
     
     DynamicContextualPromiseCustomizer(ContextRelay<?> ctxRelay) {

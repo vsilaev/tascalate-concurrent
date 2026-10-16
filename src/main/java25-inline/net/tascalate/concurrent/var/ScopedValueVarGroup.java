@@ -22,7 +22,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-class ScopedValueVarGroup<T> implements ContextVar<List<T>> {
+final class ScopedValueVarGroup<T> implements ContextVar<List<T>> {
     private final List<? extends ScopedValue<? extends T>> scopedValues;
     
     ScopedValueVarGroup(List<? extends ScopedValue<? extends T>> scopedValues) {

@@ -34,7 +34,7 @@ import net.tascalate.concurrent.decorators.CustomizableDependentPromiseDecorator
 import net.tascalate.concurrent.decorators.CustomizablePromiseDecorator;
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
-public class ContextRelay<X> {
+public final class ContextRelay<X> {
     private final ContextVar<X> contextVar;
     
     ContextRelay(ContextVar<X> contextVar) {
@@ -98,7 +98,7 @@ public class ContextRelay<X> {
         return (t, u) -> ctxz.supplyWith(() -> action.test(t, u));
     }   
     
-    public <T> Function<Promise<T>, Promise<T>> staticBoundPromises() {
+    public <T> Function<Promise<T>, Promise<T>> boundPromises() {
         PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
         return p -> p instanceof DependentPromise ?
             new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
@@ -106,7 +106,7 @@ public class ContextRelay<X> {
             new CustomizablePromiseDecorator<>(p, customizer);
     }
     
-    public <T> Function<DependentPromise<T>, DependentPromise<T>> staticBoundPromisesʹ() {
+    public <T> Function<DependentPromise<T>, DependentPromise<T>> boundPromisesʹ() {
         PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
         return p -> new CustomizableDependentPromiseDecorator<>(p, customizer);
     }

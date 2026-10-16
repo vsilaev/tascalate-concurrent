@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public interface ContextVar<T> {
+    
     public static class Binding<T> {
         private final Binding<?> previous;
         private final ContextVar<T> variable;

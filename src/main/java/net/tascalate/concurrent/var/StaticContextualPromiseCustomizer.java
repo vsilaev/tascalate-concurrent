@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
-class StaticContextualPromiseCustomizer implements PromiseCustomizer {
+final class StaticContextualPromiseCustomizer implements PromiseCustomizer {
     private final Contextualization<?> ctxz;
     
     StaticContextualPromiseCustomizer(Contextualization<?> ctxz) {
