@@ -81,7 +81,7 @@ public abstract class ThreadLocalVar<T> extends ModifiableContextVar<T> {
         
         @Override
         public String toString() {
-            return String.format("<thread-local-var-strict>[%s = %s]", name, delegate);
+            return String.format("<thread-local-var-strict>[%s/%s] = %s", name, delegate, get());
         }
         
     }
@@ -114,7 +114,7 @@ public abstract class ThreadLocalVar<T> extends ModifiableContextVar<T> {
 
         @Override
         public String toString() {
-            return String.format("<thread-local-var-optimized>[%s = %s]", name, delegate);
+            return String.format("<thread-local-var-optimized>[%s/%s] = %s", name, delegate, get());
         }
         
     }

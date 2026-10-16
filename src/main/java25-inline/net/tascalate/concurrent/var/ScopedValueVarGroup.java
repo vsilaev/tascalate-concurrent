@@ -38,7 +38,7 @@ final class ScopedValueVarGroup<T> implements ContextVar<List<T>> {
 
     @Override
     public String toString() {
-        return String.format("<scoped-value-ctx-vars>%s", scopedValues);
+        return String.format("<scoped-value-ctx-vars>[%s] = %s", scopedValues, get());
     } 
     
     @Override

@@ -71,7 +71,7 @@ abstract class ContextVarGroup<T> implements ContextVar<List<T>> {
         
         @Override
         public String toString() {
-            return String.format("<generic-ctx-vars-strict>%s", vars);
+            return String.format("<generic-ctx-vars-strict>{%s}", vars);
         }
     }
     
@@ -92,7 +92,7 @@ abstract class ContextVarGroup<T> implements ContextVar<List<T>> {
         
         @Override
         public String toString() {
-            return String.format("<generic-ctx-vars-optimized>%s", vars);
+            return String.format("<generic-ctx-vars-optimized>{%s}", vars);
         }
     }
     

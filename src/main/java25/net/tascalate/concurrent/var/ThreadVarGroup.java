@@ -22,7 +22,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-class ThreadVarGroup<T> implements ContextVar<List<T>> {
+final class ThreadVarGroup<T> implements ContextVar<List<T>> {
     private final List<? extends ScopedValue<Object>> scopedValues;
     
     ThreadVarGroup(List<? extends ScopedValue<Object>> scopedValues) {
@@ -38,7 +38,7 @@ class ThreadVarGroup<T> implements ContextVar<List<T>> {
 
     @Override
     public String toString() {
-        return String.format("<thread-vars>%s", scopedValues);
+        return String.format("<thread-vars>[%s] = %s", scopedValues, get());
     } 
     
     @Override

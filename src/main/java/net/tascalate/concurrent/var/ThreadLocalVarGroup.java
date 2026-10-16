@@ -83,7 +83,7 @@ abstract class ThreadLocalVarGroup<T> extends ModifiableContextVar<List<T>> {
         
         @Override
         public String toString() {
-            return String.format("<thread-local-ctx-vars-strict>%s", threadLocals);
+            return String.format("<thread-local-ctx-vars-strict>[%s] = %s", threadLocals, get());
         }
         
     }
@@ -116,7 +116,7 @@ abstract class ThreadLocalVarGroup<T> extends ModifiableContextVar<List<T>> {
         
         @Override
         public String toString() {
-            return String.format("<thread-local-ctx-vars-optimized>%s", threadLocals);
+            return String.format("<thread-local-ctx-vars-optimized>[%s] = %s", threadLocals, get());
         }
         
     }

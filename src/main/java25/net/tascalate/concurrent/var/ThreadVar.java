@@ -20,7 +20,7 @@ import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public final class ThreadVar<T> extends ModifiableContextVar<T> {
+public class ThreadVar<T> extends ModifiableContextVar<T> {
     final String name;
     final ScopedValue<Object> scopedValue;
     
@@ -63,7 +63,7 @@ public final class ThreadVar<T> extends ModifiableContextVar<T> {
     
     @Override
     public String toString() {
-        return String.format("<thread-var>[%s = %s]", name, scopedValue);
+        return String.format("<thread-var>[%s/%s] = %s", name, scopedValue, get());
     }
     
     public static <T> ThreadVar<T> newInstance() {

@@ -67,6 +67,11 @@ public class ThreadVar<T> extends ModifiableContextVar<T> {
         return new Optimized<>(name, threadLocal);
     }
     
+    @Override
+    public String toString() {
+        return String.format("<thread-var-strict>[%s/%s] = %s", name, threadLocal, get());
+    }
+    
     static final class Optimized<T> extends ThreadVar<T> {
         
         Optimized(String name, ThreadLocal<T> delegate) {
@@ -100,14 +105,9 @@ public class ThreadVar<T> extends ModifiableContextVar<T> {
         
         @Override
         public String toString() {
-            return String.format("<thread-var-optimized>[%s = %s]", name, threadLocal);
+            return String.format("<thread-var-optimized>[%s/%s] = %s", name, threadLocal, get());
         }
         
-    }
-    
-    @Override
-    public String toString() {
-        return String.format("<thread-var-strict>[%s = %s]", name, threadLocal);
     }
     
     public static <T> ThreadVar<T> newInstance() {

@@ -91,7 +91,7 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
         
         @Override
         public String toString() {
-            return String.format("<custom-ctx-var-strict>[%s]", name);
+            return String.format("<custom-ctx-var-strict>[%s] = %s", name, get());
         }
     }
     
@@ -126,7 +126,7 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
         
         @Override
         public String toString() {
-            return String.format("<custom-ctx-var-optimized>[%s]", name);
+            return String.format("<custom-ctx-var-optimized>[%s] = %s", name, get());
         }
     }
     

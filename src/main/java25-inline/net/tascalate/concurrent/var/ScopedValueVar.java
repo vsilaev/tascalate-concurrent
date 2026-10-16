@@ -57,7 +57,7 @@ public final class ScopedValueVar<T> implements ContextVar<T> {
     
     @Override
     public String toString() {
-        return String.format("<scoped-value-var>[%s = %s]", name, delegate);
+        return String.format("<scoped-value-var>[%s/%s] = %s", name, delegate, get());
     } 
     
     public static <T> ScopedValueVar<T> newInstance() {

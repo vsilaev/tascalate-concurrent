@@ -149,7 +149,7 @@ public final class ContextRelay<X> {
     
     static final ContextVar<String>  TL_VAR_S = ThreadLocalVar.newInstance("tl_s");
     static final ContextVar<Integer> TL_VAR_I = ThreadLocalVar.newInstance("tl_i");
-    static final ContextVar<String>  SL_VAR_S = ThreadLocalVar.newInstance("sl_s");//ScopedValueVar.newInstance("sl_s");
+    static final ContextVar<String>  SL_VAR_S = ThreadLocalVar.newInstance("sl_s");//ScopedValueVar.newInstance("sl_s"); 
     static final ContextVar<Integer> SL_VAR_I = ThreadLocalVar.newInstance("sl_i");//ScopedValueVar.newInstance("sl_i");
     static final ContextVar<String>  T_VAR_S  = ThreadVar.newInstance("tvar_s");
     static final ContextVar<Integer> T_VAR_I  = ThreadVar.newInstance("tvar_i");
@@ -180,26 +180,26 @@ public final class ContextRelay<X> {
                   .bind(ContextVar.empty(), "ZZZ")
                   .run(() -> {
 
-                      System.out.println(TL_VAR_S + " = " + TL_VAR_S.get()); 
-                      System.out.println(TL_VAR_I + " = " + TL_VAR_I.get());
-                      System.out.println(SL_VAR_S + " = " + SL_VAR_S.get()); 
-                      System.out.println(SL_VAR_I + " = " + SL_VAR_I.get());
-                      System.out.println(T_VAR_S + " = " + T_VAR_S.get()); 
-                      System.out.println(T_VAR_I + " = " + T_VAR_I.get());                      
+                      System.out.println(TL_VAR_S); 
+                      System.out.println(TL_VAR_I);
+                      System.out.println(SL_VAR_S); 
+                      System.out.println(SL_VAR_I);
+                      System.out.println(T_VAR_S); 
+                      System.out.println(T_VAR_I);                      
                       
                       System.out.println("+++++++++++++++++++++++++++");
                       
                       new Thread(tx.contextual(() -> {
-                          System.out.println(TL_VAR_S + " = " + TL_VAR_S.get()); 
-                          System.out.println(TL_VAR_I + " = " + TL_VAR_I.get());
-                          System.out.println(SL_VAR_S + " = " + SL_VAR_S.get()); 
-                          System.out.println(SL_VAR_I + " = " + SL_VAR_I.get());
-                          System.out.println(T_VAR_S + " = " + T_VAR_S.get()); 
-                          System.out.println(T_VAR_I + " = " + T_VAR_I.get());
+                          System.out.println(TL_VAR_S); 
+                          System.out.println(TL_VAR_I);
+                          System.out.println(SL_VAR_S); 
+                          System.out.println(SL_VAR_I);
+                          System.out.println(T_VAR_S); 
+                          System.out.println(T_VAR_I);
                           T_VAR_I.strict().bind(10000).run(() -> {
-                              System.out.println("ALTERED:: " + T_VAR_I + " = " + T_VAR_I.get());
+                              System.out.println("ALTERED:: " + T_VAR_I);
                           });
-                          System.out.println(T_VAR_I + " = " + T_VAR_I.get());
+                          System.out.println(T_VAR_I);
 
                      })).run();
                   });

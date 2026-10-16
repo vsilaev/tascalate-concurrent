@@ -79,7 +79,7 @@ abstract class ModifiableContextVarGroup<T> extends ModifiableContextVar<List<T>
 
         @Override
         public String toString() {
-            return String.format("<custom-ctx-vars-strict>%s", vars);
+            return String.format("<custom-ctx-vars-strict>{%s}", vars);
         }
     }
     
@@ -113,7 +113,7 @@ abstract class ModifiableContextVarGroup<T> extends ModifiableContextVar<List<T>
 
         @Override
         public String toString() {
-            return String.format("<custom-ctx-vars-optimized>%s", vars);
+            return String.format("<custom-ctx-vars-optimized>{%s}", vars);
         } 
     }
     
