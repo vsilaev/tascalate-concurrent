@@ -150,7 +150,7 @@ public final class Promises {
             T item = iterator.next();
             return from(loopBody.apply(item))
                    .dependent()
-                   .thenApply(resume -> resume ? iterator : Collections.emptyIterator());
+                   .thenApply(resume -> resume ? iterator : Collections.emptyIterator(), true);
         }).dependent()
           .thenAccept($ -> {}, true)
           ;

@@ -24,53 +24,146 @@ import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
+/**
+ * A {@link PromiseCustomizer} that propagates <b>dynamically resolved</b> context
+ * to the callbacks of a decorated promise.
+ * <p>
+ * Unlike {@link StaticContextualPromiseCustomizer}, which holds a fixed snapshot,
+ * this customizer holds the {@link ContextRelay} itself. Consequently, the context
+ * snapshot is taken <b>each time a callback is wrapped</b> — i.e., at the moment each
+ * dependent stage is created on the decorated promise (when {@code thenApply},
+ * {@code thenAccept}, etc. is called). Each stage therefore observes the context that
+ * was active in the code that chained it, letting context flow through long
+ * asynchronous promise chains.
+ * </p>
+ * <p>
+ * Use this flavor via {@link ContextRelay#dynamicContextualPromises()} or
+ * {@link ContextRelay#dynamicContextualDependentPromises()}. If a single fixed snapshot
+ * must be applied to all stages, use {@link StaticContextualPromiseCustomizer} instead.
+ * </p>
+ * <p>
+ * The {@code async} flag supplied by the promise framework is intentionally ignored: context
+ * must be applied to callbacks whether they run synchronously or asynchronously.
+ * </p>
+ *
+ * @see StaticContextualPromiseCustomizer
+ * @see ContextRelay#dynamicContextualPromises()
+ * @see ContextRelay#dynamicContextualDependentPromises()
+ */
 final class DynamicContextualPromiseCustomizer implements PromiseCustomizer {
+
+    /** The relay used to capture the context at each callback registration. */
     private final ContextRelay<?> ctxRelay;
-    
+
+    /**
+     * Creates a customizer bound to the given relay.
+     *
+     * @param ctxRelay the relay capturing context each time a callback is wrapped
+     */
     DynamicContextualPromiseCustomizer(ContextRelay<?> ctxRelay) {
-        this.ctxRelay = ctxRelay;
-    }
-    
-    @Override
-    public Runnable wrapArgument(Runnable original, boolean async) {
-        return ctxRelay.contextual(original);
-    }
+         this.ctxRelay = ctxRelay;
+     }
 
-    @Override
-    public <U, R> Function<U, R> wrapArgument(Function<U, R> original, boolean async, boolean isCompose) {
-        return ctxRelay.contextual(original);
-    }
+     /**
+      * Wraps the callback with the context snapshot captured <b>at the moment of this call</b>.
+      *
+      * @param original the original callback
+      * @param async    whether the callback is executed asynchronously (currently ignored)
+      * @return a context-bound copy of the callback
+      */
+     @Override
+     public Runnable wrapArgument(Runnable original, boolean async) {
+         return ctxRelay.contextual(original);
+     }
 
-    @Override
-    public <U> Consumer<U> wrapArgument(Consumer<U> original, boolean async) {
-        return ctxRelay.contextual(original);
-    }
+     /**
+      * Wraps the callback with the context snapshot captured <b>at the moment of this call</b>.
+      *
+      * @param original  the original callback
+      * @param async     whether the callback is executed asynchronously (currently ignored)
+      * @param isCompose whether the callback participates in a compose-style operator (currently ignored)
+      * @param <U>       the input type of the function
+      * @param <R>       the result type of the function
+      * @return a context-bound copy of the callback
+      */
+     @Override
+     public <U, R> Function<U, R> wrapArgument(Function<U, R> original, boolean async, boolean isCompose) {
+         return ctxRelay.contextual(original);
+     }
 
-    @Override
-    public <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
-        return ctxRelay.contextual(original);
-    }
-    
-    @Override
-    public <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
-        return ctxRelay.contextual(original);
-    }
+     /**
+      * Wraps the callback with the context snapshot captured <b>at the moment of this call</b>.
+      *
+      * @param original the original callback
+      * @param async    whether the callback is executed asynchronously (currently ignored)
+      * @param <U>      the input type of the consumer
+      * @return a context-bound copy of the callback
+      */
+     @Override
+     public <U> Consumer<U> wrapArgument(Consumer<U> original, boolean async) {
+         return ctxRelay.contextual(original);
+     }
 
-    @Override
-    public <U, V, R> BiFunction<U, V, R> wrapArgument(BiFunction<U, V, R> original, boolean async) {
-        return ctxRelay.contextual(original);
-    }
+     /**
+      * Wraps the callback with the context snapshot captured <b>at the moment of this call</b>.
+      *
+      * @param original the original callback
+      * @param async    whether the callback is executed asynchronously (currently ignored)
+      * @param <U>      the result type of the supplier
+      * @return a context-bound copy of the callback
+      */
+     @Override
+     public <U> Supplier<U> wrapArgument(Supplier<U> original, boolean async) {
+         return ctxRelay.contextual(original);
+     }
 
-    @Override
-    public <U, V> BiConsumer<U, V> wrapArgument(BiConsumer<U, V> original, boolean async) {
-        return ctxRelay.contextual(original);
-    }
+     /**
+      * Wraps the callback with the context snapshot captured <b>at the moment of this call</b>.
+      *
+      * @param original the original callback
+      * @param async    whether the callback is executed asynchronously (currently ignored)
+      * @param <U>      the input type of the predicate
+      * @return a context-bound copy of the callback
+      */
+     @Override
+     public <U> Predicate<U> wrapArgument(Predicate<U> original, boolean async) {
+         return ctxRelay.contextual(original);
+     }
 
-    /*
-    @Override
-    public <U> CompletionStage<U> wrapArgument(CompletionStage<U> original, boolean async) {
-        // TODO Option to wrap original CompletionStage?
-        return PromiseCustomizer.super.wrapArgument(original, async);
-    }
-    */
+     /**
+      * Wraps the callback with the context snapshot captured <b>at the moment of this call</b>.
+      *
+      * @param original the original callback
+      * @param async    whether the callback is executed asynchronously (currently ignored)
+      * @param <U>      the first input type
+      * @param <V>      the second input type
+      * @param <R>      the result type
+      * @return a context-bound copy of the callback
+      */
+     @Override
+     public <U, V, R> BiFunction<U, V, R> wrapArgument(BiFunction<U, V, R> original, boolean async) {
+         return ctxRelay.contextual(original);
+     }
+
+     /**
+      * Wraps the callback with the context snapshot captured <b>at the moment of this call</b>.
+      *
+      * @param original the original callback
+      * @param async    whether the callback is executed asynchronously (currently ignored)
+      * @param <U>      the first input type
+      * @param <V>      the second input type
+      * @return a context-bound copy of the callback
+      */
+     @Override
+     public <U, V> BiConsumer<U, V> wrapArgument(BiConsumer<U, V> original, boolean async) {
+         return ctxRelay.contextual(original);
+     }
+
+     /*
+     @Override
+     public <U> CompletionStage<U> wrapArgument(CompletionStage<U> original, boolean async) {
+         // TODO Option to wrap original CompletionStage?
+         return PromiseCustomizer.super.wrapArgument(original, async);
+     }
+     */
 }

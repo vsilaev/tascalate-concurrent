@@ -18,13 +18,49 @@ package net.tascalate.concurrent.var;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * An abstract base class for context variables that can be directly modified
+ * within the current execution thread or scope.
+ * <p>
+ * While {@link ContextVar} provides read-only access via {@link ContextVar#get()},
+ * {@code ModifiableContextVar} adds the ability to {@link #set(Object)} a new value
+ * or {@link #remove()} the current value entirely. This is typically used for variables
+ * backed by mutable thread-local storage (like {@link ThreadLocal}) or custom mutable
+ * context holders.
+ * </p>
+ *
+ * @param <T> the type of the value held by this context variable
+ * @see CustomContextVar
+ * @see ThreadLocalVar
+ */
 abstract class ModifiableContextVar<T> implements ContextVar<T> {
+    
+    /**
+     * Sets the value of this context variable for the current scope.
+     *
+     * @param value the new value to set, or {@code null} if the variable should be cleared
+     */
     abstract void set(T value);
     
+    /**
+     * Removes the value of this context variable for the current scope,
+     * effectively resetting it to its default or unset state.
+     * <p>
+     * The default implementation simply calls {@link #set(Object)} with {@code null}.
+     * Subclasses may override this to provide a more specific clearing mechanism
+     * (e.g., {@code ThreadLocal.remove()}).
+     * </p>
+     */
     void remove() {
         set(null);
     }
-    
+
+    /**
+     * Returns the factory used to group multiple modifiable context variables together.
+     * Defaults to the strict factory of {@link ModifiableContextVarGroup}.
+     *
+     * @return a function that creates a grouped context var from a list of variables
+     */
     @Override
     public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
         return ModifiableContextVarGroup.FACTORY_STRICT;

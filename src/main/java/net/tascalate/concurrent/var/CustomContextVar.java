@@ -1,4 +1,3 @@
-
 /**
  * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
@@ -22,13 +21,50 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * An abstract base class for integrating the ContextVar API with external, custom context storage
+ * mechanisms (e.g., Spring's {@code RequestAttributes}, SLF4J's MDC, or proprietary registries).
+ * <p>
+ * Instead of managing its own internal storage, it delegates read, write, and erase operations
+ * to provided {@link java.util.function.Supplier}, {@link java.util.function.Consumer}, and 
+ * {@link java.lang.Runnable} functions.
+ * </p>
+ *
+ * <h2>Usage Example</h2>
+ * <pre>{@code
+ * ModifiableContextVar<User> currentUser = CustomContextVar.define(
+ *     "currentUser",
+ *     () -> SecurityContextHolder.getContext().getAuthentication().getPrincipal(),
+ *     user -> SecurityContextHolder.getContext().setAuthentication(...),
+ *     () -> SecurityContextHolder.clearContext()
+ * );
+ * }</pre>
+ *
+ * @param <T> the type of the value held by this custom variable
+ * @see ModifiableContextVar
+ */
 public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
+    
+    /** The human-readable name of this variable. */
     final String name;
     
+    /** A supplier to read the current value from the external storage. */
     final Supplier<? extends T> reader;
+    
+    /** A consumer to write a new value to the external storage. */
     final Consumer<? super T> writer; 
+    
+    /** A runnable to clear the value from the external storage (optional). */
     final Runnable eraser;
     
+    /**
+     * Constructs a new {@code CustomContextVar} with the specified accessors.
+     *
+     * @param name   the name of the variable
+     * @param reader a supplier to read the current value
+     * @param writer a consumer to write a new value
+     * @param eraser a runnable to clear the value (may be null)
+     */
     CustomContextVar(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
         this.name = name;
         this.reader = reader;
@@ -45,7 +81,7 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
     void set(T value) {
         writer.accept(value);
     }
-
+    
     @Override
     void remove() {
         if (null != eraser) {
@@ -55,6 +91,12 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
         }
     }
     
+    /**
+     * A "strict" implementation that saves the current state of the external storage,
+     * applies the captured value, executes the code, and then restores the original state.
+     *
+     * @param <T> the type of the value
+     */
     static final class Strict<T> extends CustomContextVar<T> {
         Strict(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
             super(name, reader, writer, eraser);
@@ -95,6 +137,13 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
         }
     }
     
+    /**
+     * An "optimized" implementation that applies the captured value, executes the code,
+     * and then unconditionally clears the external storage. This is faster than {@link Strict}
+     * but does not preserve any pre-existing ambient values.
+     *
+     * @param <T> the type of the value
+     */
     static final class Optimized<T> extends CustomContextVar<T> {
         Optimized(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
             super(name, reader, writer, eraser);
@@ -115,13 +164,13 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
         }
         
         @Override
-        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
-            return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
+        public Optimized<T> optimized() {
+            return this;
         }
         
         @Override
-        public Optimized<T> optimized() {
-            return this;
+        public Function<List<? extends ContextVar<?>>, ? extends ContextVar<List<?>>> groupFactory() {
+            return ModifiableContextVarGroup.FACTORY_OPTIMIZED;
         }
         
         @Override
@@ -130,20 +179,55 @@ public abstract class CustomContextVar<T> extends ModifiableContextVar<T> {
         }
     }
     
-    
-    public static <T> ModifiableContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer) {
+    /**
+     * Defines a new custom context variable with the specified accessors and an auto-generated name.
+     *
+     * @param reader a supplier to read the current value
+     * @param writer a consumer to write a new value
+     * @param <T>    the type of the value
+     * @return a new {@link ModifiableContextVar} instance
+     */
+    public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer) {
         return define(reader, writer, null);
     }
     
-    public static <T> ModifiableContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer) {
+    /**
+     * Defines a new custom context variable with the specified name and accessors.
+     *
+     * @param name   the name of the variable
+     * @param reader a supplier to read the current value
+     * @param writer a consumer to write a new value
+     * @param <T>    the type of the value
+     * @return a new {@link ModifiableContextVar} instance
+     */
+    public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer) {
         return define(name, reader, writer, null);
     }
     
-    public static <T> ModifiableContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
+    /**
+     * Defines a new custom context variable with the specified accessors and an auto-generated name.
+     *
+     * @param reader a supplier to read the current value
+     * @param writer a consumer to write a new value
+     * @param eraser a runnable to clear the value
+     * @param <T>    the type of the value
+     * @return a new {@link ModifiableContextVar} instance
+     */
+    public static <T> ContextVar<T> define(Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
         return define(ContextVarHelper.generateVarName(), reader, writer, eraser);
     }
     
-    public static <T> ModifiableContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
+    /**
+     * Defines a new custom context variable with the specified name and accessors.
+     *
+     * @param name   the name of the variable
+     * @param reader a supplier to read the current value
+     * @param writer a consumer to write a new value
+     * @param eraser a runnable to clear the value
+     * @param <T>    the type of the value
+     * @return a new {@link ModifiableContextVar} instance
+     */
+    public static <T> ContextVar<T> define(String name, Supplier<? extends T> reader, Consumer<? super T> writer, Runnable eraser) {
         return new Strict<>(name, reader, writer, eraser);
     }
 }
