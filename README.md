@@ -1408,8 +1408,82 @@ public class ProviderClient {
 }
 ```
 
-## 12. Asynchronous try-with-resources
-TBD -- `Promises.tryApply` and `Promises.tryCompose`
+
+## 12. Asynchronous Try-With-Resources
+
+In synchronous Java, the `try-with-resources` statement guarantees that `AutoCloseable` resources (like streams, connections, or locks) are released immediately after use, even if an exception occurs. 
+
+In asynchronous pipelines, standard `try-with-resources` fails because the `try` block exits immediately, long before the asynchronous operation finishes. If you close the resource synchronously at the end of the block, you destroy it while the async operation is still using it. 
+
+Tascalate Concurrent solves this with the `Promises.tryApply`, `tryCompose`, `tryApplyEx`, and `tryComposeEx` methods. They defer the closing of the resource until the asynchronous pipeline completes.
+
+### The `AsyncCloseable` Interface
+
+Some modern resources cannot be closed synchronously without blocking a thread. For example, releasing a distributed Redis lock or flushing an asynchronous network buffer requires I/O. For these, Tascalate Concurrent provides `AsyncCloseable`:
+
+```java
+@FunctionalInterface
+public interface AsyncCloseable {
+    CompletionStage<Void> close();
+}
+```
+### The `try*` Methods Matrix
+
+Depending on whether your business logic is synchronous/asynchronous, and whether your resource closes synchronously/asynchronously, choose the appropriate method:
+
+
+| Method | Business Logic | Resource Closing | Use Case |
+| :--- | :--- | :--- | :--- |
+| **`tryApply`** | Synchronous (`Function`) | Synchronous (`AutoCloseable`) | Parsing a file synchronously after async fetch. |
+| **`tryCompose`** | Asynchronous (`Function<..., Stage>`) | Synchronous (`AutoCloseable`) | Querying a DB connection asynchronously. |
+| **`tryApplyEx`** | Synchronous (`Function`) | Asynchronous (`AsyncCloseable`) | Reading a cached value, then releasing a distributed lock asynchronously. |
+| **`tryComposeEx`**| Asynchronous (`Function<..., Stage>`) | Asynchronous (`AsyncCloseable`) | Fully async I/O operations requiring async cleanup. |
+
+### Example 1: Async Operation, Sync Close (`tryCompose`)
+
+Imagine an asynchronous database connection pool. You acquire the connection asynchronously, perform an async query, and the connection must be returned to the pool (synchronously) only _after_ the query finishes.
+```java
+Promise<User> userPromise = Promises.tryCompose(
+    connectionPool.acquireAsync(), // Returns Promise<Connection>
+    connection -> {
+        // Asynchronous DB query
+        return dbClient.executeQueryAsync(connection, "SELECT * FROM users WHERE id = 1");
+    }
+);
+
+// connection.close() is automatically called AFTER executeQueryAsync completes, 
+// regardless of whether the query succeeded or failed.
+```
+### Example 2: Fully Asynchronous (`tryComposeEx`)
+
+Suppose you are interacting with a distributed lock that requires a network call to acquire and another network call to release.
+```java
+public class DistributedLock implements AsyncCloseable {
+    private final String lockId;
+    
+    @Override
+    public CompletionStage<Void> close() {
+        // Release the lock over the network asynchronously
+        return redisClient.unlockAsync(lockId);
+    }
+}
+
+Promise<Report> report = Promises.tryComposeEx(
+    lockService.acquireLockAsync("critical-section"), // Returns Promise<DistributedLock>
+    lock -> {
+        // Do some async work while holding the lock
+        return generateReportAsync();
+    }
+);
+
+// The lock is released asynchronously ONLY AFTER generateReportAsync() finishes.
+```
+### Cancellation Semantics
+
+The promises returned by the `try*` methods are fully cancellable. If you cancel the resulting promise (or if a downstream stage cancels it):
+
+1.  The underlying asynchronous operation (`fn`) is cancelled.
+2.  **The resource is still closed.** The library ensures that `close()` (or `close().toCompletableFuture()`) is invoked to prevent resource leaks, even during cancellation.
 
 ## 13. Asynchronous locks
 TBD -- `net.tascalate.concurrent.locks`
