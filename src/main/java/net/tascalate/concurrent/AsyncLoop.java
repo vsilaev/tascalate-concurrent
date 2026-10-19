@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,21 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+/**
+ * Internal implementation of an asynchronous loop, backing {@link Promises#loop}.
+ * <p>
+ * Extends {@link CompletableFutureWrapper} to expose the loop's lifecycle as a
+ * cancellable {@link Promise}. It uses an internal trampoline ({@link IterationState})
+ * to process synchronously completed stages without causing a {@link StackOverflowError},
+ * while asynchronously completed stages are chained via {@link CompletionStage#whenComplete}.
+ * </p>
+ * <p>
+ * Cancellation of this promise is propagated to the currently active stage produced 
+ * by the loop body.
+ * </p>
+ *
+ * @param <T> the type of the loop state/value
+ */
 class AsyncLoop<T> extends CompletableFutureWrapper<T> {
     private final Predicate<? super T> loopCondition;
     private final Function<? super T, ? extends CompletionStage<T>> loopBody;
