@@ -833,6 +833,203 @@ reportFile.thenAccept(path -> deliver(path))
           });
 ```
 
+Below is a complete example how retry functionality of the library might be used with AsyncHttpClient:
+```java
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.BoundRequestBuilder;
+import org.asynchttpclient.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import net.tascalate.concurrent.DelayPolicy;
+import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.Promises;
+import net.tascalate.concurrent.RetryPolicy;
+import net.tascalate.concurrent.var.ContextRelay;
+import net.tascalate.concurrent.var.ContextVar;
+
+import javax.xml.bind.JAXBException;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.NoSuchElementException;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
+
+/**
+ * Example client demonstrating nested asynchronous retries:
+ * <ol>
+ *   <li><b>Inner Retry (Transport):</b> Handles network-level failures like timeouts or dropped connections.</li>
+ *   <li><b>Outer Retry (Business Logic):</b> Handles application-level failures, such as a missing or invalid 
+ *       XML payload in an otherwise successful HTTP 200 response.</li>
+ * </ol>
+ */
+public class ProviderClient {
+
+    private static final Logger log = LoggerFactory.getLogger(ProviderClient.class);
+    
+    // Modernized ContextVar and ContextRelay setup
+    private static final ContextVar<String> CURRENT_AGENCY = ContextVar.newInstance("agency");
+    private static final ContextRelay<?> CONTEXT_RELAY = ContextVar.relay(CURRENT_AGENCY);
+
+    private final AsyncHttpClient httpClient;
+    private final ProviderSettings settings;
+    private final RequestLogger requestLogger;
+
+    public ProviderClient(AsyncHttpClient httpClient, ProviderSettings settings, RequestLogger requestLogger) {
+        this.httpClient = httpClient;
+        this.settings = settings;
+        this.requestLogger = requestLogger;
+    }
+
+    // ======================================================================
+    // Retry Policies
+    // ======================================================================
+
+    /**
+     * Base policy for HTTP transport errors.
+     */
+    private static <T> RetryPolicy<T> httpRetryPolicy() {
+        return new RetryPolicy<T>()
+            .withMaxRetries(5)
+            .rejectNullResult()
+            .withoutTimeout()
+            .withBackoff(DelayPolicy.fixedInterval(Duration.ofSeconds(2))
+                                    .withUniformJitter()
+                                    .withFirstRetryNoDelay())
+            .retryOn(TimeoutException.class);
+    }
+
+    private static final RetryPolicy<Response> RETRY_HTTP_REQUEST = httpRetryPolicy();
+    
+    private static final RetryPolicy<ProviderObject> RETRY_MISSING_RESULT = new RetryPolicy<ProviderObject>()
+        .withMaxRetries(5)
+        .withoutTimeout()
+        .withBackoff(DelayPolicy.fixedInterval(Duration.ofSeconds(1))
+                                .withProportionalJitter(2)
+                                .withFirstRetryNoDelay())
+        .retryOn(NoSuchElementException.class);
+
+    // ======================================================================
+    // HTTP Execution Utilities
+    // ======================================================================
+
+    public static Promise<Response> execute(BoundRequestBuilder request) {
+        return Promises.from(request.execute().toCompletableFuture());
+    }
+
+    public static Promise<Response> execute(BoundRequestBuilder request, RetryPolicy<Response> retryPolicy) {
+        return Promises.retryFuture(() -> execute(request), retryPolicy);
+    }
+
+    // ======================================================================
+    // Core Business Logic
+    // ======================================================================
+
+    /**
+     * Executes a Provider request asynchronously with nested retry policies and context propagation.
+     */
+    public <E extends ProviderObject> Promise<E> invokeSingleAsync(String requestPayload, Class<? extends E> clazz) {
+        @SuppressWarnings("unchecked")
+        RetryPolicy<E> retryMissingResult = (RetryPolicy<E>) RETRY_MISSING_RESULT;
+        
+        return Promises.retryFuture(() -> 
+            
+            // 1. INNER RETRY: Execute HTTP request with transport-level retry policy
+            execute(httpRequest(requestPayload), RETRY_HTTP_REQUEST)
+            .dependent()
+            .thenApply(r -> {
+                requestLogger.record(requestPayload, r);
+                return r;
+            }, true)
+            .thenApply(r -> {
+                // 2. Parse and validate the response
+                try (XmlDataStream<? extends E> items = new XmlDataStream<>(
+                        r.getResponseBodyAsStream(), 
+                        ProviderMarshallingContext.createUnmarshaller(), 
+                        ProviderMetadata.get(clazz).tag(), 
+                        clazz)) {
+                    
+                    E result = items.stream().findFirst().orElse(null);
+                    
+                    if (null == result) {
+                        // Throwing this triggers the OUTER retry policy
+                        throw new NoSuchElementException("Missing expected result after Provider request:\n" + requestPayload);
+                    } else {
+                        if (result.isValid()) {
+                            return result;
+                        } else {
+                            result.failed(requestPayload);
+                            return null; 
+                        }
+                    }
+                } catch (ProviderIOException ex) {
+                    requestLogger.record(requestPayload, ex, false);
+                    log.error("Provider gateway error while executing single async query: {} \nGA = {}, Office = {}", 
+                              ex.getMessage(), CURRENT_AGENCY.get(), settings.office());
+                    return sneakyThrow(ex);
+                } catch (JAXBException | IOException ex) {
+                    requestLogger.record(requestPayload, ex, false);
+                    log.error("Error executing single async query: ", ex);
+                    return sneakyThrow(ex);
+                }
+            }, true),
+            
+            // 3. OUTER RETRY: Apply business-logic retry policy
+            retryMissingResult
+            
+        )
+        // 4. CONTEXT PROPAGATION: Ensure CURRENT_AGENCY is available in all async callbacks
+        .as(CONTEXT_RELAY.dynamicContextualPromises()); 
+    }
+
+    private BoundRequestBuilder httpRequest(String requestPayload) {
+        return httpClient.preparePost(settings.endpoint())
+                         .setBody(requestPayload);
+    }
+
+    // ======================================================================
+    // Helper / Mock Interfaces for Compilation Context
+    // ======================================================================
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable, R> R sneakyThrow(Throwable t) throws T {
+        throw (T) t;
+    }
+
+    interface ProviderObject { 
+        boolean isValid(); 
+        void failed(String req); 
+    }
+    
+    interface ProviderSettings { 
+        String endpoint(); 
+        String office(); 
+    }
+    
+    interface RequestLogger { 
+        void record(String req, Response r); 
+        void record(String req, Exception e, boolean b); 
+    }
+    
+    interface ProviderMarshallingContext { 
+        static Object createUnmarshaller() { return null; } 
+    }
+    
+    interface ProviderMetadata { 
+        static <E> ProviderMetadata get(Class<E> c) { return null; } 
+        String tag(); 
+    }
+    
+    static class XmlDataStream<T> implements AutoCloseable { 
+        XmlDataStream(Object... args) {} 
+        public void close() {} 
+        public Stream<T> stream() { return Stream.empty(); }
+    }
+    
+    static class ProviderIOException extends IOException {}
+}
+```
+
 ## 9. Partitioned processing of promises
 TBD - discuss `Promises.partitioned`
 
