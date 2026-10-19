@@ -708,8 +708,350 @@ The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
 2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
 
+## 8. Asynchronous Loops and Iteration
 
-## 8. Polling and asynchronous retry functionality
+When working with asynchronous APIs, traditional `for` or `while` loops fall short because they do not wait for asynchronous operations to complete. If you need to process a sequence of items one by one (e.g., paginating through an API, processing files sequentially, or polling a resource), firing all requests at once with `Promises.all()` might overwhelm the target system or exhaust local resources.
+
+Tascalate Concurrent provides two stack-safe, cancellable constructs for sequential asynchronous execution: `Promises.loop` and `Promises.forEach`.
+
+### 1. `Promises.loop` — The Asynchronous `while` Loop
+
+`Promises.loop` is the asynchronous equivalent of a `while` loop. It takes an initial state, a synchronous condition, and an asynchronous body that produces the next state.
+
+```java
+public static <T> Promise<T> loop(
+    T initialValue, 
+    Predicate<? super T> loopCondition,
+    Function<? super T, ? extends CompletionStage<T>> loopBody
+)
+```
+**Example: Fetching Paginated Data** Imagine an API that returns a page of results and a cursor for the next page. We can use `loop` to fetch all pages sequentially without blocking a thread. To accumulate results, we pass a wrapper object as the state.
+```java
+record Page(List<String> items, String nextCursor) {}
+record State(List<String> accumulated, String nextCursor) {}
+
+Promise<List<String>> allItems = Promises.loop(
+    new State(new ArrayList<>(), "start_cursor"), // Initial state
+    state -> state.nextCursor() != null,          // Condition: continue if there is a next cursor
+    state -> apiClient.fetchPage(state.nextCursor()) // Body: fetch the next page asynchronously
+             .thenApply(page -> new State(
+                 concat(state.accumulated(), page.items()), 
+                 page.nextCursor()
+             ))
+).thenApply(State::accumulated);
+```
+### 2. `Promises.forEach` — Sequential Iteration with Early Exit
+
+`Promises.forEach` is designed for iterating over an `Iterable` sequentially. The body returns a `CompletionStage<Boolean>`. If the stage completes with `true`, the loop continues to the next element; if `false`, the loop terminates early.
+```java
+public static <T> Promise<Void> forEach(
+    Iterable<? extends T> source, 
+    Function<? super T, ? extends CompletionStage<Boolean>> loopBody
+)
+```
+**Example: Processing Files Until a Condition is Met** Suppose you have a list of log files and you want to search them sequentially for a specific error, stopping as soon as you find it.
+```java
+List<Path> logFiles = getLogFiles();
+
+Promise<Void> search = Promises.forEach(logFiles, file -> 
+    fileService.searchForError(file, "FATAL_ERROR")
+               .thenApply(found -> {
+                   if (found) {
+                       log.info("Found fatal error in {}", file);
+                       return false; // Stop iteration
+                   }
+                   return true;      // Continue to next file
+               })
+);
+
+search.thenRun(() -> log.info("Search completed."));
+```
+### 3. Cancellation and Stack Safety
+
+Both `loop` and `forEach` return a standard `Promise`, which means they fully support cancellation. If you cancel the returned promise, Tascalate Concurrent will automatically attempt to cancel the `CompletionStage` that is currently executing in the loop body.
+```java
+Promise<Void> longRunningTask = Promises.forEach(urls, url -> downloadAsync(url));
+
+// Later, if the user cancels the operation:
+longRunningTask.cancel(true); 
+// The current download is interrupted, and subsequent URLs are skipped.
+```
+Furthermore, the underlying `AsyncLoop` implementation is **stack-safe**. If your asynchronous body happens to return an already-completed stage (e.g., a cached result, a synchronous computation wrapped in a promise, or an empty collection in `forEach`), the loop will "trampoline" to the next iteration without growing the call stack. This prevents `StackOverflowError` even for millions of synchronous iterations.
+
+
+## 9. Chunked processing with bounded concurrency
+
+When a large collection of items must be processed asynchronously, two naive strategies compete:
+
+* **Fire everything at once** — map all elements to stages and combine them with `Promises.all(...)`. Fast, but it may overwhelm the target system, trip rate limits, or exhaust local resources such as a database connection pool.
+* **One by one** — `Promises.forEach(...)` processes elements strictly sequentially. Safe, but it underutilizes available parallelism.
+
+`Promises.chunked` is the middle ground: an asynchronous, **concurrency-bounded** analogue of `Stream.collect(...)`. It processes the source in chunks of at most `chunkSize` elements: tasks within a chunk run concurrently, chunks run one after another, and the results are gathered with an ordinary `java.util.stream.Collector`.
+
+```java
+// Iterable source
+static <S, T, A, R> Promise<R> chunked(Iterable<? extends S> values, int chunkSize,
+                                       Function<? super S, CompletionStage<? extends T>> spawner,
+                                       Collector<T, A, R> downstream);
+
+// Same, with collector invocations confined to a dedicated executor
+static <S, T, A, R> Promise<R> chunked(Iterable<? extends S> values, int chunkSize,
+                                       Function<? super S, CompletionStage<? extends T>> spawner,
+                                       Collector<T, A, R> downstream,
+                                       Executor downstreamExecutor);
+
+// Stream source (closed automatically when processing completes)
+static <S, T, A, R> Promise<R> chunked(Stream<? extends S> values, int chunkSize,
+                                       Function<? super S, CompletionStage<? extends T>> spawner,
+                                       Collector<T, A, R> downstream);
+// ...and the Stream + downstreamExecutor combination
+```
+### Execution model
+
+-   **Bounded concurrency.** Values are pulled from the source lazily, at most `chunkSize` at a time; the next chunk is not pulled until the current one completes. At any moment at most `chunkSize` spawned tasks are in flight — this is the library's built-in backpressure.
+-   **Ordered collection.** Chunks are processed sequentially and results within a chunk keep their positional order, so ordered collectors (`toList()`, `joining()`, `toMap()`, ...) produce results in the source encounter order. Each chunk is accumulated into a fresh container and merged via the collector's `combiner` — therefore the combiner must be correctly implemented (all standard `Collectors` are).
+-   **Empty sources.** An empty input completes successfully with the collector's empty result (`supplier()` followed by `finisher()`).
+-   **Failure and cancellation.** If a spawned task fails, the whole operation fails and the remaining in-flight tasks of the current chunk are cancelled. Cancelling the returned promise stops the loop — no further chunks are started.
+
+### Example 1 — bounded parallel fetch
+
+Fetch user profiles with at most 10 concurrent requests:
+```java
+List<Long> userIds = ...;
+
+Promise<List<Profile>> profiles = Promises.chunked(
+    userIds,
+    10,                               // at most 10 concurrent requests
+    id -> api.fetchProfile(id),       // S -> CompletionStage<T>
+    Collectors.toList()               // downstream collector
+);
+
+profiles.thenAccept(list -> render(list));
+```
+### Example 2 — collecting into a map
+
+Any collector works; collisions and merge semantics follow the collector itself:
+```java
+Promise<Map<Long, Profile>> profileMap = Promises.chunked(
+    userIds,
+    50,
+    id -> api.fetchProfile(id),
+    Collectors.toMap(Profile::id, Function.identity())
+);
+```
+### Example 3 — Stream source with automatic closing
+
+`Stream` sources are consumed lazily and **closed automatically** when the processing completes (successfully or not) — do not close them yourself:
+```java
+// The stream over a large DB result set is closed by chunked(...) when done
+Promise<Statistics> stats = Promises.chunked(
+    orderRepository.streamAll(),
+    100,
+    order -> enrichAsync(order),
+    Statistics.collector()
+);
+```
+### Example 4 — offloading accumulation
+
+If accumulation is expensive or must run on a particular thread, pass a downstream executor. The collector's supplier/accumulator/combiner/finisher then run on that executor instead of the threads completing the spawned tasks (e.g., your HTTP I/O threads):
+```java
+Promise<Report> report = Promises.chunked(
+    transactions,
+    25,
+    tx -> validateAsync(tx),
+    Report.collector(),
+    accumulationExecutor
+);
+```
+### Blocking Consumption: `AsyncCompletions`
+
+Every combinator discussed so far (`all`, `any`, `chunked`, `forEach`, `loop`) is **non-blocking**: it accepts `CompletionStage`s and returns a `Promise`, keeping your code fully asynchronous. `AsyncCompletions` is the deliberate exception — a **blocking, pull-based bridge** from the asynchronous world into synchronous code. 
+
+It turns a sequence of stages into a plain `Iterator<T>` or `Stream<T>` whose `next()` blocks the calling thread until the next result settles. Reach for it when asynchronous producers must feed synchronous consumers: a legacy `for` loop, a transactional boundary, or a sequential `Stream` pipeline.
+
+```java
+static <T> Iterator<T> iterate(
+  Iterable<? extends CompletionStage<? extends T>> pendingPromises, int chunkSize); 
+static <T> Stream<T> stream(
+  Iterable<? extends CompletionStage<? extends T>> pendingPromises, int chunkSize); 
+static <T> Stream<T> stream(
+  Iterable<? extends CompletionStage<? extends T>> pendingPromises, 
+  int chunkSize, 
+  AsyncCompletions.Cancel cancelOption); // ...plus Stream-based overloads for both families
+```
+
+**Key characteristics**
+
+* **Blocking `next()`.** `hasNext()` never blocks (it may enlist more stages), while `next()` blocks until a result settles. **Never drive this class from an event-loop, virtual thread pool, or otherwise non-blocking thread.**
+* **Completion order.** Results arrive in the order stages *complete*, not in source order.
+* **Bounded concurrency & backpressure.** At most `chunkSize` stages are enlisted at once; pending stages wait for free slots. Note that with `chunkSize > 0` the completion callbacks themselves may briefly block on enqueueing while the consumer is slow, providing natural backpressure to fast producers.
+* **Fail-fast errors.** An exceptionally completed stage throws from `next()` the moment it is consumed.
+* **Cancellation.** Closing the sequence cancels outstanding work according to the `Cancel` policy: `NONE`, `ENLISTED` (the default for streams), or `ALL`. Streams support try-with-resources.
+* **Single consumer.** Drive the iteration from exactly one thread.
+
+**Example — bounded in-flight requests with blocking consumption**
+
+```java
+List<CompletionStage<HttpResponse>> requests = urls.stream()
+        .map(httpClient::fetchAsync)
+        .collect(Collectors.toList());
+
+// At most 16 requests in flight; results processed as they complete
+try (Stream<HttpResponse> responses = AsyncCompletions.stream(requests, 16)) {
+    responses.forEach(response -> store(response));
+} // close() cancels whatever is still in flight (Cancel.ENLISTED)
+```
+**Example — early termination cancels the rest**
+```java
+try (Stream<Record> records = AsyncCompletions.stream(pendingPages, 4, 
+                                                      AsyncCompletions.Cancel.ALL)) {
+    Optional<Record> match = 
+    records.filter(Record::isRelevant)
+           .findFirst(); // short-circuits the pipeline
+    // closing the stream cancels all in-flight AND not-yet-started pages (Cancel.ALL)
+}
+```
+### Summary: Choosing between the combinators
+
+| Method | Consumption | Concurrency | Result order | Result / errors | Use when... |
+|---|---|---|---|---|---|
+| `Promises.all(...)` | non-blocking `Promise` | unbounded | source order | list/map of results; fails on first error | the number of tasks is small and known |
+| `Promises.chunked(...)` | non-blocking `Promise` | bounded by `chunkSize` | source order | any `Collector` result | large sources; the backend must not be overwhelmed; results must be collected |
+| `Promises.forEach(...)` | non-blocking `Promise` | strictly 1 | source order | `Void`, with early exit | order-sensitive side effects or early termination |
+| `AsyncCompletions.stream(...)` / `iterate(...)` | **blocking** `Iterator` / `Stream` | bounded by `chunkSize` | **completion order** | pull-based; throws on the first consumed error | synchronous consumers (loops, stream pipelines) must process asynchronous results |
+
+**Rule of thumb:** stay with the `Promise`-based combinators whenever possible — they never occupy a thread while waiting. Use `AsyncCompletions` only at the boundary where asynchronous results must re-enter the blocking world.
+
+
+## 10. Context variables & contextual Promises
+
+Ah, those dreaded `ThreadLocal`s we all hate, love to hate, but, nevertheless, use everywhere. It's quite common to store some contextual data (like the authenticated user and current locale) inside thread-local variables. Sometimes it's custom code, sometimes it's from a third-party library we can't alter. 
+
+Typically, we spawn asynchronous code from a thread with well-known characteristics, like an HTTP request thread. Here we can easily access contextual information. However, using thread-local variables from an asynchronous code block is hard because it's impossible to predict which thread from the pool will execute the code. It's necessary to capture the context of one thread and propagate it to the threads executing the asynchronous code. Furthermore, with the advent of Virtual Threads in modern Java, traditional `ThreadLocal`s can cause memory bloat, making immutable scoped values (`ScopedValue`) a much better choice.
+
+To solve this issue, Tascalate Concurrent provides the `ContextVar` API. It serves as a unified, multi-release abstraction over context storage: it uses `ThreadLocal` on JDK 8–24 and `ScopedValue` on JDK 25+, while also allowing you to wrap custom context stores.
+
+### 1. Defining Context Variables
+
+You can define context variables in several ways depending on your needs:
+
+#### Portable Variables (Recommended)
+Uses `ThreadLocal` on JDK 8-24, and `ScopedValue` on JDK 25+. This is the default choice for new code.
+```java
+static final ContextVar<Principal> CURRENT_PRINCIPAL = ContextVar.newInstance("principal");
+static final ContextVar<Locale> CURRENT_LOCALE = ContextVar.newInstance("locale");
+```
+#### Wrapping Existing ThreadLocals
+
+If you need to integrate with a legacy third-party library that exposes a raw `ThreadLocal`:
+```java
+static final ThreadLocal<String> LEGACY_TRACE_ID = new ThreadLocal<>();
+static final ContextVar<String> TRACE_ID = ThreadLocalVar.of("traceId", LEGACY_TRACE_ID);
+```
+#### Wrapping Custom Context Stores (e.g., Spring)
+
+Sometimes context isn't stored in a simple `ThreadLocal`, but rather in a framework-specific registry. For example, Spring Web stores request-scoped attributes in `RequestContextHolder`. You can adapt any custom context store using `CustomContextVar.define(...)` by providing a reader, a writer, and a cleanup action:
+```java
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.RequestAttributes;
+
+static final ContextVar<RequestAttributes> SPRING_REQUEST_ATTRS = CustomContextVar.define(
+    "springRequestAttributes",
+    () -> RequestContextHolder.getRequestAttributes(),            // Reader
+    attrs -> RequestContextHolder.setRequestAttributes(attrs),    // Writer
+    () -> RequestContextHolder.resetRequestAttributes()           // Cleanup/Eraser
+);
+```
+
+### 2. Propagation Modes: Strict vs. Optimized
+
+When a context variable is applied to a block of code, what happens to the _existing_ (ambient) value already present on the current thread? Tascalate Concurrent offers two modes to handle this:
+
+-   **Strict Mode (Default):** Before applying the captured context, the library saves the ambient value currently on the thread. After the code block completes (even if an exception is thrown), the original ambient value is restored. This is essential for shared thread pools (like Tomcat worker threads) where a thread might process multiple requests and must not leak or lose context between them.
+-   **Optimized Mode:** The library simply overwrites the thread's value with the captured snapshot, and clears it completely when the block finishes. It skips the save/restore step, offering a slight performance gain, but it is **destructive** to any pre-existing context on the thread. Use this only on dedicated, clean worker threads that you know carry no ambient state.
+
+You can switch modes on individual variables or on an entire `ContextRelay`:
+```java
+ContextRelay<?> optimizedRelay = ContextVar.relay(MY_VAR1, MY_VAR2, MY_VAR3).optimized();
+```
+_(Note: On JDK 25+, `ScopedValue` bindings are inherently immutable and automatically restoring, so `strict()` and `optimized()` are effectively identical and carry no performance difference.)_
+
+### 2. Synchronous Execution
+
+For synchronous blocks, you can bind values to context variables using a fluent chain. The context is applied for the duration of the block and automatically restored (or cleared) afterward:
+```java
+ContextVar.bind(MyService.CURRENT_PRINCIPAL, principal)
+          .bind(MyService.CURRENT_LOCALE, Locale.US)
+          .bind(MyService.SPRING_REQUEST_ATTRS, requestAttributes)
+          .run(() -> {
+              // Context is available here
+              processRequest();
+          });
+```
+### 3. Asynchronous Execution & Contextual Promises
+
+To propagate context across thread boundaries (e.g., to thread pools or asynchronous `Promise` chains), you create a `ContextRelay`.
+
+There are two main strategies for promises:
+
+-   **Static capture (`contextualPromises()`)**: The context snapshot is taken _once_ when the decorator is created. Every callback in the chain uses that same snapshot.
+-   **Dynamic resolution (`dynamicContextualPromises()`)**: The context snapshot is taken _each time a callback is registered_ on the promise chain. This allows context to "flow" and update as the chain progresses through different threads.
+
+#### Example: Context-Aware Promises
+```java
+// [1] Define a ContextRelay holding the variables you want to propagate.
+// This is immutable, thread-safe, and may be shared globally.
+ContextRelay<?> relay = ContextVar.relay(
+    MyService.CURRENT_PRINCIPAL, 
+    MyService.CURRENT_LOCALE,
+    MyService.TRACE_ID
+);
+
+// [2] Create a promise decorator function. 
+// We use dynamicContextualPromises() so that context is captured when each stage is chained.
+Function<Promise<String>, Promise<String>> contextualPromise = relay.dynamicContextualPromises();
+
+// [3] Apply the decorator to your Promise chain.
+// Assuming you are in an HTTP request thread where the context variables are already bound:
+Promise<Void> httpRequest = 
+    CompletableTask.supplyAsync(() -> getDownloadUrlTemplate(), myExecutor)
+                   .as(contextualPromise) // <--- HERE the context-aware conversion is applied
+                   .thenApply(url -> 
+                       url + 
+                       "?user=" + MyService.CURRENT_PRINCIPAL.get().getName() + 
+                       "&locale=" + MyService.CURRENT_LOCALE.get().toString()   
+                   )
+                   .thenAccept(url -> {
+                       log.info("Get data for user " + MyService.CURRENT_PRINCIPAL.get().getName());
+                       executeHttpRequest(url);
+                   });
+```
+In the example above, after applying `.as(contextualPromise)`, all derived promises (i.e., code blocks in `thenApply` / `thenAccept`) will have access to the contextual information captured from the originating thread even that task submitted to `supplyAsync` is not contextual. _(Note the use of `.get()` to read the `ContextVar` value inside the asynchronous blocks)._
+
+### 4. Undecorating Promises
+
+Copying contextual variables and applying them to every callback carries a slight performance penalty. If you reach a point in your asynchronous chain where the context is no longer needed, you can stop the propagation by using `Promise.raw()` to undecorate the derived promises (as with any other decorator in Tascalate Concurrent):
+```java
+Promise<Void> afterHttpRequest =
+    httpRequest.unwrap() // OR raw()
+               .thenRun(() -> {
+                   // MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE are NOT available here
+                   cleanupResources();
+               });
+```
+### 5. Contextual Executors
+
+If you prefer to contextualize the executor itself rather than individual promises, you can wrap any `Executor` or `ExecutorService`. The context will be captured dynamically at the exact moment a task is submitted:
+```java
+ExecutorService contextualExecutor = relay.contextual(myExecutor);
+
+contextualExecutor.submit(() -> {
+    // Context is automatically applied here based on the submitting thread's state
+    processInBackground();
+});
+```
+
+## 11. Polling and asynchronous retry functionality
 
 Once you depart from pure algebraic calculations into the unreliable terrain of I/O-related functionality, you have to deal with failures. Network outages, insufficient disk space, overloaded third-party servers, exhausted database connection pools — these and many similar infrastructure failures are what applications have to cope with flawlessly. Many of the aforementioned issues are temporary by nature, so it makes sense to retry after a small delay and keep fingers crossed that this time everything will run smoothly. This is the primary use case for the retry functionality — or better yet, the *asynchronous* retry functionality, since we want our applications to be as scalable as possible.
 
@@ -1030,213 +1372,11 @@ public class ProviderClient {
 }
 ```
 
-## 9. Partitioned processing of promises
-TBD - discuss `Promises.partitioned`
-
-
-## 10. Asynchronous Loops and Iteration
-
-When working with asynchronous APIs, traditional `for` or `while` loops fall short because they do not wait for asynchronous operations to complete. If you need to process a sequence of items one by one (e.g., paginating through an API, processing files sequentially, or polling a resource), firing all requests at once with `Promises.all()` might overwhelm the target system or exhaust local resources.
-
-Tascalate Concurrent provides two stack-safe, cancellable constructs for sequential asynchronous execution: `Promises.loop` and `Promises.forEach`.
-
-### 1. `Promises.loop` — The Asynchronous `while` Loop
-
-`Promises.loop` is the asynchronous equivalent of a `while` loop. It takes an initial state, a synchronous condition, and an asynchronous body that produces the next state.
-
-```java
-public static <T> Promise<T> loop(
-    T initialValue, 
-    Predicate<? super T> loopCondition,
-    Function<? super T, ? extends CompletionStage<T>> loopBody
-)
-```
-**Example: Fetching Paginated Data** Imagine an API that returns a page of results and a cursor for the next page. We can use `loop` to fetch all pages sequentially without blocking a thread. To accumulate results, we pass a wrapper object as the state.
-```java
-record Page(List<String> items, String nextCursor) {}
-record State(List<String> accumulated, String nextCursor) {}
-
-Promise<List<String>> allItems = Promises.loop(
-    new State(new ArrayList<>(), "start_cursor"), // Initial state
-    state -> state.nextCursor() != null,          // Condition: continue if there is a next cursor
-    state -> apiClient.fetchPage(state.nextCursor()) // Body: fetch the next page asynchronously
-             .thenApply(page -> new State(
-                 concat(state.accumulated(), page.items()), 
-                 page.nextCursor()
-             ))
-).thenApply(State::accumulated);
-```
-### 2. `Promises.forEach` — Sequential Iteration with Early Exit
-
-`Promises.forEach` is designed for iterating over an `Iterable` sequentially. The body returns a `CompletionStage<Boolean>`. If the stage completes with `true`, the loop continues to the next element; if `false`, the loop terminates early.
-```java
-public static <T> Promise<Void> forEach(
-    Iterable<? extends T> source, 
-    Function<? super T, ? extends CompletionStage<Boolean>> loopBody
-)
-```
-**Example: Processing Files Until a Condition is Met** Suppose you have a list of log files and you want to search them sequentially for a specific error, stopping as soon as you find it.
-```java
-List<Path> logFiles = getLogFiles();
-
-Promise<Void> search = Promises.forEach(logFiles, file -> 
-    fileService.searchForError(file, "FATAL_ERROR")
-               .thenApply(found -> {
-                   if (found) {
-                       log.info("Found fatal error in {}", file);
-                       return false; // Stop iteration
-                   }
-                   return true;      // Continue to next file
-               })
-);
-
-search.thenRun(() -> log.info("Search completed."));
-```
-### 3. Cancellation and Stack Safety
-
-Both `loop` and `forEach` return a standard `Promise`, which means they fully support cancellation. If you cancel the returned promise, Tascalate Concurrent will automatically attempt to cancel the `CompletionStage` that is currently executing in the loop body.
-```java
-Promise<Void> longRunningTask = Promises.forEach(urls, url -> downloadAsync(url));
-
-// Later, if the user cancels the operation:
-longRunningTask.cancel(true); 
-// The current download is interrupted, and subsequent URLs are skipped.
-```
-Furthermore, the underlying `AsyncLoop` implementation is **stack-safe**. If your asynchronous body happens to return an already-completed stage (e.g., a cached result, a synchronous computation wrapped in a promise, or an empty collection in `forEach`), the loop will "trampoline" to the next iteration without growing the call stack. This prevents `StackOverflowError` even for millions of synchronous iterations.
-
-## 11. Context variables & contextual Promises
-
-Ah, those dreaded `ThreadLocal`s we all hate, love to hate, but, nevertheless, use everywhere. It's quite common to store some contextual data (like the authenticated user and current locale) inside thread-local variables. Sometimes it's custom code, sometimes it's from a third-party library we can't alter. 
-
-Typically, we spawn asynchronous code from a thread with well-known characteristics, like an HTTP request thread. Here we can easily access contextual information. However, using thread-local variables from an asynchronous code block is hard because it's impossible to predict which thread from the pool will execute the code. It's necessary to capture the context of one thread and propagate it to the threads executing the asynchronous code. Furthermore, with the advent of Virtual Threads in modern Java, traditional `ThreadLocal`s can cause memory bloat, making immutable scoped values (`ScopedValue`) a much better choice.
-
-To solve this issue, Tascalate Concurrent provides the `ContextVar` API. It serves as a unified, multi-release abstraction over context storage: it uses `ThreadLocal` on JDK 8–24 and `ScopedValue` on JDK 25+, while also allowing you to wrap custom context stores.
-
-### 1. Defining Context Variables
-
-You can define context variables in several ways depending on your needs:
-
-#### Portable Variables (Recommended)
-Uses `ThreadLocal` on JDK 8-24, and `ScopedValue` on JDK 25+. This is the default choice for new code.
-```java
-static final ContextVar<Principal> CURRENT_PRINCIPAL = ContextVar.newInstance("principal");
-static final ContextVar<Locale> CURRENT_LOCALE = ContextVar.newInstance("locale");
-```
-#### Wrapping Existing ThreadLocals
-
-If you need to integrate with a legacy third-party library that exposes a raw `ThreadLocal`:
-```java
-static final ThreadLocal<String> LEGACY_TRACE_ID = new ThreadLocal<>();
-static final ContextVar<String> TRACE_ID = ThreadLocalVar.of("traceId", LEGACY_TRACE_ID);
-```
-#### Wrapping Custom Context Stores (e.g., Spring)
-
-Sometimes context isn't stored in a simple `ThreadLocal`, but rather in a framework-specific registry. For example, Spring Web stores request-scoped attributes in `RequestContextHolder`. You can adapt any custom context store using `CustomContextVar.define(...)` by providing a reader, a writer, and a cleanup action:
-```java
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.RequestAttributes;
-
-static final ContextVar<RequestAttributes> SPRING_REQUEST_ATTRS = CustomContextVar.define(
-    "springRequestAttributes",
-    () -> RequestContextHolder.getRequestAttributes(),            // Reader
-    attrs -> RequestContextHolder.setRequestAttributes(attrs),    // Writer
-    () -> RequestContextHolder.resetRequestAttributes()           // Cleanup/Eraser
-);
-```
-
-### 2. Propagation Modes: Strict vs. Optimized
-
-When a context variable is applied to a block of code, what happens to the _existing_ (ambient) value already present on the current thread? Tascalate Concurrent offers two modes to handle this:
-
--   **Strict Mode (Default):** Before applying the captured context, the library saves the ambient value currently on the thread. After the code block completes (even if an exception is thrown), the original ambient value is restored. This is essential for shared thread pools (like Tomcat worker threads) where a thread might process multiple requests and must not leak or lose context between them.
--   **Optimized Mode:** The library simply overwrites the thread's value with the captured snapshot, and clears it completely when the block finishes. It skips the save/restore step, offering a slight performance gain, but it is **destructive** to any pre-existing context on the thread. Use this only on dedicated, clean worker threads that you know carry no ambient state.
-
-You can switch modes on individual variables or on an entire `ContextRelay`:
-```java
-ContextRelay<?> optimizedRelay = ContextVar.relay(MY_VAR1, MY_VAR2, MY_VAR3).optimized();
-```
-_(Note: On JDK 25+, `ScopedValue` bindings are inherently immutable and automatically restoring, so `strict()` and `optimized()` are effectively identical and carry no performance difference.)_
-
-### 2. Synchronous Execution
-
-For synchronous blocks, you can bind values to context variables using a fluent chain. The context is applied for the duration of the block and automatically restored (or cleared) afterward:
-```java
-ContextVar.bind(MyService.CURRENT_PRINCIPAL, principal)
-          .bind(MyService.CURRENT_LOCALE, Locale.US)
-          .bind(MyService.SPRING_REQUEST_ATTRS, requestAttributes)
-          .run(() -> {
-              // Context is available here
-              processRequest();
-          });
-```
-### 3. Asynchronous Execution & Contextual Promises
-
-To propagate context across thread boundaries (e.g., to thread pools or asynchronous `Promise` chains), you create a `ContextRelay`.
-
-There are two main strategies for promises:
-
--   **Static capture (`contextualPromises()`)**: The context snapshot is taken _once_ when the decorator is created. Every callback in the chain uses that same snapshot.
--   **Dynamic resolution (`dynamicContextualPromises()`)**: The context snapshot is taken _each time a callback is registered_ on the promise chain. This allows context to "flow" and update as the chain progresses through different threads.
-
-#### Example: Context-Aware Promises
-```java
-// [1] Define a ContextRelay holding the variables you want to propagate.
-// This is immutable, thread-safe, and may be shared globally.
-ContextRelay<?> relay = ContextVar.relay(
-    MyService.CURRENT_PRINCIPAL, 
-    MyService.CURRENT_LOCALE,
-    MyService.TRACE_ID
-);
-
-// [2] Create a promise decorator function. 
-// We use dynamicContextualPromises() so that context is captured when each stage is chained.
-Function<Promise<String>, Promise<String>> contextualPromise = relay.dynamicContextualPromises();
-
-// [3] Apply the decorator to your Promise chain.
-// Assuming you are in an HTTP request thread where the context variables are already bound:
-Promise<Void> httpRequest = 
-    CompletableTask.supplyAsync(() -> getDownloadUrlTemplate(), myExecutor)
-                   .as(contextualPromise) // <--- HERE the context-aware conversion is applied
-                   .thenApply(url -> 
-                       url + 
-                       "?user=" + MyService.CURRENT_PRINCIPAL.get().getName() + 
-                       "&locale=" + MyService.CURRENT_LOCALE.get().toString()   
-                   )
-                   .thenAccept(url -> {
-                       log.info("Get data for user " + MyService.CURRENT_PRINCIPAL.get().getName());
-                       executeHttpRequest(url);
-                   });
-```
-In the example above, after applying `.as(contextualPromise)`, all derived promises (i.e., code blocks in `thenApply` / `thenAccept`) will have access to the contextual information captured from the originating thread even that task submitted to `supplyAsync` is not contextual. _(Note the use of `.get()` to read the `ContextVar` value inside the asynchronous blocks)._
-
-### 4. Undecorating Promises
-
-Copying contextual variables and applying them to every callback carries a slight performance penalty. If you reach a point in your asynchronous chain where the context is no longer needed, you can stop the propagation by using `Promise.raw()` to undecorate the derived promises (as with any other decorator in Tascalate Concurrent):
-```java
-Promise<Void> afterHttpRequest =
-    httpRequest.unwrap() // OR raw()
-               .thenRun(() -> {
-                   // MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE are NOT available here
-                   cleanupResources();
-               });
-```
-### 5. Contextual Executors
-
-If you prefer to contextualize the executor itself rather than individual promises, you can wrap any `Executor` or `ExecutorService`. The context will be captured dynamically at the exact moment a task is submitted:
-```java
-ExecutorService contextualExecutor = relay.contextual(myExecutor);
-
-contextualExecutor.submit(() -> {
-    // Context is automatically applied here based on the submitting thread's state
-    processInBackground();
-});
-```
-
-## 12. Asynchronous locks
-TBD -- `net.tascalate.concurrent.locks`
-
-## 13. Asynchronous try-with-resources
+## 12. Asynchronous try-with-resources
 TBD -- `Promises.tryApply` and `Promises.tryCompose`
+
+## 13. Asynchronous locks
+TBD -- `net.tascalate.concurrent.locks`
 
 ## 14. Asynchronous I/O extensions
 
