@@ -708,46 +708,130 @@ The `Promise` returned has the following characteristics:
 1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
 2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
 
+
 ## 8. Polling and asynchronous retry functionality
-Once you departure from the pure algebraic calculations to the unreliable terrain of the I/O-related functionality you have to deal with failures. Network outage, insuffcient disk space, overloaded third-party servers, exhausted database connection pools - these and many similar infrastructure failures is what application have to cope with flawlessly. And many of the aforementioned issues are temporal by the nature, so it makes sense to re-try after small delay and keep fingers crossed that this time everything will run smoothly. So this is the primary use-case for the retry functionality, or better yet -- asynchronous retry functionality, while all we want our applications be as scalable as possible.
 
-Another related area is polling functionality - unlike infrastructure failures these are sporadic, polling is built-in in certain asynchronous protocol communications. Say, an application sends an HTTP request to generate a report and waits for the known file on FTP server. There is no "asynchronous reply" expected from the third-party server, and the application has to `poll` periodically till the file will be available.
+Once you depart from pure algebraic calculations into the unreliable terrain of I/O-related functionality, you have to deal with failures. Network outages, insufficient disk space, overloaded third-party servers, exhausted database connection pools — these and many similar infrastructure failures are what applications have to cope with flawlessly. Many of the aforementioned issues are temporary by nature, so it makes sense to retry after a small delay and keep fingers crossed that this time everything will run smoothly. This is the primary use case for the retry functionality — or better yet, the *asynchronous* retry functionality, since we want our applications to be as scalable as possible.
 
-Both use-case are fully supported by the Tascalate Concurrent library. The library provides an API that is both unobtrusive and rich for a wide range of tasks. The following `retry*` methods are available in the `Promises` class:
+Another related area is polling functionality. Unlike infrastructure failures, which are sporadic, polling is built into certain asynchronous protocol communications. Say an application sends an HTTP request to generate a report and then waits for a known file on an FTP server. There is no "asynchronous reply" expected from the third-party server, and the application has to poll periodically until the file becomes available.
 
-Provided by utility class Promises but stands on its own
+Both use cases are fully supported by the Tascalate Concurrent library. The library provides an API that is both unobtrusive and rich enough for a wide range of tasks. The following `retry*` methods are available in the `Promises` class:
+
 ```java
+// Void-returning operations (context-free and contextual)
 static Promise<Void> retry(Runnable codeBlock, Executor executor, 
                            RetryPolicy<? super Void> retryPolicy);
 static Promise<Void> retry(RetryRunnable codeBlock, Executor executor, 
                            RetryPolicy<? super Void> retryPolicy);
 
+// Operations with a result (context-free and contextual)
 static <T> Promise<T> retry(Callable<T> codeBlock, Executor executor, 
                             RetryPolicy<? super T> retryPolicy);
-static <T> Promise<T> retry(RetryCallable<T, T> codeBlock, Executor executor, 
-                            RetryPolicy<? super T> retryPolicy);
-    
+static <T extends C, C> Promise<T> retry(RetryCallable<T, C> codeBlock, 
+                                         Executor executor, 
+                                         RetryPolicy<? super C> retryPolicy);
+
+// Operations returning Optional — an empty Optional may trigger a retry
 static <T> Promise<T> retryOptional(Callable<Optional<T>> codeBlock, Executor executor, 
                                     RetryPolicy<? super T> retryPolicy);
-static <T> Promise<T> retryOptional(RetryCallable<Optional<T>, T> codeBlock, Executor executor, 
-                                    RetryPolicy<? super T> retryPolicy);
-    
+static <T extends C, C> Promise<T> retryOptional(RetryCallable<Optional<T>, C> codeBlock, 
+                                                 Executor executor, 
+                                                 RetryPolicy<? super C> retryPolicy);
+
+// Operations that are asynchronous by themselves — no explicit Executor needed
 static <T> Promise<T> retryFuture(Callable<? extends CompletionStage<T>> invoker, 
                                   RetryPolicy<? super T> retryPolicy);
-static <T> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, T> invoker, 
-                                  RetryPolicy<? super T> retryPolicy);
+static <T extends C, C> Promise<T> retryFuture(RetryCallable<? extends CompletionStage<T>, C> invoker, 
+                                               RetryPolicy<? super C> retryPolicy);
 ```
-All the methods from `retry` family share the same pattern. First, there is a block of code that is executed per every attempt. It could be either a full block of the asynchronous code (`retry` and `retryOptional`) or a method that returns a CompletionStage<T> from third-party API like Async Http library (`retryFuture`). Next, if we retry custom code block, then it's necessary to provide an `Executor` it should be run on. For `retryFuture` there is no explicit `Executor`, and it's up to the third-party library to provide scalable and robust `Executor` as a default asynchronous executor of the returned `CompletionStage`. Finally, `RetryPolicy` should be specified that provides a lot of customization options:
-1. How much attempts should be made?
-2. What is a time interval between attempts? Should it be fixed or dynamic?
-3. What is a timeout before a single attempted is considered "hanged"? Should it be dynamic?
-4. What exceptions are re-trieable and what are not?
-5. What result is expected to be valid? Is a `null` result valid? Is any non-`null` result valid or some returned object properties should be examined?
-    
-All in all, `RetryPolicy` is provides an API with endless customizations per every imaginable use-case.
-But before discussing it, it's necessary to explain a difference in each pair of methods. Why there are overloads with `Runnable` vs `RetryRunnable` and `Callable` vs `RetryCallable`? The reason is the following:
-1. Contextless retriable operations are captured as `Runnable` or `Callable` lambdas - they behaves the same for every iteration, and hence do not need a context.
-2. Methods with `RetryRunnable` and `RetryCallable` are contextual and may dynamically alter their behavior for the given iteration depending on the context passed. The `RetryContext` provides provides all necessary iteration-specific information. 
+All the methods of the `retry` family share the same pattern. First, there is a block of code that is executed on every attempt. It could be either a full block of synchronous code (`retry` and `retryOptional`) or a factory that returns a `CompletionStage<T>` from a third-party API, like an async HTTP library (`retryFuture`). Next, if we retry a custom synchronous code block, it's necessary to provide an `Executor` it should run on. For `retryFuture` there is no explicit `Executor`: it's up to the third-party library to provide a scalable and robust default asynchronous executor for the returned `CompletionStage`. Finally, a `RetryPolicy` must be specified. It answers a lot of customization questions:
+
+1.  How many attempts should be made?
+2.  What is the time interval between attempts? Should it be fixed or dynamic?
+3.  What is the timeout before a single attempt is considered "hung"? Should it be dynamic?
+4.  What exceptions are retryable and what are not?
+5.  What result is expected to be valid? Is a `null` result valid? Is any non-`null` result valid, or should some properties of the returned object be examined?
+
+All in all, `RetryPolicy` provides an API with customizations for every imaginable use case. But before discussing it, it's necessary to explain the difference within each pair of methods. Why are there overloads with `Runnable` vs `RetryRunnable` and `Callable` vs `RetryCallable`? The reason is the following:
+
+1.  Context-less retriable operations are captured as `Runnable` or `Callable` lambdas — they behave the same on every iteration and hence do not need a context.
+2.  Methods with `RetryRunnable` and `RetryCallable` are _contextual_: they may dynamically alter their behavior for the given iteration depending on the context passed.
+
+### RetryContext — what the operation knows about the loop
+
+The contextual variants receive an immutable `RetryContext<T>` before every attempt:
+```java
+public final class RetryContext<T> {
+    public int getRetryCount();          // 0 before the first attempt, 1 before the first retry, ...
+    public Duration getLastCallDuration(); // how long the previous attempt ran
+    public T getLastResult();            // previous result, if it was rejected by the policy (else null)
+    public Throwable getLastError();     // previous error, if the attempt threw (else null)
+}
+```
+Before the very first attempt the retry count is zero and both the last result and the last error are `null`. On subsequent attempts the context carries the outcome of the _previous_ attempt — the result and the error are mutually exclusive. This allows adaptive strategies: change the request payload after a partial result, back off harder after repeated errors of the same kind, or give up when attempts become too slow:
+```java
+Promise<RowSet> rows = Promises.retry(ctx -> {
+    // Widen the query window on every retry after a timeout
+    int window = 100 * (ctx.getRetryCount() + 1);
+    return dao.fetchRows(window);
+}, dbExecutor, policy);
+```
+### RetryPolicy — attempts, delays, timeouts, exceptions, results
+
+`RetryPolicy` is immutable and fluent — every mutator returns a new instance, so a configured policy is thread-safe and shareable:
+```java
+RetryPolicy<PaymentResult> policy = new RetryPolicy<PaymentResult>()
+    .withMaxRetries(5)                                  // up to 6 attempts in total
+    .retryOn(IOException.class, TimeoutException.class) // only these are retryable...
+    .abortOn(AuthenticationException.class)             // ...and never these
+    .rejectNullResult()                                 // null result => retry
+    .withBackoff(DelayPolicy.fixedInterval(1000)
+                            .withFirstRetryNoDelay())   // wait 1s between retries
+    .withTimeout(DelayPolicy.fixedInterval(10_000));    // hang detection per attempt
+
+Promise<PaymentResult> payment = Promises.retry(() -> gateway.charge(order), httpExecutor, policy);
+```
+The essential semantics to keep in mind:
+
+-   **Attempt counting.**  `withMaxRetries(n)` counts retries _after_ the initial attempt — up to `n + 1` attempts in total. `retryOnce()` means a single attempt with no retries; `retryInfinitely()` removes the limit entirely.
+-   **Nothing is retryable by default.** A fresh policy has empty retry rules, so exceptional attempts are _not_ retried until you call `retryOn(...)` / `retryIf(...)`. The ready-made `RetryPolicy.DEFAULT` retries infinitely on any `Exception`.
+-   **Abort beats retry.**  `abortOn(...)` / `abortIf(...)` rules are checked first and stop the loop immediately.
+-   **Result validation.** By default any result — including `null` — is valid. Use `rejectNullResult()` or `withResultValidator(predicate)` to treat an unsatisfactory result as a retryable failure; the rejected result remains visible via `RetryContext.getLastResult()`.
+-   **Backoff and timeout are schedules, not constants.** Both are defined by a `DelayPolicy`, which receives the current `RetryContext` — so delays and timeouts may adapt to the attempt number, the previous error, or the duration of the previous call. The `long`-based constructors install a fixed interval with _no delay before the first attempt_.
+
+### `retryOptional` — when "no result yet" is not a failure
+
+`retryOptional` unwraps the `Optional` returned by the operation: an empty `Optional` is passed to the policy as a `null` result. Combined with `rejectNullResult()` this is exactly the "not ready yet — try again" semantics.
+
+### `retryFuture` — retrying genuinely asynchronous operations
+
+`retryFuture` accepts a _factory_ of `CompletionStage`s. A fresh stage is produced on every attempt; both an exception thrown by the factory and an exceptional completion of the produced stage are retryable subject to the policy. The per-attempt timeout applies to the produced stage. Since the asynchronous machinery belongs to the third-party API, no `Executor` parameter is needed.
+
+### When the policy gives up
+
+If the budget is exhausted or an abort rule matches, the returned promise fails with a `RetryException` carrying the attempt count, the duration of the last attempt, and the last error.
+
+### Polling — retry as a first-class citizen
+
+Polling is expressed with the same tools: the polling operation returns `null` (or an empty `Optional`) while the awaited resource is unavailable, and the policy turns that into a retryable condition:
+```java
+RetryPolicy<Path> pollingPolicy = new RetryPolicy<Path>()
+    .retryOn(IOException.class)
+    .rejectNullResult()  // null = file not there yet => poll again
+    .withMaxRetries(120) // give up after ~10 minutes
+    .withBackoff(DelayPolicy.fixedInterval(5000));
+
+Promise<Path> reportFile = Promises.retry(
+    () -> ftp.findFile("/reports/" + reportId + ".pdf"),  // returns null until the file appears
+    pollingExecutor,
+    pollingPolicy);
+
+reportFile.thenAccept(path -> deliver(path))
+          .exceptionally(ex -> { 
+              // RetryException after 120 polls — escalate to the operator
+              return null; 
+          });
+```
 
 ## 9. Partitioned processing of promises
 TBD - discuss `Promises.partitioned`
