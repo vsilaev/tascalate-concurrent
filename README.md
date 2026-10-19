@@ -757,54 +757,130 @@ TBD - discuss `Promises.loop(...)`
 
 ## 11. Context variables & contextual Promises
 
-**WARNING** This part of API will be refactored in the upcoming release 0.9.0.
+Ah, those dreaded `ThreadLocal`s we all hate, love to hate, but, nevertheless, use everywhere. It's quite common to store some contextual data (like the authenticated user and current locale) inside thread-local variables. Sometimes it's custom code, sometimes it's from a third-party library we can't alter. 
 
-Ah, those dreaded `TreadLocal`-s we all hate, love to hate, but, neveretheless, use everywhere. It's quite common to store some contextual data (like authenticated user and current locale) inside `ThreadLocal` variables. Sometimes it's a custom code, sometimes the code from third-party library we can't alter. 
+Typically, we spawn asynchronous code from a thread with well-known characteristics, like an HTTP request thread. Here we can easily access contextual information. However, using thread-local variables from an asynchronous code block is hard because it's impossible to predict which thread from the pool will execute the code. It's necessary to capture the context of one thread and propagate it to the threads executing the asynchronous code. Furthermore, with the advent of Virtual Threads in modern Java, traditional `ThreadLocal`s can cause memory bloat, making immutable scoped values (`ScopedValue`) a much better choice.
 
-Typically, we spawn asynchronous code from some thread with well-known characteristics, like HTTP request thread. Here we can easly access contextual information from thread-local variables. However, using thread-local variables from asynchronous code block is hard while it's impossible to predict what thread from the pool will execute the code. It's necessary to capture the context of the one thread and propagate it to threads executing asynchronous code. 
+To solve this issue, Tascalate Concurrent provides the `ContextVar` API. It serves as a unified, multi-release abstraction over context storage: it uses `ThreadLocal` on JDK 8–24 and `ScopedValue` on JDK 25+, while also allowing you to wrap custom context stores.
 
-To solve this issue, there Tascalate Concurrent provides `ContextVar` class (since version 0.8.1), that serves as a proxy over thread-local variable for multi-threaded code. Typical usage scenario is the following:
+### 1. Defining Context Variables
 
-1. Define `ContextualPromiseFactory` holding `ContextVar`-s from existing thread-local variables.
-2. Capture a context of the thread that spawns asynchronous operations.
-3. Convert a `Promise` to context-aware promise.
+You can define context variables in several ways depending on your needs:
+
+#### Portable Variables (Recommended)
+Uses `ThreadLocal` on JDK 8-24, and `ScopedValue` on JDK 25+. This is the default choice for new code.
 ```java
-class MyService {
-  // Tread-local variables; they are configured by some custom code (irrelevant for Tascalate Concurrent)
-  static final ThreadLocal<Principal> CURRENT_PRINCIPAL = new ThreadLocal<Principal>();
-  static final ThreadLocal<Locale> CURRENT_LOCALE = new ThreadLocal<Locale>();
-}
-...
-// [1] -- Define `ContextualPromiseFactory`, it's immutable, thread-safe and may be shared in any manner
-ContextualPromiseFactory cpf = ContextVar.relay(MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE);
-...
-// [2] -- In the invoker thread (like HTTP request thread), 
-// where MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE are available:
-Function<Promise<String>, Promise<String>> newContextualPromise = cpf.captureContext();
-...
-// [3] -- Convert a Promise to context-aware promise with 'newContextualPromise' factory:
-Promise<Void> httpRequest = 
-CompletableTask.supplyAsync(() -> getDownloadUrlTemplate(), myExecutor)
-               .as(newContextualPromise) // <--- HERE the conversion is set 
-               .thenApply(url -> 
-                   url + 
-                   "?user=" + MyService.CURRENT_PRINCIPAL.getName() + 
-                   "&locale=" + MyService.CURRENT_LOCALE.toString()   
-               )
-               .thenAccept(url -> {
-                 log.info("Get data for user " + MyService.CURRENT_PRINCIPAL.getName());
-                 executeHttpRequest(url);
-               });
+static final ContextVar<Principal> CURRENT_PRINCIPAL = ContextVar.newInstance("principal");
+static final ContextVar<Locale> CURRENT_LOCALE = ContextVar.newInstance("locale");
 ```
-In the example above, after the call to `Promise.as(newContextualPromise)` all of the derrived promises (i.e. code blocks in thenApply / thenAccept) may access contextual information captured in the originated thread. 
+#### Wrapping Existing ThreadLocals
 
-Worth to mention, that copying contextual variables has certain performance penalty. To stop it at the certain level, just use `Promise.raw()` to undecorate derrived promises (as with any other decorator):
+If you need to integrate with a legacy third-party library that exposes a raw `ThreadLocal`:
+```java
+static final ThreadLocal<String> LEGACY_TRACE_ID = new ThreadLocal<>();
+static final ContextVar<String> TRACE_ID = ThreadLocalVar.of("traceId", LEGACY_TRACE_ID);
+```
+#### Wrapping Custom Context Stores (e.g., Spring)
+
+Sometimes context isn't stored in a simple `ThreadLocal`, but rather in a framework-specific registry. For example, Spring Web stores request-scoped attributes in `RequestContextHolder`. You can adapt any custom context store using `CustomContextVar.define(...)` by providing a reader, a writer, and a cleanup action:
+```java
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.RequestAttributes;
+
+static final ContextVar<RequestAttributes> SPRING_REQUEST_ATTRS = CustomContextVar.define(
+    "springRequestAttributes",
+    () -> RequestContextHolder.getRequestAttributes(),            // Reader
+    attrs -> RequestContextHolder.setRequestAttributes(attrs),    // Writer
+    () -> RequestContextHolder.resetRequestAttributes()           // Cleanup/Eraser
+);
+```
+
+### 2. Propagation Modes: Strict vs. Optimized
+
+When a context variable is applied to a block of code, what happens to the _existing_ (ambient) value already present on the current thread? Tascalate Concurrent offers two modes to handle this:
+
+-   **Strict Mode (Default):** Before applying the captured context, the library saves the ambient value currently on the thread. After the code block completes (even if an exception is thrown), the original ambient value is restored. This is essential for shared thread pools (like Tomcat worker threads) where a thread might process multiple requests and must not leak or lose context between them.
+-   **Optimized Mode:** The library simply overwrites the thread's value with the captured snapshot, and clears it completely when the block finishes. It skips the save/restore step, offering a slight performance gain, but it is **destructive** to any pre-existing context on the thread. Use this only on dedicated, clean worker threads that you know carry no ambient state.
+
+You can switch modes on individual variables or on an entire `ContextRelay`:
+```java
+ContextRelay<?> optimizedRelay = ContextVar.relay(MY_VAR1, MY_VAR2, MY_VAR3).optimized();
+```
+_(Note: On JDK 25+, `ScopedValue` bindings are inherently immutable and automatically restoring, so `strict()` and `optimized()` are effectively identical and carry no performance difference.)_
+
+### 2. Synchronous Execution
+
+For synchronous blocks, you can bind values to context variables using a fluent chain. The context is applied for the duration of the block and automatically restored (or cleared) afterward:
+```java
+ContextVar.bind(MyService.CURRENT_PRINCIPAL, principal)
+          .bind(MyService.CURRENT_LOCALE, Locale.US)
+          .bind(MyService.SPRING_REQUEST_ATTRS, requestAttributes)
+          .run(() -> {
+              // Context is available here
+              processRequest();
+          });
+```
+### 3. Asynchronous Execution & Contextual Promises
+
+To propagate context across thread boundaries (e.g., to thread pools or asynchronous `Promise` chains), you create a `ContextRelay`.
+
+There are two main strategies for promises:
+
+-   **Static capture (`contextualPromises()`)**: The context snapshot is taken _once_ when the decorator is created. Every callback in the chain uses that same snapshot.
+-   **Dynamic resolution (`dynamicContextualPromises()`)**: The context snapshot is taken _each time a callback is registered_ on the promise chain. This allows context to "flow" and update as the chain progresses through different threads.
+
+#### Example: Context-Aware Promises
+```java
+// [1] Define a ContextRelay holding the variables you want to propagate.
+// This is immutable, thread-safe, and may be shared globally.
+ContextRelay<?> relay = ContextVar.relay(
+    MyService.CURRENT_PRINCIPAL, 
+    MyService.CURRENT_LOCALE,
+    MyService.TRACE_ID
+);
+
+// [2] Create a promise decorator function. 
+// We use dynamicContextualPromises() so that context is captured when each stage is chained.
+Function<Promise<String>, Promise<String>> contextualPromise = relay.dynamicContextualPromises();
+
+// [3] Apply the decorator to your Promise chain.
+// Assuming you are in an HTTP request thread where the context variables are already bound:
+Promise<Void> httpRequest = 
+    CompletableTask.supplyAsync(() -> getDownloadUrlTemplate(), myExecutor)
+                   .as(contextualPromise) // <--- HERE the context-aware conversion is applied
+                   .thenApply(url -> 
+                       url + 
+                       "?user=" + MyService.CURRENT_PRINCIPAL.get().getName() + 
+                       "&locale=" + MyService.CURRENT_LOCALE.get().toString()   
+                   )
+                   .thenAccept(url -> {
+                       log.info("Get data for user " + MyService.CURRENT_PRINCIPAL.get().getName());
+                       executeHttpRequest(url);
+                   });
+```
+In the example above, after applying `.as(contextualPromise)`, all derived promises (i.e., code blocks in `thenApply` / `thenAccept`) will have access to the contextual information captured from the originating thread even that task submitted to `supplyAsync` is not contextual. _(Note the use of `.get()` to read the `ContextVar` value inside the asynchronous blocks)._
+
+### 4. Undecorating Promises
+
+Copying contextual variables and applying them to every callback carries a slight performance penalty. If you reach a point in your asynchronous chain where the context is no longer needed, you can stop the propagation by using `Promise.raw()` to undecorate the derived promises (as with any other decorator in Tascalate Concurrent):
 ```java
 Promise<Void> afterHttpRequest =
-httpRequest.raw()
-           .thenRun(() -> {
-             // MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE are not available here
-           });
+    httpRequest.unwrap() // OR raw()
+               .thenRun(() -> {
+                   // MyService.CURRENT_PRINCIPAL, MyService.CURRENT_LOCALE are NOT available here
+                   cleanupResources();
+               });
+```
+### 5. Contextual Executors
+
+If you prefer to contextualize the executor itself rather than individual promises, you can wrap any `Executor` or `ExecutorService`. The context will be captured dynamically at the exact moment a task is submitted:
+```java
+ExecutorService contextualExecutor = relay.contextual(myExecutor);
+
+contextualExecutor.submit(() -> {
+    // Context is automatically applied here based on the submitting thread's state
+    processInBackground();
+});
 ```
 
 ## 12. Asynchronous locks
