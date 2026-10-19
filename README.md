@@ -1033,8 +1033,76 @@ public class ProviderClient {
 ## 9. Partitioned processing of promises
 TBD - discuss `Promises.partitioned`
 
-## 10. Stackless sequential processing of promises
-TBD - discuss `Promises.loop(...)`
+
+## 10. Asynchronous Loops and Iteration
+
+When working with asynchronous APIs, traditional `for` or `while` loops fall short because they do not wait for asynchronous operations to complete. If you need to process a sequence of items one by one (e.g., paginating through an API, processing files sequentially, or polling a resource), firing all requests at once with `Promises.all()` might overwhelm the target system or exhaust local resources.
+
+Tascalate Concurrent provides two stack-safe, cancellable constructs for sequential asynchronous execution: `Promises.loop` and `Promises.forEach`.
+
+### 1. `Promises.loop` — The Asynchronous `while` Loop
+
+`Promises.loop` is the asynchronous equivalent of a `while` loop. It takes an initial state, a synchronous condition, and an asynchronous body that produces the next state.
+
+```java
+public static <T> Promise<T> loop(
+    T initialValue, 
+    Predicate<? super T> loopCondition,
+    Function<? super T, ? extends CompletionStage<T>> loopBody
+)
+```
+**Example: Fetching Paginated Data** Imagine an API that returns a page of results and a cursor for the next page. We can use `loop` to fetch all pages sequentially without blocking a thread. To accumulate results, we pass a wrapper object as the state.
+```java
+record Page(List<String> items, String nextCursor) {}
+record State(List<String> accumulated, String nextCursor) {}
+
+Promise<List<String>> allItems = Promises.loop(
+    new State(new ArrayList<>(), "start_cursor"), // Initial state
+    state -> state.nextCursor() != null,          // Condition: continue if there is a next cursor
+    state -> apiClient.fetchPage(state.nextCursor()) // Body: fetch the next page asynchronously
+             .thenApply(page -> new State(
+                 concat(state.accumulated(), page.items()), 
+                 page.nextCursor()
+             ))
+).thenApply(State::accumulated);
+```
+### 2. `Promises.forEach` — Sequential Iteration with Early Exit
+
+`Promises.forEach` is designed for iterating over an `Iterable` sequentially. The body returns a `CompletionStage<Boolean>`. If the stage completes with `true`, the loop continues to the next element; if `false`, the loop terminates early.
+```java
+public static <T> Promise<Void> forEach(
+    Iterable<? extends T> source, 
+    Function<? super T, ? extends CompletionStage<Boolean>> loopBody
+)
+```
+**Example: Processing Files Until a Condition is Met** Suppose you have a list of log files and you want to search them sequentially for a specific error, stopping as soon as you find it.
+```java
+List<Path> logFiles = getLogFiles();
+
+Promise<Void> search = Promises.forEach(logFiles, file -> 
+    fileService.searchForError(file, "FATAL_ERROR")
+               .thenApply(found -> {
+                   if (found) {
+                       log.info("Found fatal error in {}", file);
+                       return false; // Stop iteration
+                   }
+                   return true;      // Continue to next file
+               })
+);
+
+search.thenRun(() -> log.info("Search completed."));
+```
+### 3. Cancellation and Stack Safety
+
+Both `loop` and `forEach` return a standard `Promise`, which means they fully support cancellation. If you cancel the returned promise, Tascalate Concurrent will automatically attempt to cancel the `CompletionStage` that is currently executing in the loop body.
+```java
+Promise<Void> longRunningTask = Promises.forEach(urls, url -> downloadAsync(url));
+
+// Later, if the user cancels the operation:
+longRunningTask.cancel(true); 
+// The current download is interrupted, and subsequent URLs are skipped.
+```
+Furthermore, the underlying `AsyncLoop` implementation is **stack-safe**. If your asynchronous body happens to return an already-completed stage (e.g., a cached result, a synchronous computation wrapped in a promise, or an empty collection in `forEach`), the loop will "trampoline" to the next iteration without growing the call stack. This prevents `StackOverflowError` even for millions of synchronous iterations.
 
 ## 11. Context variables & contextual Promises
 
