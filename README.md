@@ -649,64 +649,100 @@ static Promise<Duration> delay(Duration duration, Executor executor);
 ```
 Notice, that in Java 9+ a different approach is chosen to implement delays - there is no corresponding operation defined for the `CompletableFuture` object and you should use delayed `Executor`. Please read documentation on the [CompletableFuture.delayedExecutor](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#delayedExecutor-long-java.util.concurrent.TimeUnit-java.util.concurrent.Executor-) method for details.
 
-## 7. Combining several CompletionStage-s.
-The utility class `Promises` provides a rich set of methods to combine several `CompletionStage`-s, that lefts limited functionality of `CompletableFuter.allOf / anyOf` far behind:
-1. The library works with any `CompletionStage` implementation without resorting to converting arguments to `CompletableFuture` first (and `CompletionStage.toCompletableFuture` is an optional operation, at least it's documented so in Java 8).
-2. It's possible to pass either an array or a `List` of `CompletionStage`-s as arguments.
-3. The resulting `Promise` let access individual results of the settled `CompletionStage`-s passed.
-4. There is an option to cancel non-settled `CompletionStage`-s passed once the result of the operation is known.
-5. Optionally you can specify whether or not to tolerate individual failures as long as they don't affect the final result.
-6. General _M completed successfully out of N passed promises_ scenario is possible.
 
-Let us review the relevant methods, from the simplest ones to the most advance.
+## 7. Combining multiple CompletionStages
 
+The standard `CompletableFuture.allOf()` and `anyOf()` methods are notoriously limited: `allOf` returns `CompletableFuture<Void>` (discarding individual results), and `anyOf` returns `Object` (requiring unsafe casting). Furthermore, they strictly require `CompletableFuture` instances, ignoring the broader `CompletionStage` interface.
+
+Tascalate Concurrent provides a rich, type-safe suite of combinators in the `Promises` utility class that solve these issues and add powerful features like partial success, strict/non-strict error handling, and eager cancellation.
+
+### Why use `Promises` combinators?
+1. **Interface Agnostic:** Works with *any* `CompletionStage` implementation without forcing conversion to `CompletableFuture`.
+2. **Type-Safe Results:** Returns strongly-typed `List<T>`, `Map<K, T>`, or `T` instead of `Void` or `Object`.
+3. **Flexible Inputs:** Accepts varargs arrays, `List`s, or `Map`s.
+4. **Eager Cancellation:** Automatically cancels remaining stages once the final outcome is determined.
+5. **Partial Success:** Supports "M out of N" success scenarios.
+6. **Strict vs. Non-Strict Errors:** Choose whether to tolerate individual failures or fail fast.
+
+### The Core Combinators
+
+| Method | Success Condition | Failure Condition | Result Type |
+| :--- | :--- | :--- | :--- |
+| **`all`** | **All** N stages succeed | **Any 1** stage fails | `List<T>` or `Map<K,T>` |
+| **`any`** | **Any 1** stage succeeds | **All** N stages fail | `T` (first success) |
+| **`anyStrict`** | **Any 1** stage succeeds | **Any 1** fails *(before 1st success)* | `T` (first success) |
+| **`atLeast(M)`** | **M** stages succeed | **N-M+1** stages fail | `List<T>` or `Map<K,T>` |
+| **`atLeastStrict(M)`**| **M** stages succeed | **Any 1** fails *(before M successes)*| `List<T>` or `Map<K,T>` |
+| **`atLeastOrdered(M)`**| **M** stages succeed | **N-M+1** stages fail | `List<Optional<T>>` |
+
+#### 1. `all` — Wait for everything
+Completes successfully only when every provided stage succeeds. If any stage fails, the combined promise fails immediately with a `MultitargetException`.
 ```java
-static <T> Promise<List<T>> all([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-static <T> Promise<List<T>> all([boolean cancelRemaining=true,] 
-                                List<? extends CompletionStage<? extends T>> promises)
-````
-Returns a promise that is completed normally when all `CompletionStage`-s passed as parameters are completed normally; if any promise completed exceptionally, then resulting promise is completed exceptionally as well.
-
-```java
-static <T> Promise<T> any([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-static <T> Promise<T> any([boolean cancelRemaining=true,] 
-                          List<? extends CompletionStage<? extends T>> promises)
+Promise<List<User>> users = Promises.all(fetchUser(1), fetchUser(2), fetchUser(3));
 ```
-Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if all promises completed exceptionally, then resulting promise is completed exceptionally as well.
+#### 2. `any` vs `anyStrict` — Race for the first success
 
+Both methods return the result of the _first_ stage that completes successfully.
+
+-   **`any` (Non-Strict):** Ignores exceptions. If 3 stages fail but the 4th succeeds, the combined promise succeeds. It only fails if _all_ stages fail.
+-   **`anyStrict` (Strict):** Fails fast. If _any_ stage throws an exception before a successful result is found, the combined promise immediately fails with that exact exception.
+
+#### 3. `atLeast` — M out of N successes
+
+A generalization of `any`. It succeeds if at least `M` stages complete normally. The resulting `List` contains the successful values at their original indices, with `null` in the positions of failed or uncompleted stages.
 ```java
-static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] CompletionStage<? extends T>... promises)
-static <T> Promise<T> anyStrict([boolean cancelRemaining=true,] 
-                                List<? extends CompletionStage<? extends T>> promises)
+// Succeeds if at least 2 out of 3 DNS servers respond
+Promise<List<String>> dnsResults = Promises.atLeast(2, queryDns1(), queryDns2(), queryDns3());
 ```
-Returns a promise that is completed normally when any `CompletionStage` passed as parameters is completed normally (race is possible); if any promise completed exceptionally before the first result is available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if any result is available at all).
+#### 4. `atLeastOrdered` — Safe handling of `null` results
 
+Because `atLeast` uses `null` to represent failed/uncompleted stages in the result list, it cannot distinguish between a stage that failed and a stage that successfully returned `null`. `atLeastOrdered` solves this by returning a `List<Optional<T>>`.
 ```java
-static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] 
-                                    CompletionStage<? extends T>... promises)
-static <T> Promise<List<T>> atLeast(int minResultsCount, [boolean cancelRemaining=true,] 
-                                    List<? extends CompletionStage<? extends T>> promises)
+Promise<List<Optional<CacheEntry>>> cacheLookups = 
+    Promises.atLeastOrdered(2, cache1.get(), cache2.get());
 ```
-Generalization of the `any` method. Returns a promise that is completed normally when at least `minResultCount`
-of `CompletionStage`-s passed as parameters are completed normally (race is possible); if less than `minResultCount` of promises completed normally, then resulting promise is completed exceptionally.
+### Collection Types: Arrays, Lists, and Maps
 
+Every combinator provides three input overloads:
+
+1.  **Varargs:**  `Promises.all(stage1, stage2, stage3)`
+2.  **List:**  `Promises.all(List<CompletionStage<T>> stages)`
+3.  **Map:**  `Promises.all(Map<K, CompletionStage<T>> stages)`
+
+The `Map` overloads are incredibly useful for keyed concurrent operations. The resulting promise yields a `Map<K, T>` containing only the successfully completed entries.
 ```java
-static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
-                                          CompletionStage<? extends T>... promises)
-static <T> Promise<List<T>> atLeastStrict(int minResultsCount, [boolean cancelRemaining=true,] 
-                                          List<? extends CompletionStage<? extends T>> promises)
+Map<String, CompletionStage<Integer>> stockFetchers = Map.of(
+    "AAPL", fetchStock("AAPL"),
+    "GOOG", fetchStock("GOOG")
+);
+
+Promise<Map<String, Integer>> stockPrices = Promises.all(stockFetchers);
 ```
-Generalization of the `anyStrict` method. Returns a promise that is completed normally when at least `minResultCount` of `CompletionStage`-s passed as parameters are completed normally (race is possible); if any promise completed exceptionally before `minResultCount` of results are available, then resulting promise is completed exceptionally as well (unlike non-Strict variant, where exceptions are ignored if `minResultsCount` of successful results are available).
+### Eager Cancellation (`cancelRemaining`)
 
-All methods above have an optional parameter `cancelRemaining` (since library's version [0.5.3](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.3)). When omitted, it means implicitly `cancelRemaining = true`. The `cancelRemaining` parameter defines whether or not to eagerly cancel remaining `promises` once the result of the operation is known, i.e. enough `promises` passed are settled successfully _or_ some `CompletionStage` completed exceptionally in strict version. 
+Most combinators accept an optional `boolean cancelRemaining` parameter (which defaults to `true`). When the outcome of the combined operation is mathematically determined (e.g., the first success in `any`, or the first failure in `all`), the combinator will automatically invoke `.cancel(true)` on all remaining, uncompleted stages. This frees up network connections and thread pool resources immediately.
 
-Each operation to combine `CompletionStage`-s has overloaded versions that accept either a [List](https://docs.oracle.com/javase/8/docs/api/java/util/List.html) of `CompletionStage`-s (since version [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) of the library) or varagr array of `CompletionStage`-s.
+### Error Handling and `MultitargetException`
 
-Besides `any`/`anyStrict` methods that return single-valued promise, all other combinator methods return a list of values per every successfully completed promise, at the same indexed position. If the promise at the given position was not settled at all, or failed (in non-strict version), then corresponding item in the result list is `null`. If necessary number or `promises` was not completed successfully, or any one completed exceptionally in strict version, then resulting `Promise` is settled with a failure of the type `MultitargetException`. Application developer may examine `MultitargetException.getExceptions()` to check what is the exact failure per concrete `CompletionStage` passed.
+When a non-strict combinator fails (e.g., `all` fails because one stage failed, or `any` fails because _all_ stages failed), it wraps the underlying exceptions in a `MultitargetException`.
 
-The `Promise` returned has the following characteristics:
-1. Cancelling resulting `Promise` will cancel all the `CompletionStage-s` passed as arguments.
-2. Default asynchronous executor of the resulting `Promise` is undefined, i.e. it could be either `ForkJoin.commonPool` or whatever `Executor` is used by any of the `CompletionStage` passed as argument. To ensure that necessary default `Executor` is used for subsequent asynchronous operations, please apply `defaultAsyncOn(myExecutor)` on the result.
+You can inspect the individual failures using `getExceptions()`:
+```java
+Promises.all(stage1, stage2)
+        .exceptionally(ex -> {
+            if (ex instanceof MultitargetException) {
+                MultitargetException mte = (MultitargetException) ex;
+                mte.getExceptions().forEach(err -> log.error("Stage failed", err));
+            }
+            return null;
+        });
+```
+_(Note: `anyStrict` and `atLeastStrict` bypass `MultitargetException` and throw the exact exception of the first stage that caused the strict failure)._
+
+### Characteristics of the Returned Promise
+
+1.  **Cancellation Propagation:** Manually cancelling the returned combined `Promise` will cascade and cancel _all_ underlying `CompletionStage` arguments.
+2.  **Default Executor:** The default asynchronous executor for subsequent operations (like `.thenApplyAsync`) on the combined promise is undefined (it inherits from the underlying stages). To guarantee a specific executor for downstream operations, chain `.defaultAsyncOn(myExecutor)` immediately after the combinator.
 
 ## 8. Asynchronous Loops and Iteration
 
