@@ -6,7 +6,7 @@
  * under the Apache License, Version 2.0. Please see 
  * https://github.com/lukas-krecan/completion-stage/blob/completion-stage-0.0.9/src/main/java/net/javacrumbs/completionstage/CallbackRegistry.java 
  * 
- * Modified work: copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Modified work: copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,254 +22,242 @@
  */
 package net.tascalate.concurrent;
 
-import java.util.Collection;
-import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 class CallbackRegistry<T> {
-    private final Object mutex = new Object();
-    private State<T> state = InitialState.instance();
     
-    /**
-     * Adds the given callbacks to this registry.
-     */
+    // Updater for the main state machine
+    @SuppressWarnings("rawtypes")
+    private static final AtomicReferenceFieldUpdater<CallbackRegistry, State> STATE_UPDATER =
+        AtomicReferenceFieldUpdater.newUpdater(CallbackRegistry.class, State.class, "state");
+
+    @SuppressWarnings("unused")
+    private volatile State<T> state = InitialState.instance();
+
     <U> void addCallbacks(AbstractCompletableTask<U> target,
                           Function<? super T, ? extends U> successCallback, 
                           Function<Throwable, ? extends U> failureCallback,
                           Executor executor) {
-
         Objects.requireNonNull(successCallback, "'successCallback' must not be null");
         Objects.requireNonNull(failureCallback, "'failureCallback' must not be null");
         Objects.requireNonNull(executor, "'executor' must not be null");
 
-        synchronized (mutex) {
-            state = state.addCallbacks(target, successCallback, failureCallback, executor);
+        BiConsumer<T, Throwable> callback = (r, e) -> {
+            if (null == e) {
+                callCallback(target, successCallback, r, executor);
+            } else {
+                callCallback(target, failureCallback, e, executor);
+            }
+        };
+
+        while (true) {
+            @SuppressWarnings("unchecked")
+            State<T> current = STATE_UPDATER.get(this);
+            
+            if (current.isCompleted()) {
+                ((CompletedState<T>)current).fireCallback(callback);
+                return;
+            }
+            
+            if (current.isInitial()) {
+                IntermediateState<T> intermediate = new IntermediateState<>();
+                intermediate.addCallback(callback); 
+                
+                if (STATE_UPDATER.compareAndSet(this, current, intermediate)) {
+                    return;
+                }
+            } else {
+                IntermediateState<T> intermediate = (IntermediateState<T>) current;
+                if (intermediate.addCallback(callback)) {
+                    return;
+                }
+            }
         }
     }
 
-    /**
-     * To be called to set the result value.
-     *
-     * @param result
-     *            the result value
-     * @return true if this result will be used (first result registered)
-     */
     boolean success(T result) {
-        State<T> oldState;
-        synchronized (mutex) {
-            if (state.isCompleted()) {
+        while (true) {
+            @SuppressWarnings("unchecked")
+            State<T> current = STATE_UPDATER.get(this);
+            if (current.isCompleted()) {
                 return false;
             }
-            oldState = state;
-            state = state.getSuccessState(result);
+            if (current.isInitial()) {
+                SuccessState<T> newState = new SuccessState<>(result);
+                if (STATE_UPDATER.compareAndSet(this, current, newState)) {
+                    return true;
+                }
+            } else {
+                IntermediateState<T> intermediate = (IntermediateState<T>) current;
+                SuccessState<T> newState = new SuccessState<>(result);
+                if (STATE_UPDATER.compareAndSet(this, current, newState)) {
+                    intermediate.drainAndClose(result, null);
+                    return true;
+                }
+            }
         }
-        oldState.callSuccessCallbacks(result);
-        return true;
-
     }
 
-    /**
-     * To be called to set the failure exception
-     *
-     * @param failure
-     *            the exception
-     * @return true if this result will be used (first result registered)
-     */
     boolean failure(Throwable failure) {
-        State<T> oldState;
-        synchronized (mutex) {
-            if (state.isCompleted()) {
+        while (true) {
+            @SuppressWarnings("unchecked")
+            State<T> current = STATE_UPDATER.get(this);
+            if (current.isCompleted()) {
                 return false;
             }
-            oldState = state;
-            state = state.getFailureState(failure);
+            if (current.isInitial()) {
+                FailureState<T> newState = new FailureState<>(failure);
+                if (STATE_UPDATER.compareAndSet(this, current, newState)) {
+                    return true;
+                }
+            } else {
+                IntermediateState<T> intermediate = (IntermediateState<T>) current;
+                FailureState<T> newState = new FailureState<>(failure);
+                if (STATE_UPDATER.compareAndSet(this, current, newState)) {
+                    intermediate.drainAndClose(null, failure);
+                    return true;
+                }
+            }
         }
-        oldState.callFailureCallbacks(failure);
-        return true;
     }
 
     boolean isFailure() {
-        synchronized (mutex) {
-            return state.isFailure();
-        }
+        return STATE_UPDATER.get(this).isFailure();
     }
-    
+
     boolean isCompleted() {
-        synchronized (mutex) {
-            return state.isCompleted();
+        return STATE_UPDATER.get(this).isCompleted();
+    }
+
+    // --- State Machine Classes ---
+
+    static abstract class State<S> {
+        
+        protected boolean isInitial() {
+            return false;
+        }
+        
+        protected boolean isCompleted() {
+            return false; 
+        }
+        
+        protected boolean isFailure() { 
+            return false; 
+        }
+    }
+
+    static final class InitialState<S> extends State<S> {
+        private static final InitialState<Object> instance = new InitialState<>();
+        
+        @Override
+        protected boolean isInitial() {
+            return true;
+        }
+        
+        @SuppressWarnings("unchecked")
+        static <T> State<T> instance() { 
+            return (State<T>) instance; 
+        }
+    }
+
+    static final class IntermediateState<S> extends State<S> {
+        // Updater for the lock-free stack head
+        @SuppressWarnings("rawtypes")
+        private static final AtomicReferenceFieldUpdater<IntermediateState, CallbackNode> HEAD_UPDATER =
+            AtomicReferenceFieldUpdater.newUpdater(IntermediateState.class, CallbackNode.class, "head");
+
+        private static final CallbackNode<Object> CLOSED = new CallbackNode<>(null);
+        
+        // Replaced AtomicReference with a volatile field
+        @SuppressWarnings("unused")
+        private volatile CallbackNode<S> head;
+
+        boolean addCallback(BiConsumer<? super S, ? super Throwable> callback) {
+            CallbackNode<S> newHead = new CallbackNode<>(callback);
+            while (true) {
+                @SuppressWarnings("unchecked")
+                CallbackNode<S> current = (CallbackNode<S>) HEAD_UPDATER.get(this);
+                if (current == CLOSED) {
+                    return false; // Stack is closed
+                }
+                
+                newHead.next = current;
+                if (HEAD_UPDATER.compareAndSet(this, current, newHead)) {
+                    return true;
+                }
+            }
+        }
+
+        void drainAndClose(S result, Throwable failure) {
+            CallbackNode<S> current;
+            // Emulating getAndSet via CAS loop for Java 8 compatibility
+            while (true) {
+                @SuppressWarnings("unchecked")
+                CallbackNode<S> oldHead = (CallbackNode<S>) HEAD_UPDATER.get(this);
+                if (HEAD_UPDATER.compareAndSet(this, oldHead, CLOSED)) {
+                    current = oldHead;
+                    break;
+                }
+            }
+            
+            // Traverse and invoke
+            while (current != null) {
+                current.callback.accept(result, failure);
+                current = current.next;
+            }
+        }
+    }
+
+    static final class CallbackNode<S> {
+        final BiConsumer<? super S, ? super Throwable> callback;
+        
+        // Volatile is sufficient here; it's written once before publication via the head CAS
+        volatile CallbackNode<S> next; 
+        
+        CallbackNode(BiConsumer<? super S, ? super Throwable> cb) { 
+            this.callback = cb; 
         }
     }
     
-    /**
-     * State of the registry. All subclasses are meant to be used form a
-     * synchronized block and are NOT thread safe on their own.
-     */
-    static abstract class State<S> {
-        protected abstract <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
-                                                     Function<? super S, ? extends U> successCallback, 
-                                                     Function<Throwable, ? extends U> failureCallback, 
-                                                     Executor executor);
+    static abstract class CompletedState<S> extends State<S> {
+        protected abstract <U> void fireCallback(BiConsumer<? super S, ? super Throwable> callback);
 
-        protected State<S> getSuccessState(S result) {
-            throw new IllegalStateException("success method should not be called multiple times");
-        }
-
-        protected void callSuccessCallbacks(S result) {
-        }
-
-        protected State<S> getFailureState(Throwable failure) {
-            throw new IllegalStateException("failure method should not be called multiple times");
-        }
-
-        protected void callFailureCallbacks(Throwable failure) {
-        }
-
-        protected boolean isCompleted() {
-            return true;
-        }
-        
-        protected boolean isFailure() {
-            return false;
+        @Override
+        protected final boolean isCompleted() { 
+            return true; 
         }
     }
 
-    /**
-     * Result is not known yet and no callbacks registered. Using shared
-     * instance so we do not allocate instance where it may not be needed.
-     */
-    static class InitialState<S> extends State<S> {
-        private static final InitialState<Object> instance = new InitialState<>();
-
-        @Override
-        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
-                                            Function<? super S, ? extends U> successCallback, 
-                                            Function<Throwable, ? extends U> failureCallback, 
-                                            Executor executor) {
-            
-            IntermediateState<S> intermediateState = new IntermediateState<>();
-            intermediateState.addCallbacks(target, successCallback, failureCallback, executor);
-            return intermediateState;
-        }
-
-        @Override
-        protected State<S> getSuccessState(S result) {
-            return new SuccessState<>(result);
-        }
-
-        @Override
-        protected State<S> getFailureState(Throwable failure) {
-            return new FailureState<>(failure);
-        }
-
-        @Override
-        protected boolean isCompleted() {
-            return false;
-        }
-
-        @SuppressWarnings("unchecked")
-        static <T> State<T> instance() {
-            return (State<T>) instance;
-        }
-    }
-
-    /**
-     * Result is not known yet.
-     */
-    static class IntermediateState<S> extends State<S> {
-        private final Collection<BiConsumer<? super S, ? super Throwable>> callbacks = new LinkedList<>();
-
-        @Override
-        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
-                                            Function<? super S, ? extends U> successCallback, 
-                                            Function<Throwable, ? extends U> failureCallback, 
-                                            Executor executor) {
-            
-            callbacks.add((r, e) -> {
-                if (null == e) {
-                    callCallback(target, successCallback, r, executor);
-                } else {
-                    callCallback(target, failureCallback, e, executor);
-                }
-            });
-            return this;
-        }
-
-        @Override
-        protected State<S> getSuccessState(S result) {
-            return new SuccessState<>(result);
-        }
-
-        @Override
-        protected void callSuccessCallbacks(S result) {
-            for (BiConsumer<? super S, ? super Throwable> callback : callbacks) {
-                callback.accept(result, null);
-            }
-        }
-
-        @Override
-        protected State<S> getFailureState(Throwable failure) {
-            return new FailureState<>(failure);
-        }
-
-        @Override
-        protected void callFailureCallbacks(Throwable failure) {
-            for (BiConsumer<? super S, ? super Throwable> callback : callbacks) {
-                callback.accept(null, failure);
-            }
-        }
-
-        @Override
-        protected boolean isCompleted() {
-            return false;
-        }
-    }
-
-    /**
-     * Holds the result.
-     */
-    static final class SuccessState<S> extends State<S> {
+    static final class SuccessState<S> extends CompletedState<S> {
         private final S result;
-
-        SuccessState(S result) {
-            this.result = result;
-        }
-
+        
+        SuccessState(S result) { this.result = result; }
+        
         @Override
-        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
-                                            Function<? super S, ? extends U> successCallback, 
-                                            Function<Throwable, ? extends U> failureCallback, 
-                                            Executor executor) {
-            callCallback(target, successCallback, result, executor);
-            return this;
+        protected <U> void fireCallback(BiConsumer<? super S, ? super Throwable> callback) {
+            callback.accept(result, null);
         }
     }
 
-    /**
-     * Holds the failure.
-     */
-    static final class FailureState<S> extends State<S> {
+    static final class FailureState<S> extends CompletedState<S> {
         private final Throwable failure;
-
-        FailureState(Throwable failure) {
-            this.failure = failure;
-        }
-
+        
+        FailureState(Throwable failure) { this.failure = failure; }
+        
         @Override
-        protected <U> State<S> addCallbacks(AbstractCompletableTask<U> target,
-                                            Function<? super S, ? extends U> successCallback, 
-                                            Function<Throwable, ? extends U> failureCallback, 
-                                            Executor executor) {
-            callCallback(target, failureCallback, failure, executor);
-            return this;
+        protected <U> void fireCallback(BiConsumer<? super S, ? super Throwable> callback) {
+            callback.accept(null, failure);
         }
         
-        protected boolean isFailure() {
-            return true;
+        @Override
+        protected boolean isFailure() { 
+            return true; 
         }
     }
 
@@ -277,12 +265,10 @@ class CallbackRegistry<T> {
                                     Function<? super T, ? extends U> callback, 
                                     T value,  
                                     Executor executor) {
-
         Callable<U> callable = () -> callback.apply(value);
         try {
             executor.execute( (AsyncTask)() -> target.fireTransition(callable) );
         } catch (/*RejectedExecutionException*/ Throwable ex) {
-            // Propagate error in-place
             Callable<U> propagateError = () -> { throw ex; };
             target.fireTransition(propagateError);
         }
@@ -290,5 +276,4 @@ class CallbackRegistry<T> {
 
     @FunctionalInterface
     static interface AsyncTask extends Runnable, CompletableFuture.AsynchronousCompletionTask {}
-
 }
