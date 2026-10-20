@@ -1489,18 +1489,158 @@ The promises returned by the `try*` methods are fully cancellable. If you cancel
 TBD -- `net.tascalate.concurrent.locks`
 
 ## 14. Asynchronous I/O extensions
+TBD
 
 ## 15. Decorators for CompletionStage / CompletableFuture / Promise
+TBD
 
-## 16. Extensions to ExecutorService API
+## 16. Promise-Aware Executors and Thread Builders
 
-It’s not mandatory to use any specific subclasses of `Executor` with `CompletableTask` – you may use any implementation. However, someone may find beneficial to have a `Promise`-aware `ExecutorService` API. Below is a list of related classes/interfaces:
+While the Tascalate Concurrent library works seamlessly with any standard `java.util.concurrent.Executor`, using standard executors means their `submit(...)` methods return blocking `Future<T>` objects. To fully leverage the non-blocking, composable `Promise` API without constantly wrapping results in `Promises.from(...)`, the library provides a suite of Promise-aware executor interfaces, implementations, and fluent thread builders.
 
-a. Interface `TaskExecutorService` - the specialization of [ExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html) that uses `Promise` as a result of `submit(...)` methods.
+### 1. `TaskExecutorService` and `ThreadPoolTaskExecutor`
 
-b. Class `ThreadPoolTaskExecutor` - the subclass of the standard [ThreadPoolExecutor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ThreadPoolExecutor.html) that implements `TaskExecutorService` interface.
+`TaskExecutorService` is a specialization of the standard `ExecutorService` interface. The key difference is that its `submit(...)` methods return a `Promise<T>` instead of a `Future<T>`. This allows you to immediately chain asynchronous callbacks (`thenApply`, `thenCompose`, etc.) without blocking a thread to wait for the result.
 
-c. Class `TaskExecutors` - a drop-in replacement for [Executors](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executors.html) utility class that returns various useful implementations of `TaskExecutorService` instead of the standard [ExecutorService](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ExecutorService.html).
+`ThreadPoolTaskExecutor` is the primary concrete implementation. It extends the standard `java.util.concurrent.ThreadPoolExecutor` and overrides the internal `newTaskFor(...)` hooks to ensure that submitted tasks are wrapped in a `RunnablePromise` — a hybrid object that acts as both a `Runnable` (for the executor's worker threads) and a `Promise` (for the caller).
+
+```java
+TaskExecutorService executor = TaskExecutors.newFixedThreadPool(4);
+
+// submit() returns a Promise<User>, not a Future<User>
+Promise<User> userPromise = executor.submit(() -> fetchUserFromDb(123));
+
+userPromise.thenAccept(user -> sendWelcomeEmail(user))
+           .exceptionally(ex -> logError(ex));
+```
+### 2. `TaskExecutors` Factory
+
+`TaskExecutors` is a drop-in replacement for the standard `java.util.concurrent.Executors` utility class. It provides familiar factory methods that return `TaskExecutorService` instances:
+
+-   `newFixedThreadPool(int nThreads)`
+-   `newCachedThreadPool()`
+-   `newSingleThreadExecutor()`
+
+**Adapting Existing Executors:** If you already have a standard `ExecutorService` (e.g., from a third-party library, a framework, or a Spring bean) and want to use it with the `Promise` API, you can wrap it using `TaskExecutors.adapt(...)`:
+```java
+ExecutorService standardExecutor = Executors.newFixedThreadPool(10);
+TaskExecutorService promiseExecutor = TaskExecutors.adapt(standardExecutor);
+
+// The adapter intercepts submit() to return Promises
+Promise<String> result = promiseExecutor.submit(() -> "Hello, Promises!");
+```
+### 3. `TaskCompletionService`
+
+The standard `CompletionService` is useful when you want to submit a batch of tasks and process their results in the order they _complete_, rather than the order they were submitted.
+
+Tascalate Concurrent provides `TaskCompletionService` and its implementation `TaskExecutorCompletionService`, which function exactly like their JDK counterparts but yield `Promise<V>` objects from `submit()`, `take()`, and `poll()`.
+```java
+TaskExecutorService executor = TaskExecutors.newCachedThreadPool();
+TaskCompletionService<String> completionService = 
+    new TaskExecutorCompletionService<>(executor);
+
+// Submit multiple tasks
+completionService.submit(() -> fetchFromServerA());
+completionService.submit(() -> fetchFromServerB());
+
+// Process results as they finish
+for (int i = 0; i < 2; i++) {
+    Promise<String> completedTask = completionService.take();
+    completedTask.thenAccept(result -> System.out.println("Got: " + result));
+}
+```
+### 4. Fluent Thread and ThreadGroup Builders
+
+Configuring thread pools in plain Java often requires writing verbose, anonymous `ThreadFactory` classes. The library provides fluent builders to make this clean, expressive, and highly configurable.
+
+#### `ThreadFactoryBuilder`
+
+Allows you to configure thread names, daemon status, priority, context class loaders, and uncaught exception handlers.
+
+-   **Name Formatting:** The `withNameFormat(String)` method accepts a `String.format` pattern with three positional arguments:
+    -   `%1$d` — the sequential thread number within the factory.
+    -   `%2$s` — the name of the thread group.
+    -   `%3$d` — a global pool counter (unique per factory created).
+```java
+ThreadFactory factory = TaskExecutors.newThreadFactory()
+    .withNameFormat("my-app-worker-%1$d")
+    .withDaemonFlag(true)
+    .withPriority(Thread.NORM_PRIORITY)
+    .withUncaughtExceptionHandler((t, e) -> log.error("Thread " + t + " died", e))
+    .build();
+
+TaskExecutorService executor = TaskExecutors.newFixedThreadPool(4, factory);
+```
+#### `ThreadGroupBuilder`
+
+Allows you to create and configure a `ThreadGroup` to organize your worker threads, which can then be passed to the `ThreadFactoryBuilder`.
+```java
+ThreadGroup ioGroup = TaskExecutors.newThreadGroup()
+    .withName("async-io-workers")
+    .withDaemonFlag(true)
+    .withMaxPriority(Thread.NORM_PRIORITY)
+    .build();
+
+ThreadFactory factory = TaskExecutors.newThreadFactory()
+    .withThreadGroup(ioGroup)
+    .withNameFormat("io-pool-%3$d-thread-%1$d")
+    .build();
+```
+### Summary of Executor Classes
+| Class / Interface | JDK Equivalent | Tascalate Concurrent Advantage |
+| :--- | :--- | :--- |
+| **`TaskExecutorService`** | `ExecutorService` | `submit(...)` returns `Promise<T>` instead of `Future<T>`. |
+| **`ThreadPoolTaskExecutor`**| `ThreadPoolExecutor`| Drop-in replacement that produces `Promise`s natively. |
+| **`TaskExecutors`** | `Executors` | Factory methods for `TaskExecutorService` + `adapt(...)` utility. |
+| **`TaskCompletionService`** | `CompletionService` | `take()` and `poll()` return `Promise<V>`. |
+| **`ThreadFactoryBuilder`** | *None* | Fluent API for creating highly configured `ThreadFactory` instances. |
+| **`ThreadGroupBuilder`** | *None* | Fluent API for creating `ThreadGroup` instances. |
+
+## 17. Throttled Executors and Virtual Threads (Java 21+)
+
+With the introduction of Virtual Threads in Java 21, the traditional "thread pool" paradigm — where a fixed number of long-lived platform threads pull tasks from a queue — is no longer the only (or best) way to handle massive concurrency. Virtual threads are so lightweight that you can spawn a new one for every single task. However, you still need to prevent overwhelming downstream resources (like a database connection pool or a third-party API rate limit).
+
+To solve this, Tascalate Concurrent provides a specialized executor for Java 21+ environments: `ThrottledExecutorService` (and its Promise-returning counterpart, `ThrottledTaskExecutorService`).
+
+### The Concurrency Model: Semaphore-Bounded Virtual Threads
+
+Instead of maintaining a pool of reusable threads, `ThrottledExecutorService` uses a **`Semaphore`** to enforce a strict limit on concurrent executions (`maxConcurrentThreads`):
+
+1. When a task is submitted, the executor attempts to acquire a permit from the semaphore.
+2. If a permit is acquired, a **new virtual thread** is spawned to run the task immediately.
+3. If no permits are available, the task is placed in a standard `BlockingQueue`.
+4. When a running task finishes, its thread checks the queue. If there is another task waiting, the thread "passes" its semaphore permit directly to a **newly spawned virtual thread** for the next task. If the queue is empty, the permit is released back to the semaphore.
+
+This gives you the exact concurrency guarantees of a fixed-size thread pool (e.g., "never more than 50 concurrent DB queries"), but with the immense scalability of virtual threads, allowing thousands of pending tasks to wait in the queue without consuming OS-level thread resources.
+
+### Usage
+
+Because these classes rely on the `Thread.ofVirtual()` API, they are packaged in the Java 21+ section of the Tascalate Concurrent multi-release JAR. 
+
+```java
+// Limit to 50 concurrent virtual threads, with an unbounded queue for waiting tasks
+ThrottledExecutorService throttledExecutor = 
+    new ThrottledExecutorService("my-virtual-workers-", 50);
+
+throttledExecutor.execute(() -> {
+    // This runs on a virtual thread. 
+    // At most 50 of these will run simultaneously.
+    callRemoteApi(); 
+});
+```
+### Promise Integration: `ThrottledTaskExecutorService`
+
+If you want to combine virtual-thread throttling with the Tascalate Concurrent `Promise` API, use `ThrottledTaskExecutorService`. It extends the throttled executor and implements `TaskExecutorService`, ensuring that `submit(...)` returns a `Promise<T>`.
+```java
+ThrottledTaskExecutorService taskExecutor = 
+    new ThrottledTaskExecutorService("api-workers-", 20);
+
+// submit() returns a Promise, not a Future
+Promise<HttpResponse> responsePromise = taskExecutor.submit(() -> httpClient.send(request));
+
+responsePromise.thenAccept(response -> process(response))
+               .exceptionally(ex -> handleError(ex));
+```
 
 # Acknowledgements
 
