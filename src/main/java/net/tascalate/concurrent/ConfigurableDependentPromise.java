@@ -15,8 +15,8 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
-import static net.tascalate.concurrent.SharedFunctions.iif;
+import static net.tascalate.concurrent.AsyncInternals.cancelPromise;
+import static net.tascalate.concurrent.AsyncInternals.iif;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -59,7 +59,7 @@ import net.tascalate.concurrent.core.Decorator;
  * <p>The class implements overloads to all composition methods declared in {@link DependentPromise} interface.
  * 
  * <p>The ones that accepts another {@link CompletionStage} as argument (named <code>*Both*</code> and
- * <code>*Either*</code> are overloaded with a set of @{link {@link PromiseOrigin} as an argument to let
+ * <code>*Either*</code> are overloaded with a set of @{link {@link Promise.Origin} as an argument to let
  * you specify what to enlist as origin: "this" related to method call or the parameter.
  * 
  * <p>Rest of methods from  {@link CompletionStage} API are overloaded with boolean argument 
@@ -77,14 +77,14 @@ import net.tascalate.concurrent.core.Decorator;
 public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Decorator<T> {
     protected final Promise<T> delegate;
     protected final CompletionStage<?>[] cancellableOrigins;
-    protected final Set<PromiseOrigin> defaultEnlistOptions;
+    protected final Set<Promise.Origin> defaultEnlistOptions;
     
     protected ConfigurableDependentPromise(Promise<T> delegate, 
-                                           Set<PromiseOrigin> defaultEnlistOptions, 
+                                           Set<Promise.Origin> defaultEnlistOptions, 
                                            CompletionStage<?>[] cancellableOrigins) {
         this.delegate = delegate;
         this.defaultEnlistOptions = defaultEnlistOptions == null || defaultEnlistOptions.isEmpty() ? 
-            PromiseOrigin.NONE : defaultEnlistOptions;
+            Promise.Origin.NONE : defaultEnlistOptions;
         this.cancellableOrigins = cancellableOrigins;
     }
     
@@ -96,10 +96,10 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     }
     
     public static <U> DependentPromise<U> from(Promise<U> source) {
-        return from(source, PromiseOrigin.NONE);
+        return from(source, Promise.Origin.NONE);
     }
     
-    public static <U> DependentPromise<U> from(Promise<U> source, Set<PromiseOrigin> defaultEnlistOptions) {
+    public static <U> DependentPromise<U> from(Promise<U> source, Set<Promise.Origin> defaultEnlistOptions) {
         return doWrap(source, defaultEnlistOptions, null);
     }
     
@@ -108,7 +108,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     }
     
     private static <U> DependentPromise<U> doWrap(Promise<U> original, 
-                                                  Set<PromiseOrigin> defaultEnlistOptions, 
+                                                  Set<Promise.Origin> defaultEnlistOptions, 
                                                   CompletionStage<?>[] cancellableOrigins) {
         if (isEmptyArray(cancellableOrigins)) {
             // Nothing to enlist additionally for this "original" instance
@@ -220,14 +220,14 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     @Override
     public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
                                                   BiFunction<? super T, ? super U, ? extends V> fn,
-                                                  Set<PromiseOrigin> enlistOptions) {
+                                                  Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombine(other, fn), originAndParam(other, enlistOptions));
     }
 
     @Override
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
                                                        BiFunction<? super T, ? super U, ? extends V> fn,
-                                                       Set<PromiseOrigin> enlistOptions) {
+                                                       Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombineAsync(other, fn), originAndParam(other, enlistOptions));
     }
 
@@ -235,7 +235,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                                        BiFunction<? super T, ? super U, ? extends V> fn, 
                                                        Executor executor,
-                                                       Set<PromiseOrigin> enlistOptions) {
+                                                       Set<Promise.Origin> enlistOptions) {
         
         return wrap(delegate.thenCombineAsync(other, fn, executor), originAndParam(other, enlistOptions));
     }
@@ -243,14 +243,14 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     @Override
     public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
                                                      BiConsumer<? super T, ? super U> action,
-                                                     Set<PromiseOrigin> enlistOptions) {
+                                                     Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBoth(other, action), originAndParam(other, enlistOptions));
     }
 
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
                                                           BiConsumer<? super T, ? super U> action,
-                                                          Set<PromiseOrigin> enlistOptions) {
+                                                          Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBothAsync(other, action), originAndParam(other, enlistOptions));
     }
 
@@ -258,18 +258,18 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                           BiConsumer<? super T, ? super U> action, 
                                                           Executor executor,
-                                                          Set<PromiseOrigin> enlistOptions) {
+                                                          Set<Promise.Origin> enlistOptions) {
         
         return wrap(delegate.thenAcceptBothAsync(other, action, executor), originAndParam(other, enlistOptions));
     }    
     
     @Override
-    public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBoth(other, action), originAndParam(other, enlistOptions));
     }
 
     @Override
-    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBothAsync(other, action), originAndParam(other, enlistOptions));
     }
 
@@ -277,21 +277,21 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                                     Runnable action, 
                                                     Executor executor,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBothAsync(other, action, executor), originAndParam(other, enlistOptions));
     }
 
     @Override
     public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
                                                  Function<? super T, U> fn,
-                                                 Set<PromiseOrigin> enlistOptions) {
+                                                 Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEither(other, fn), originAndParam(other, enlistOptions));
     }
 
     @Override
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEitherAsync(other, fn), originAndParam(other, enlistOptions));
     }
 
@@ -299,7 +299,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
                                                       Executor executor,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         
         return wrap(delegate.applyToEitherAsync(other, fn, executor), originAndParam(other, enlistOptions));
     }    
@@ -307,14 +307,14 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     @Override
     public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
                                                Consumer<? super T> action,
-                                               Set<PromiseOrigin> enlistOptions) {
+                                               Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEither(other, action), originAndParam(other, enlistOptions));
     }
 
     @Override
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEitherAsync(other, action), originAndParam(other, enlistOptions));
     }
 
@@ -322,18 +322,18 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
                                                     Executor executor,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         
         return wrap(delegate.acceptEitherAsync(other, action, executor), originAndParam(other, enlistOptions));
     }    
 
     @Override
-    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEither(other, action), originAndParam(other, enlistOptions));
     }
 
     @Override
-    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEitherAsync(other, action), originAndParam(other, enlistOptions));
     }
 
@@ -341,7 +341,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                       Runnable action, 
                                                       Executor executor,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEitherAsync(other, action, executor), originAndParam(other, enlistOptions));
     }
     
@@ -721,13 +721,13 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
     
     @Override
     public DependentPromise<T> dependent() {
-        return dependent(PromiseOrigin.NONE);
+        return dependent(Promise.Origin.NONE);
     }
     
     @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+    public DependentPromise<T> dependent(Set<Promise.Origin> defaultEnlistOptions) {
         if (null == defaultEnlistOptions) {
-            defaultEnlistOptions = PromiseOrigin.NONE;
+            defaultEnlistOptions = Promise.Origin.NONE;
         }
         
         if (identicalSets(defaultEnlistOptions, this.defaultEnlistOptions)) {
@@ -885,7 +885,7 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
         }
     }
     
-    private CompletionStage<?>[] originAndParam(CompletionStage<?> param, Set<PromiseOrigin> enlistOptions) {
+    private CompletionStage<?>[] originAndParam(CompletionStage<?> param, Set<Promise.Origin> enlistOptions) {
         int size = enlistOptions.size();
         if (size == 0) {
             return null;
@@ -893,17 +893,17 @@ public class ConfigurableDependentPromise<T> implements DependentPromise<T>, Dec
         
         CompletionStage<?>[] result = new CompletionStage<?>[size];
         int idx = 0;
-        if (enlistOptions.contains(PromiseOrigin.THIS)) {
+        if (enlistOptions.contains(Promise.Origin.THIS)) {
             result[idx++] = this;
         }
-        if (enlistOptions.contains(PromiseOrigin.PARAM) && param != null) {
+        if (enlistOptions.contains(Promise.Origin.PARAM) && param != null) {
             result[idx++] = param;
         }
         return result;
     }
 
     private boolean defaultEnlistOrigin() {
-        return defaultEnlistOptions.contains(PromiseOrigin.THIS);
+        return defaultEnlistOptions.contains(Promise.Origin.THIS);
     }
 
     static void cancelPromises(CompletionStage<?>[] promises, boolean mayInterruptIfRunning) {

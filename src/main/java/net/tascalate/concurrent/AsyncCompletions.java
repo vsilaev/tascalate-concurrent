@@ -42,7 +42,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
         ENLISTED {
             @Override
             void apply(Set<CompletionStage<?>> enlistedPromises, Iterator<? extends CompletionStage<?>> pendingPromises) {
-                enlistedPromises.forEach(p -> SharedFunctions.cancelPromise(p, true));
+                enlistedPromises.forEach(p -> AsyncInternals.cancelPromise(p, true));
             }
         },
         ALL {
@@ -51,7 +51,7 @@ public class AsyncCompletions<T> implements Iterator<T>, AutoCloseable {
                 ENLISTED.apply(enlistedPromises, pendingPromises);
                 while (pendingPromises.hasNext()) {
                     CompletionStage<?> nextPromise = pendingPromises.next();
-                    SharedFunctions.cancelPromise(nextPromise, true);
+                    AsyncInternals.cancelPromise(nextPromise, true);
                 }
             }            
         };

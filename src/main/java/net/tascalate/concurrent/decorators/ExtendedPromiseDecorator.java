@@ -29,7 +29,6 @@ import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
-import net.tascalate.concurrent.PromiseOrigin;
 
 public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Promise<T>> {
     
@@ -94,7 +93,7 @@ public class ExtendedPromiseDecorator<T> extends AbstractPromiseDecorator<T, Pro
     }
 
     @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+    public DependentPromise<T> dependent(Set<Promise.Origin> defaultEnlistOptions) {
         return new ExtendedDependentPromiseDecorator<>(
             delegate.dependent(defaultEnlistOptions)
         );

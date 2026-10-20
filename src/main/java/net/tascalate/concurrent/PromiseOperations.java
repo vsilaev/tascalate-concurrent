@@ -23,6 +23,8 @@ import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
 
+import net.tascalate.concurrent.var.ContextRelay;
+
 public class PromiseOperations {
     private PromiseOperations() {}
 
@@ -86,7 +88,7 @@ public class PromiseOperations {
     
     public static <T, R extends AutoCloseable> Promise<T> 
         tryApply(Promise<R> promise, Function<? super R, ? extends T> fn) { 
-        return unwrap(Promises.tryApply(promise.dependent(PromiseOrigin.ALL), fn));
+        return unwrap(Promises.tryApply(promise.dependent(Promise.Origin.ALL), fn));
     }
     
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
@@ -96,7 +98,7 @@ public class PromiseOperations {
     
     public static <T, R extends AsyncCloseable> Promise<T> 
         tryApplyEx(Promise<R> promise, Function<? super R, ? extends T> fn) {
-        return unwrap(Promises.tryApplyEx(promise.dependent(PromiseOrigin.ALL), fn));
+        return unwrap(Promises.tryApplyEx(promise.dependent(Promise.Origin.ALL), fn));
     }
     
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
@@ -106,7 +108,7 @@ public class PromiseOperations {
     
     public static <T, R extends AutoCloseable> Promise<T> 
         tryCompose(Promise<R> promise, Function<? super R, ? extends CompletionStage<T>> fn) {
-        return unwrap(Promises.tryCompose(promise.dependent(PromiseOrigin.ALL), fn));
+        return unwrap(Promises.tryCompose(promise.dependent(Promise.Origin.ALL), fn));
     }
     
     public static <T, R extends AutoCloseable> Function<Promise<R>, Promise<T>> 
@@ -116,7 +118,7 @@ public class PromiseOperations {
     
     public static <T, R extends AsyncCloseable> Promise<T> 
         tryComposeEx(Promise<R> promise, Function<? super R, ? extends CompletionStage<T>> fn) {
-        return unwrap(Promises.tryComposeEx(promise.dependent(PromiseOrigin.ALL), fn));
+        return unwrap(Promises.tryComposeEx(promise.dependent(Promise.Origin.ALL), fn));
     }
 
     public static <T, R extends AsyncCloseable> Function<Promise<R>, Promise<T>> 
@@ -208,6 +210,15 @@ public class PromiseOperations {
 
         return p -> chunkedStrem(p, batchSize,  spawner, downstream, downstreamExecutor);
     }
+    
+    public static <T> Promise<T> withContext(Promise<T> promise, ContextRelay<?> relay) {
+        return promise.as(relay.contextualPromises());
+    }
+    
+    public static <T> Promise<T> withDynamicContext(Promise<T> promise, ContextRelay<?> relay) {
+        return promise.as(relay.dynamicContextualPromises());
+    }
+
 
     private static <T> Promise<T> unwrap(Promise<T> p) {
         return p.unwrap();

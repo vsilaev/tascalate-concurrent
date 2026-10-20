@@ -15,16 +15,18 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.NO_SUCH_ELEMENT;
-import static net.tascalate.concurrent.SharedFunctions.applyAndCancel;
-import static net.tascalate.concurrent.SharedFunctions.failure;
-import static net.tascalate.concurrent.SharedFunctions.selectFirst;
-import static net.tascalate.concurrent.SharedFunctions.supply;
-import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
-import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static java.util.Collections.unmodifiableSet;
+import static net.tascalate.concurrent.AsyncInternals.NO_SUCH_ELEMENT;
+import static net.tascalate.concurrent.AsyncInternals.applyAndCancel;
+import static net.tascalate.concurrent.AsyncInternals.failure;
+import static net.tascalate.concurrent.AsyncInternals.selectFirst;
+import static net.tascalate.concurrent.AsyncInternals.supply;
+import static net.tascalate.concurrent.AsyncInternals.unwrapExecutionException;
+import static net.tascalate.concurrent.AsyncInternals.wrapCompletionException;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -59,7 +61,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     /**
      * Represents the computation state.
      */
-    enum State implements Predicate<Promise<?>> {
+    public enum State implements Predicate<Promise<?>> {
         /**
          * The task has not completed.
          */
@@ -90,6 +92,16 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             return p -> p.isIn(states);
         }
     }
+    
+    public enum Origin {
+        THIS, PARAM;
+        
+        public static final Set<Origin> ALL        = unmodifiableSet(EnumSet.allOf(Origin.class));
+        public static final Set<Origin> NONE       = unmodifiableSet(EnumSet.noneOf(Origin.class));
+        public static final Set<Origin> THIS_ONLY  = unmodifiableSet(EnumSet.of(THIS));
+        public static final Set<Origin> PARAM_ONLY = unmodifiableSet(EnumSet.of(PARAM));
+    }
+
     
     default boolean isIn(State state) {
         return CompletionStageAPI.current().isInState(this, state, false);
@@ -190,7 +202,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
-        return delay(Timeouts.toDuration(timeout, unit), delayOnError);
+        return delay(AsyncInternals.toDuration(timeout, unit), delayOnError);
     }
     
     default Promise<T> delay(Duration duration) {
@@ -202,7 +214,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
             // Fast route
             return thenCompose(v ->
                 this.dependent()
-                    .thenCombineAsync(Timeouts.delay(duration), selectFirst(), PromiseOrigin.PARAM_ONLY)
+                    .thenCombineAsync(AsyncInternals.delay(duration), selectFirst(), Origin.PARAM_ONLY)
                     .unwrap()
             );
         }
@@ -210,7 +222,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
         return h.thenCompose(t -> t.isSuccess() || !(isCancelled() || t.isCancel()) ?
            // "this" is already completed promise here (in both cases)
            // Use *Async to execute on default "this" executor
-           h.thenCombineAsync(Timeouts.delay(duration), (_1, _2) -> join(), PromiseOrigin.PARAM_ONLY)
+           h.thenCombineAsync(AsyncInternals.delay(duration), (_1, _2) -> join(), Origin.PARAM_ONLY)
            :
            this, 
            true
@@ -222,7 +234,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout);
+        return orTimeout(AsyncInternals.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default Promise<T> orTimeout(Duration duration) {
@@ -230,11 +242,11 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
-        Promise<Try<T>> onTimeout = Timeouts.delayed(null, duration);
+        Promise<Try<T>> onTimeout = AsyncInternals.delayed(null, duration);
         return
         this.dependent()
             .handle(Try::handle, false)
-            .applyToEither(onTimeout, applyAndCancel(v -> Try.doneOrTimeout(v, duration), cancelOnTimeout, this, onTimeout), PromiseOrigin.ALL)
+            .applyToEither(onTimeout, applyAndCancel(v -> Try.doneOrTimeout(v, duration), cancelOnTimeout, this, onTimeout), Origin.ALL)
             // Use *Async to execute on default "this" executor; 
             // Don't use *Async above to let interrupt correctly with single-thread executors
             .thenComposeAsync(Try::asPromise, true)
@@ -246,7 +258,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
+        return onTimeout(value, AsyncInternals.toDuration(timeout, unit), cancelOnTimeout);
     }
 
     default Promise<T> onTimeout(T value, Duration duration) {
@@ -254,12 +266,12 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
-        Promise<Try<T>> onTimeout = Timeouts.delayed(Try.success(value), duration);
+        Promise<Try<T>> onTimeout = AsyncInternals.delayed(Try.success(value), duration);
         return 
         this.dependent()
             .handle(Try::handle, false)
             // Use *Async to execute on default "this" executor
-            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this, onTimeout), PromiseOrigin.ALL)
+            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this, onTimeout), Origin.ALL)
             // Use *Async to execute on default "this" executor; 
             // Don't use *Async above to let interrupt correctly with single-thread executors            
             .thenComposeAsync(Try::asPromise, true)
@@ -271,7 +283,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
-        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
+        return onTimeout(supplier, AsyncInternals.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
@@ -280,11 +292,11 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     
     default Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
         // timeout converted to supplier
-        Promise<Supplier<Try<T>>> onTimeout = Timeouts.delayed(Try.supplierCall(supplier), duration);
+        Promise<Supplier<Try<T>>> onTimeout = AsyncInternals.delayed(Try.supplierCall(supplier), duration);
         return
         this.dependent()
             .handle((r, e) -> supply(Try.handle(r, e)), false)
-            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this, onTimeout), PromiseOrigin.ALL)
+            .applyToEither(onTimeout, applyAndCancel(Function.identity(), cancelOnTimeout, this, onTimeout), Origin.ALL)
             // Use *Async to execute on default "this" executor; 
             // Don't use *Async above to let interrupt correctly with single-thread executors
             // Supplier will be called on async executor of this
@@ -318,7 +330,7 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
      * created DependentPromise
      */
     // @Decorator
-    default DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+    default DependentPromise<T> dependent(Set<Origin> defaultEnlistOptions) {
         return ConfigurableDependentPromise.from(this, defaultEnlistOptions);
     }
     
@@ -433,23 +445,23 @@ public interface Promise<T> extends Future<T>, CompletionStage<T> {
     Promise<T> exceptionally(Function<Throwable, ? extends T> fn);
     
     default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
-        return PromiseHelper.exceptionallyAsync(this, fn);
+        return AsyncInternals.exceptionallyAsync(this, fn);
     }
     
     default Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
-        return PromiseHelper.exceptionallyAsync(this, fn, executor);
+        return AsyncInternals.exceptionallyAsync(this, fn, executor);
     }
     
     default Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return PromiseHelper.exceptionallyCompose(this, fn);
+        return AsyncInternals.exceptionallyCompose(this, fn);
     }
     
     default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
-        return PromiseHelper.exceptionallyComposeAsync(this, fn);
+        return AsyncInternals.exceptionallyComposeAsync(this, fn);
     }
 
     default Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
-        return PromiseHelper.exceptionallyComposeAsync(this, fn, executor);
+        return AsyncInternals.exceptionallyComposeAsync(this, fn, executor);
     }
 
     default Promise<T> thenFilter(Predicate<? super T> predicate) {

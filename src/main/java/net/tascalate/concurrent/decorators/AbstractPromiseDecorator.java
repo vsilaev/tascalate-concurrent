@@ -28,7 +28,6 @@ import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
-import net.tascalate.concurrent.PromiseOrigin;
 
 /**
  * Helper class to create a concrete {@link Promise} subclass via delegation
@@ -85,7 +84,7 @@ abstract public class AbstractPromiseDecorator<T, D extends Promise<T>>
     }
 
     @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+    public DependentPromise<T> dependent(Set<Promise.Origin> defaultEnlistOptions) {
         return delegate.dependent(defaultEnlistOptions);
     }
     

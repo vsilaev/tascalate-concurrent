@@ -205,7 +205,7 @@ public class DependentPromiseTests {
         State s2 = new State();
         
         DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
-                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> null, PromiseOrigin.THIS_ONLY) 
+                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> null, Promise.Origin.THIS_ONLY) 
                 .thenRun(this::dummyTask, true);
         
         trySleep(2);
@@ -223,7 +223,7 @@ public class DependentPromiseTests {
         State s3 = new State();
         
         DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
-                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> { longTask(5, s3); return null; }, PromiseOrigin.THIS_ONLY)
+                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> { longTask(5, s3); return null; }, Promise.Origin.THIS_ONLY)
                 .thenRun(this::dummyTask, true);
         
         trySleep(8);
@@ -241,7 +241,7 @@ public class DependentPromiseTests {
         State s2 = new State();
         
         DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
-                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> null, PromiseOrigin.ALL)
+                .thenCombineAsync(otherLongTask(5, s2), (r1, r2) -> null, Promise.Origin.ALL)
                 .thenRun(this::dummyTask, true);
         
         trySleep(2);
@@ -258,7 +258,7 @@ public class DependentPromiseTests {
         State s2 = new State();
         
         DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
-                .runAfterEitherAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.THIS_ONLY) 
+                .runAfterEitherAsync(otherLongTask(5, s2), this::dummyTask, Promise.Origin.THIS_ONLY) 
                 .thenRun(this::dummyTask, true);
         
         trySleep(2);
@@ -275,7 +275,7 @@ public class DependentPromiseTests {
         State s2 = new State();
         
         DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
-                .runAfterEitherAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.ALL)
+                .runAfterEitherAsync(otherLongTask(5, s2), this::dummyTask, Promise.Origin.ALL)
                 .thenRun(this::dummyTask, true);
         
         trySleep(2);
@@ -292,7 +292,7 @@ public class DependentPromiseTests {
         State s2 = new State();
         
         DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
-                .runAfterBothAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.THIS_ONLY) 
+                .runAfterBothAsync(otherLongTask(5, s2), this::dummyTask, Promise.Origin.THIS_ONLY) 
                 .thenRun(this::dummyTask, true);
         
         trySleep(2);
@@ -309,7 +309,7 @@ public class DependentPromiseTests {
         State s2 = new State();
         
         DependentPromise<Void> p = runDepedentAsync(() -> longTask(5, s1))
-                .runAfterBothAsync(otherLongTask(5, s2), this::dummyTask, PromiseOrigin.ALL)
+                .runAfterBothAsync(otherLongTask(5, s2), this::dummyTask, Promise.Origin.ALL)
                 .thenRun(this::dummyTask, true);
         
         trySleep(2);

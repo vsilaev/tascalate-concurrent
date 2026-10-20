@@ -514,7 +514,7 @@ public abstract class Try<R> {
             } else if (error instanceof CancellationException) {
                 throw (CancellationException) error;
             } else {
-                throw SharedFunctions.wrapCompletionException(error); 
+                throw AsyncInternals.wrapCompletionException(error); 
             }
         }
         
@@ -540,7 +540,7 @@ public abstract class Try<R> {
         
         @Override 
         boolean isCancel() {
-            Throwable ex = SharedFunctions.unwrapCompletionException(error);
+            Throwable ex = AsyncInternals.unwrapCompletionException(error);
             return ex instanceof CancellationException;
         }
         

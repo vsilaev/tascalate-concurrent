@@ -26,7 +26,6 @@ import java.util.function.Predicate;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
-import net.tascalate.concurrent.PromiseOrigin;
 
 public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise<T>> {
 
@@ -48,7 +47,7 @@ public class ExecutorBoundPromise<T> extends AbstractPromiseDecorator<T, Promise
     }
     
     @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+    public DependentPromise<T> dependent(Set<Promise.Origin> defaultEnlistOptions) {
         return new ExecutorBoundDependentPromise<>(super.dependent(defaultEnlistOptions), defaultExecutor);
     }
     

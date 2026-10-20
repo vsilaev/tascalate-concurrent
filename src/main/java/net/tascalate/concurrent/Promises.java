@@ -15,9 +15,9 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
-import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
-import static net.tascalate.concurrent.SharedFunctions.iif;
+import static net.tascalate.concurrent.AsyncInternals.cancelPromise;
+import static net.tascalate.concurrent.AsyncInternals.wrapCompletionException;
+import static net.tascalate.concurrent.AsyncInternals.iif;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -45,29 +45,66 @@ import java.util.stream.Stream;
 
 
 /**
- * Utility class to create a resolved (either successfully or faulty) {@link Promise}-s; 
+ * Utility class to create resolved (either successfully or faulty) {@link Promise}s;
  * to wrap an arbitrary {@link CompletionStage} interface to the {@link Promise} API;
- * to combine several {@link CompletionStage}-s into aggregating promise.
- *    
- * @author vsilaev
+ * to combine several {@link CompletionStage}s into an aggregating promise;
+ * and to provide advanced asynchronous control flow such as retry loops, chunked processing,
+ * asynchronous loops, and asynchronous try-with-resources.
+ * <p>
+ * Unlike the standard {@link java.util.concurrent.CompletableFuture} API, this class works 
+ * directly with the {@link CompletionStage} interface without forcing conversion to 
+ * {@link CompletableFuture}, and provides type-safe combinators that preserve individual 
+ * results (e.g., {@link #all}, {@link #atLeast}).
+ * </p>
+ * 
+ * <h2>Key Features</h2>
+ * <ul>
+ *   <li><b>Combinators:</b> {@link #all}, {@link #any}, {@link #anyStrict}, {@link #atLeast}, 
+ *       {@link #atLeastStrict} — type-safe aggregation with configurable cancellation and 
+ *       strict/non-strict error handling.</li>
+ *   <li><b>Chunked Processing:</b> {@link #chunked} — bounded-concurrency asynchronous 
+ *       collection, analogous to {@link java.util.stream.Stream#collect}.</li>
+ *   <li><b>Asynchronous Loops:</b> {@link #loop}, {@link #forEach} — stack-safe, cancellable 
+ *       asynchronous iteration.</li>
+ *   <li><b>Retry &amp; Polling:</b> {@link #retry}, {@link #retryOptional}, {@link #retryFuture} — 
+ *       configurable asynchronous retry loops with backoff and timeouts.</li>
+ *   <li><b>Resource Management:</b> {@link #tryApply}, {@link #tryCompose} and their 
+ *       {@code Ex} variants — asynchronous try-with-resources for both synchronous and 
+ *       asynchronous closeable resources.</li>
+ * </ul>
  *
+ * @author vsilaev
+ * @see Promise
+ * @see CompletionStage
  */
 public final class Promises {
 
     private Promises() {}
     
-    
+    /**
+     * A shared, pre-resolved promise yielding {@link Boolean#TRUE}.
+     * <p>
+     * Using this constant avoids allocating a new promise when a successful 
+     * boolean {@code true} result is needed.
+     * </p>
+     */
     public static final Promise<Boolean> TRUE = Promises.success(Boolean.TRUE);
+    
+    /**
+     * A shared, pre-resolved promise yielding {@link Boolean#FALSE}.
+     * <p>
+     * Using this constant avoids allocating a new promise when a successful 
+     * boolean {@code false} result is needed.
+     * </p>
+     */
     public static final Promise<Boolean> FALSE = Promises.success(Boolean.FALSE);
     
     /**
-     * Method to create a successfully resolved {@link Promise} with a value provided 
-     * @param <T>
-     *   a type of the value
-     * @param value
-     *   a value to wrap
-     * @return 
-     *   a successfully resolved {@link Promise} with a value provided
+     * Creates a new {@link Promise} that is already successfully completed with the given value.
+     *
+     * @param <T>   the type of the value
+     * @param value the value to wrap
+     * @return a successfully resolved {@link Promise} containing the provided value
      */
     public static <T> Promise<T> success(T value) {
         return new CompletableFutureWrapper<>(
@@ -76,14 +113,12 @@ public final class Promises {
     }
     
     /**
-     * Method to create a faulty resolved {@link Promise} with an exception provided 
-     * @param <T>
-     *   a type of the value 
-     * @param exception
-     *   an exception to wrap
-     * @return 
-     *   a faulty resolved {@link Promise} with an exception provided
-     */    
+     * Creates a new {@link Promise} that is already completed exceptionally with the given throwable.
+     *
+     * @param <T>       the nominal type of the value
+     * @param exception the exception to wrap
+     * @return a faulty resolved {@link Promise} containing the provided exception
+     */     
     public static <T> Promise<T> failure(Throwable exception) {
         CompletableFuture<T> delegate = new CompletableFuture<>();
         delegate.completeExceptionally(exception);
@@ -91,10 +126,14 @@ public final class Promises {
     }
     
     /**
-     * Returns the shared null-completed promise, cast to the required type.
+     * Returns a shared, pre-resolved promise that completes with {@code null}.
+     * <p>
+     * The returned instance is cast to the requested type {@code T}. Using this method 
+     * avoids allocating a new promise when a {@code null} result is acceptable.
+     * </p>
      *
      * @param <T> the nominal element type
-     * @return a promise that completes with {@code null}
+     * @return a promise that is already completed with {@code null}
      */
     @SuppressWarnings("unchecked")
     public static <T> Promise<T> nothing() {
@@ -102,7 +141,11 @@ public final class Promises {
     }
 
     /**
-     * Returns the shared cancelled promise, cast to the required type.
+     * Returns a shared promise that is already in the cancelled state.
+     * <p>
+     * The returned instance is cast to the requested type {@code T}. Using this method 
+     * avoids allocating a new promise when an already-cancelled state is needed.
+     * </p>
      *
      * @param <T> the nominal element type
      * @return a promise that is already cancelled
@@ -111,20 +154,39 @@ public final class Promises {
     public static <T> Promise<T> canceled() {
         return (Promise<T>)PROMISE_CANCELED;
     }
-    
+  
+    /**
+     * Adapts an {@link Optional} value into a {@link Promise}.
+     * <p>
+     * If the optional is present, the returned promise is completed successfully with its value.
+     * If the optional is empty, the returned promise is completed exceptionally with a 
+     * {@link NoSuchElementException}.
+     * </p>
+     *
+     * @param <T>        the type of the value
+     * @param maybeValue the optional value to adapt
+     * @return a promise resolving to the optional's value, or failing if empty
+     */
     public static <T> Promise<T> maybe(Optional<T> maybeValue) {
         return maybeValue.map(Promises::success)
                          .orElseGet(() -> Promises.failure(new NoSuchElementException()));
     }
     
     /**
-     * Adapts a stage passed to the {@link Promise} API
-     * @param <T>
-     *   a type of the value
-     * @param stage
-     *   a {@link CompletionStage} to be wrapped
-     * @return
-     *   a {@link Promise}
+     * Adapts an arbitrary {@link CompletionStage} to the {@link Promise} API.
+     * <p>
+     * If the provided stage is already a {@link Promise}, it is returned as-is.
+     * If it is a {@link CompletableFuture}, it is wrapped in a lightweight adapter.
+     * Otherwise, a generic {@link CompletionStage} wrapper is created.
+     * </p>
+     * <p>
+     * This method never forces conversion via {@link CompletionStage#toCompletableFuture()}, 
+     * making it safe to use with third-party stage implementations that do not support that operation.
+     * </p>
+     *
+     * @param <T>   the type of the value
+     * @param stage the {@link CompletionStage} to be wrapped
+     * @return a {@link Promise} representing the same asynchronous computation
      */
     public static <T> Promise<T> from(CompletionStage<T> stage) {
         if (stage instanceof Promise) {
@@ -141,8 +203,19 @@ public final class Promises {
         return CompletionStageWrapper.from(stage);
     }
 
+    /**
+     * Unwraps nested {@link CompletionException}s to find the root cause.
+     * <p>
+     * If the provided throwable is a {@link CompletionException}, this method recursively 
+     * unwraps its cause until a non-{@link CompletionException} is found. If the provided 
+     * throwable is not a {@link CompletionException}, it is returned as-is.
+     * </p>
+     *
+     * @param ex the throwable to unwrap
+     * @return the root cause of the exception, or the original throwable if it is not a {@link CompletionException}
+     */    
     public static Throwable unwrapCompletionException(Throwable ex) {
-        return SharedFunctions.unwrapCompletionException(ex);
+        return AsyncInternals.unwrapCompletionException(ex);
     }
     
     /**
@@ -1493,7 +1566,7 @@ public final class Promises {
         Map<K, T> result = new ConcurrentHashMap<>();
         return atLeast(
             minResultsCount, maxErrorsCount, cancelRemaining, 
-            AggregatingPromise.newWithEmptyResults(), SharedFunctions.nullify(),
+            AggregatingPromise.newWithEmptyResults(), AsyncInternals.nullify(),
             collectKeyedResults(result, promises)
         ) 
         .dependent()
@@ -1727,9 +1800,9 @@ public final class Promises {
             
             DependentPromise<?> makeDelay(Duration delay) {
                 return prevAsync == null ?
-                    Timeouts.delay(delay).dependent()
+                    AsyncInternals.delay(delay).dependent()
                     :
-                    prevAsync.exceptionally(SharedFunctions.nullify()) // Don't propagate own error
+                    prevAsync.exceptionally(AsyncInternals.nullify()) // Don't propagate own error
                              .delay(delay, true, true);
             }
         }

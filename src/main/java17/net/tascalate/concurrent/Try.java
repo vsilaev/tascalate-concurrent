@@ -506,7 +506,7 @@ public sealed abstract class Try<R> permits Try.Success, Try.Failure {
             } else if (error instanceof CancellationException ce) {
                 throw ce;
             } else {
-                throw SharedFunctions.wrapCompletionException(error); 
+                throw AsyncInternals.wrapCompletionException(error); 
             }
         }
         
@@ -532,7 +532,7 @@ public sealed abstract class Try<R> permits Try.Success, Try.Failure {
         
         @Override 
         boolean isCancel() {
-            Throwable ex = SharedFunctions.unwrapCompletionException(error);
+            Throwable ex = AsyncInternals.unwrapCompletionException(error);
             return ex instanceof CancellationException;
         }
         

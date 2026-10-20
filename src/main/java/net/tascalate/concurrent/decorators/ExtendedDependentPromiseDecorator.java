@@ -28,7 +28,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
-import net.tascalate.concurrent.PromiseOrigin;
+import net.tascalate.concurrent.Promise;
 
 public class ExtendedDependentPromiseDecorator <T> 
     extends AbstractDependentPromiseDecorator<T> {
@@ -157,7 +157,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
                                                   BiFunction<? super T, ? super U, ? extends V> fn,
-                                                  Set<PromiseOrigin> enlistOptions) {
+                                                  Set<Promise.Origin> enlistOptions) {
         return super.thenCombine(
             wrapArgument(other, false), wrapArgument(fn, false), enlistOptions
         );
@@ -167,7 +167,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
                                                        BiFunction<? super T, ? super U, ? extends V> fn,
-                                                       Set<PromiseOrigin> enlistOptions) {
+                                                       Set<Promise.Origin> enlistOptions) {
         return super.thenCombineAsync(
             wrapArgument(other, true), wrapArgument(fn, true), enlistOptions
         );
@@ -177,7 +177,7 @@ public class ExtendedDependentPromiseDecorator <T>
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                                        BiFunction<? super T, ? super U, ? extends V> fn, 
                                                        Executor executor,
-                                                       Set<PromiseOrigin> enlistOptions) {
+                                                       Set<Promise.Origin> enlistOptions) {
         return super.thenCombineAsync(
             wrapArgument(other, true), wrapArgument(fn, true), wrapArgument(executor), enlistOptions
         );
@@ -187,7 +187,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
                                                      BiConsumer<? super T, ? super U> action,
-                                                     Set<PromiseOrigin> enlistOptions) {
+                                                     Set<Promise.Origin> enlistOptions) {
         return super.thenAcceptBoth(
             wrapArgument(other, false), wrapArgument(action, false), enlistOptions
         );
@@ -196,7 +196,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
                                                           BiConsumer<? super T, ? super U> action,
-                                                          Set<PromiseOrigin> enlistOptions) {
+                                                          Set<Promise.Origin> enlistOptions) {
         return super.thenAcceptBothAsync(
             wrapArgument(other, true), wrapArgument(action, true), enlistOptions
         );
@@ -206,7 +206,7 @@ public class ExtendedDependentPromiseDecorator <T>
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                           BiConsumer<? super T, ? super U> action, 
                                                           Executor executor,
-                                                          Set<PromiseOrigin> enlistOptions) {
+                                                          Set<Promise.Origin> enlistOptions) {
         return super.thenAcceptBothAsync(
             wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor), enlistOptions
         );
@@ -215,7 +215,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, 
                                                Runnable action, 
-                                               Set<PromiseOrigin> enlistOptions) {
+                                               Set<Promise.Origin> enlistOptions) {
         return super.runAfterBoth(
             wrapArgument(other, false), wrapArgument(action, false), enlistOptions
         );
@@ -224,7 +224,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                                     Runnable action, 
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return super.runAfterBothAsync(
             wrapArgument(other, true), wrapArgument(action, true), enlistOptions
         );
@@ -234,7 +234,7 @@ public class ExtendedDependentPromiseDecorator <T>
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                                     Runnable action, 
                                                     Executor executor,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return super.runAfterBothAsync(
             wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor), enlistOptions
         );
@@ -243,7 +243,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
                                                  Function<? super T, U> fn,
-                                                 Set<PromiseOrigin> enlistOptions) {
+                                                 Set<Promise.Origin> enlistOptions) {
         return super.applyToEither(
             wrapArgument(other, false), wrapArgument(fn, false), enlistOptions
         );
@@ -253,7 +253,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return super.applyToEitherAsync(
             wrapArgument(other, true), wrapArgument(fn, true), enlistOptions
         );
@@ -263,7 +263,7 @@ public class ExtendedDependentPromiseDecorator <T>
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
                                                       Executor executor,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return super.applyToEitherAsync(
             wrapArgument(other, true), wrapArgument(fn, true), wrapArgument(executor), enlistOptions
         );
@@ -273,7 +273,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
                                                Consumer<? super T> action,
-                                               Set<PromiseOrigin> enlistOptions) {
+                                               Set<Promise.Origin> enlistOptions) {
         return super.acceptEither(
             wrapArgument(other, false), wrapArgument(action, false), enlistOptions
         );
@@ -282,7 +282,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return super.acceptEitherAsync(
             wrapArgument(other, true), wrapArgument(action, true), enlistOptions
         );
@@ -293,7 +293,7 @@ public class ExtendedDependentPromiseDecorator <T>
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
                                                     Executor executor,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return super.acceptEitherAsync(
             wrapArgument(other, true), wrapArgument(action, true), wrapArgument(executor), enlistOptions
         );
@@ -303,7 +303,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<Void> runAfterEither(CompletionStage<?> other, 
                                                  Runnable action, 
-                                                 Set<PromiseOrigin> enlistOptions) {
+                                                 Set<Promise.Origin> enlistOptions) {
         return super.runAfterEither(
             wrapArgument(other, false), wrapArgument(action, false), enlistOptions
         );
@@ -312,7 +312,7 @@ public class ExtendedDependentPromiseDecorator <T>
     @Override
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                       Runnable action, 
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return super.runAfterEitherAsync(
             wrapArgument(other, true), wrapArgument(action, true), enlistOptions
         );
@@ -322,7 +322,7 @@ public class ExtendedDependentPromiseDecorator <T>
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                       Runnable action, 
                                                       Executor executor,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return super.runAfterEitherAsync(
             wrapArgument(other, true), wrapArgument(action, true), executor, enlistOptions
         );

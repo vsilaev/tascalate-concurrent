@@ -52,7 +52,7 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
         if (super.cancel(mayInterruptIfRunning)) {
             CompletionStage<?> s = currentStage;
             if (null != s) {
-                SharedFunctions.cancelPromise(s, mayInterruptIfRunning);
+                AsyncInternals.cancelPromise(s, mayInterruptIfRunning);
             }  
             return true;
         } else {
@@ -87,7 +87,7 @@ class AsyncLoop<T> extends CompletableFutureWrapper<T> {
                         if (isDone()) {
                             // If race between this.cancel and this.run
                             // Double-cancel is not an issue
-                            SharedFunctions.cancelPromise(returned, true);
+                            AsyncInternals.cancelPromise(returned, true);
                             break;
                         } else {
                             returned.whenComplete((next, ex) -> {

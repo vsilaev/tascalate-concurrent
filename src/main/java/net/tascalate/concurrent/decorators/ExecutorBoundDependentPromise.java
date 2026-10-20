@@ -25,7 +25,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import net.tascalate.concurrent.DependentPromise;
-import net.tascalate.concurrent.PromiseOrigin;
+import net.tascalate.concurrent.Promise;
 
 public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDecorator<T> {
     private final Executor defaultExecutor;
@@ -67,42 +67,42 @@ public class ExecutorBoundDependentPromise<T> extends AbstractDependentPromiseDe
     @Override
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
                                                        BiFunction<? super T, ? super U, ? extends V> fn,
-                                                       Set<PromiseOrigin> enlistOptions) {
+                                                       Set<Promise.Origin> enlistOptions) {
         return thenCombineAsync(other, fn, defaultExecutor, enlistOptions);
     }
 
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
                                                           BiConsumer<? super T, ? super U> action,
-                                                          Set<PromiseOrigin> enlistOptions) {
+                                                          Set<Promise.Origin> enlistOptions) {
         return thenAcceptBothAsync(other, action, defaultExecutor, enlistOptions);
     }
     
     @Override
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                                     Runnable action, 
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return runAfterBothAsync(other, action, defaultExecutor, enlistOptions);
     }
 
     @Override
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return applyToEitherAsync(other, fn, defaultExecutor, enlistOptions);
     }
 
     @Override
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return acceptEitherAsync(other, action, defaultExecutor, enlistOptions);
     }
     
     @Override
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                       Runnable action, 
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return runAfterEitherAsync(other, action, defaultExecutor, enlistOptions);
     }
 

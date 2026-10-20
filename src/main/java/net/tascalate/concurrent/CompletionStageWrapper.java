@@ -15,10 +15,10 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
-import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
-import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
-import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
+import static net.tascalate.concurrent.AsyncInternals.cancelPromise;
+import static net.tascalate.concurrent.AsyncInternals.unwrapCompletionException;
+import static net.tascalate.concurrent.AsyncInternals.wrapCompletionException;
+import static net.tascalate.concurrent.AsyncInternals.wrapExecutionException;
 
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -260,28 +260,28 @@ public class CompletionStageWrapper<T>
         // Use own implementation here for safety
         @Override
         public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
-            return PromiseHelper.exceptionallyAsync(this, fn);
+            return AsyncInternals.exceptionallyAsync(this, fn);
         }
         
         @Override
         public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
-            return PromiseHelper.exceptionallyAsync(this, fn, executor);
+            return AsyncInternals.exceptionallyAsync(this, fn, executor);
         }
         
         @Override
         public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
-            return PromiseHelper.exceptionallyCompose(this, fn);
+            return AsyncInternals.exceptionallyCompose(this, fn);
         }
 
         @Override
         public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
-            return PromiseHelper.exceptionallyComposeAsync(this, fn);
+            return AsyncInternals.exceptionallyComposeAsync(this, fn);
         }
         
         @Override
         public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
                                                     Executor executor) {
-            return PromiseHelper.exceptionallyComposeAsync(this, fn, executor);
+            return AsyncInternals.exceptionallyComposeAsync(this, fn, executor);
         }        
     }
 }

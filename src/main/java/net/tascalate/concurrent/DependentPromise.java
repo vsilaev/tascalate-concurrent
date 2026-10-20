@@ -51,7 +51,7 @@ import net.tascalate.concurrent.decorators.ExecutorBoundDependentPromise;
  * <p>The class add overloads to all composition methods declared in {@link CompletionStage} and {@link Promise} interface.
  * 
  * <p>The ones that accepts another {@link CompletionStage} as argument (named <code>*Both*</code> and
- * <code>*Either*</code> are overloaded with a set of @{link {@link PromiseOrigin} as an argument to let
+ * <code>*Either*</code> are overloaded with a set of @{link {@link Promise.Origin} as an argument to let
  * you specify what to enlist as origin: "this" related to the method call or the parameter.
  * 
  * <p>Rest of methods from {@link CompletionStage} and {@link Promise} API are overloaded with boolean argument 
@@ -83,7 +83,7 @@ public interface DependentPromise<T> extends Promise<T> {
     }
     
     // For symmetry with above
-    public static <U> DependentPromise<U> from(Promise<U> source, Set<PromiseOrigin> defaultEnlistOptions) {
+    public static <U> DependentPromise<U> from(Promise<U> source, Set<Promise.Origin> defaultEnlistOptions) {
         return ConfigurableDependentPromise.from(source, defaultEnlistOptions);
     }
 
@@ -104,7 +104,7 @@ public interface DependentPromise<T> extends Promise<T> {
     @Override
     default DependentPromise<T> delay(long timeout, TimeUnit unit, 
                                       boolean delayOnError) {
-        return delay(Timeouts.toDuration(timeout, unit), delayOnError);
+        return delay(AsyncInternals.toDuration(timeout, unit), delayOnError);
     }
     
     @Override
@@ -114,7 +114,7 @@ public interface DependentPromise<T> extends Promise<T> {
     
     default DependentPromise<T> delay(long timeout, TimeUnit unit, 
                                       boolean delayOnError, boolean enlistOrigin) {
-        return delay(Timeouts.toDuration(timeout, unit), delayOnError, enlistOrigin);        
+        return delay(AsyncInternals.toDuration(timeout, unit), delayOnError, enlistOrigin);        
     }
     
     @Override
@@ -131,12 +131,12 @@ public interface DependentPromise<T> extends Promise<T> {
     @Override
     default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, 
                                           boolean cancelOnTimeout) {
-        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout);
+        return orTimeout(AsyncInternals.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default DependentPromise<T> orTimeout(long timeout, TimeUnit unit, 
                                           boolean cancelOnTimeout, boolean enlistOrigin) {
-        return orTimeout(Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+        return orTimeout(AsyncInternals.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
     @Override
@@ -160,13 +160,13 @@ public interface DependentPromise<T> extends Promise<T> {
     default DependentPromise<T> onTimeout(T value, 
                                           long timeout, TimeUnit unit, 
                                           boolean cancelOnTimeout) {
-        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
+        return onTimeout(value, AsyncInternals.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default DependentPromise<T> onTimeout(T value, 
                                           long timeout, TimeUnit unit, 
                                           boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(value, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+        return onTimeout(value, AsyncInternals.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
     @Override
@@ -190,13 +190,13 @@ public interface DependentPromise<T> extends Promise<T> {
     default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, 
                                           long timeout, TimeUnit unit, 
                                           boolean cancelOnTimeout) {
-        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout);
+        return onTimeout(supplier, AsyncInternals.toDuration(timeout, unit), cancelOnTimeout);
     }
     
     default DependentPromise<T> onTimeout(Supplier<? extends T> supplier, 
                                           long timeout, TimeUnit unit, 
                                           boolean cancelOnTimeout, boolean enlistOrigin) {
-        return onTimeout(supplier, Timeouts.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
+        return onTimeout(supplier, AsyncInternals.toDuration(timeout, unit), cancelOnTimeout, enlistOrigin);
     }
     
     @Override
@@ -231,77 +231,77 @@ public interface DependentPromise<T> extends Promise<T> {
 
     <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
                                            BiFunction<? super T, ? super U, ? extends V> fn,
-                                           Set<PromiseOrigin> enlistOptions);
+                                           Set<Promise.Origin> enlistOptions);
 
     
     <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
                                                 BiFunction<? super T, ? super U, ? extends V> fn,
-                                                Set<PromiseOrigin> enlistOptions);
+                                                Set<Promise.Origin> enlistOptions);
     
     <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                                 BiFunction<? super T, ? super U, ? extends V> fn, 
                                                 Executor executor,
-                                                Set<PromiseOrigin> enlistOptions);
+                                                Set<Promise.Origin> enlistOptions);
 
     <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
                                               BiConsumer<? super T, ? super U> action,
-                                              Set<PromiseOrigin> enlistOptions);
+                                              Set<Promise.Origin> enlistOptions);
 
     <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
                                                    BiConsumer<? super T, ? super U> action,
-                                                   Set<PromiseOrigin> enlistOptions);
+                                                   Set<Promise.Origin> enlistOptions);
 
     <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                    BiConsumer<? super T, ? super U> action, 
                                                    Executor executor,
-                                                   Set<PromiseOrigin> enlistOptions);    
+                                                   Set<Promise.Origin> enlistOptions);    
 
-    DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions);
+    DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions);
     
-    DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions);
+    DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions);
     
     DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                              Runnable action, 
                                              Executor executor,
-                                             Set<PromiseOrigin> enlistOptions);
+                                             Set<Promise.Origin> enlistOptions);
     
     <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
                                           Function<? super T, U> fn,
-                                          Set<PromiseOrigin> enlistOptions);    
+                                          Set<Promise.Origin> enlistOptions);    
 
     <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                Function<? super T, U> fn,
-                                               Set<PromiseOrigin> enlistOptions);
+                                               Set<Promise.Origin> enlistOptions);
 
     <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                Function<? super T, U> fn,
                                                Executor executor,
-                                               Set<PromiseOrigin> enlistOptions);
+                                               Set<Promise.Origin> enlistOptions);
     
 
     DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
                                         Consumer<? super T> action,
-                                        Set<PromiseOrigin> enlistOptions);
+                                        Set<Promise.Origin> enlistOptions);
 
     DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                              Consumer<? super T> action,
-                                             Set<PromiseOrigin> enlistOptions);
+                                             Set<Promise.Origin> enlistOptions);
 
     
     DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                              Consumer<? super T> action,
                                              Executor executor,
-                                             Set<PromiseOrigin> enlistOptions);
+                                             Set<Promise.Origin> enlistOptions);
 
     
-    DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions);
+    DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions);
     
-    DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions);
+    DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions);
     
     DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                Runnable action, 
                                                Executor executor,
-                                               Set<PromiseOrigin> enlistOptions);
+                                               Set<Promise.Origin> enlistOptions);
 
     <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn, boolean enlistOrigin);
     

@@ -38,7 +38,7 @@ import net.tascalate.concurrent.delays.UniformRandomDelayPolicy;
 
 public interface DelayPolicy<T> {
     public static final DelayPolicy<Object> DEFAULT = new FirstRetryNoDelayPolicy<Object>(new FixedIntervalDelayPolicy<>());
-    public static final DelayPolicy<Object> INVALID = ctx -> Timeouts.NEGATIVE_DURATION;
+    public static final DelayPolicy<Object> INVALID = ctx -> RetryPolicy.NEGATIVE_DURATION;
     
     Duration delay(RetryContext<? extends T> retryContext);
     
@@ -51,7 +51,7 @@ public interface DelayPolicy<T> {
     }
     
     public static <T> DelayPolicy<T> fixedInterval(long interval, TimeUnit timeUnit) {
-        return fixedInterval(Timeouts.toDuration(interval, timeUnit));
+        return fixedInterval(AsyncInternals.toDuration(interval, timeUnit));
     }
     
     public static <T> DelayPolicy<T> fixedInterval(long intervalMillis) {
@@ -67,7 +67,7 @@ public interface DelayPolicy<T> {
     }
 
     public static <T> DelayPolicy<T> exponential(long initialDelay, TimeUnit timeUnit, double multiplier) {
-        return exponential(Timeouts.toDuration(initialDelay, timeUnit), multiplier);
+        return exponential(AsyncInternals.toDuration(initialDelay, timeUnit), multiplier);
     }
     
     public static <T> DelayPolicy<T> exponential(long initialDelayMillis, double multiplier) {
@@ -83,7 +83,7 @@ public interface DelayPolicy<T> {
     }
     
     default DelayPolicy<T> withUniformJitter(long range, TimeUnit timeUnit) {
-        return withUniformJitter(Timeouts.toDuration(range, timeUnit));
+        return withUniformJitter(AsyncInternals.toDuration(range, timeUnit));
     }
     
     default DelayPolicy<T> withUniformJitter(Duration range) {
@@ -107,7 +107,7 @@ public interface DelayPolicy<T> {
     }
 
     default DelayPolicy<T> withMinDelay(long minDelay, TimeUnit timeUnit) {
-        return withMinDelay(Timeouts.toDuration(minDelay, timeUnit));
+        return withMinDelay(AsyncInternals.toDuration(minDelay, timeUnit));
     }
     
     default DelayPolicy<T> withMinDelay(long minDelayMillis) {
@@ -123,7 +123,7 @@ public interface DelayPolicy<T> {
     }
     
     default DelayPolicy<T> withMaxDelay(long maxDelay, TimeUnit timeUnit) {
-        return withMaxDelay(Timeouts.toDuration(maxDelay, timeUnit));
+        return withMaxDelay(AsyncInternals.toDuration(maxDelay, timeUnit));
     }
     
     default DelayPolicy<T> withMaxDelay(long maxDelayMillis) {

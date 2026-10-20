@@ -15,9 +15,9 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.iif;
-import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
-import static net.tascalate.concurrent.SharedFunctions.wrapCompletionException;
+import static net.tascalate.concurrent.AsyncInternals.iif;
+import static net.tascalate.concurrent.AsyncInternals.unwrapCompletionException;
+import static net.tascalate.concurrent.AsyncInternals.wrapCompletionException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;

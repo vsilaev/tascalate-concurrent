@@ -148,7 +148,7 @@ abstract class PromiseAdapterExtended<T> extends PromiseAdapter<T> {
                                                               Executor executor);
 
     protected static <U> U forwardException(Throwable e) {
-        throw SharedFunctions.wrapCompletionException(e);
+        throw AsyncInternals.wrapCompletionException(e);
     }
     
     @SuppressWarnings("unchecked")

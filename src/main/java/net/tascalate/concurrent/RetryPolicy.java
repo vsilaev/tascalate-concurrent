@@ -75,6 +75,8 @@ import java.util.function.Predicate;
  * @param <T> the type of the result this policy validates
  */
 public class RetryPolicy<T> {
+    
+    static final Duration NEGATIVE_DURATION = Duration.ofNanos(-1);
 
     /**
      * The policy's verdict for the next attempt: whether it should be executed at all,
@@ -94,9 +96,9 @@ public class RetryPolicy<T> {
          @Override
          public boolean shouldExecute() { return false; }
          @Override
-         public Duration backoffDelay() { return Timeouts.NEGATIVE_DURATION; }
+         public Duration backoffDelay() { return NEGATIVE_DURATION; }
          @Override
-         public Duration timeout() { return Timeouts.NEGATIVE_DURATION; }
+         public Duration timeout() { return NEGATIVE_DURATION; }
      }; 
 
      /** Verdict that permits the next attempt with the given backoff and timeout. */

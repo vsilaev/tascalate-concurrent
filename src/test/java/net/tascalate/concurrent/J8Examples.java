@@ -88,7 +88,7 @@ public class J8Examples {
     public static void main(final String[] argv) throws InterruptedException, ExecutionException {
         CompletionStageAPI.current();
         CompletionStage<Integer> testCancel = new MyStage<>(Promises.success(10));
-        SharedFunctions.cancelPromise(testCancel, true);
+        AsyncInternals.cancelPromise(testCancel, true);
         
         Promise<Long> eleOrigin = Promises.success(10L);
         Promise<Promise<Number>> eleDone1 = PromiseOperations.lift(eleOrigin);

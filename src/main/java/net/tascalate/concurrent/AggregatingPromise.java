@@ -15,7 +15,7 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
+import static net.tascalate.concurrent.AsyncInternals.cancelPromise;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -29,7 +29,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
-import net.tascalate.concurrent.PromiseOrigin;
+import net.tascalate.concurrent.Promise;
 
 public abstract class AbstractDependentPromiseDecorator<T> 
     extends AbstractPromiseDecorator<T, DependentPromise<T>> 
@@ -53,7 +53,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     }
 
     @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+    public DependentPromise<T> dependent(Set<Promise.Origin> defaultEnlistOptions) {
         return wrap(super.dependent(defaultEnlistOptions));
     }
     
@@ -235,7 +235,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     @Override
     public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
                                                   BiFunction<? super T, ? super U, ? extends V> fn,
-                                                  Set<PromiseOrigin> enlistOptions) {
+                                                  Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombine(other, fn, enlistOptions));
     }
 
@@ -243,7 +243,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     @Override
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
                                                        BiFunction<? super T, ? super U, ? extends V> fn,
-                                                       Set<PromiseOrigin> enlistOptions) {
+                                                       Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombineAsync(other, fn, enlistOptions));
     }
     
@@ -251,7 +251,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                                        BiFunction<? super T, ? super U, ? extends V> fn, 
                                                        Executor executor,
-                                                       Set<PromiseOrigin> enlistOptions) {
+                                                       Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombineAsync(other, fn, executor, enlistOptions));
     }
     
@@ -259,14 +259,14 @@ public abstract class AbstractDependentPromiseDecorator<T>
     @Override
     public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
                                                      BiConsumer<? super T, ? super U> action,
-                                                     Set<PromiseOrigin> enlistOptions) {
+                                                     Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBoth(other, action, enlistOptions));
     }
 
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
                                                           BiConsumer<? super T, ? super U> action,
-                                                          Set<PromiseOrigin> enlistOptions) {
+                                                          Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBothAsync(other, action, enlistOptions));
     }
 
@@ -274,17 +274,17 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                           BiConsumer<? super T, ? super U> action, 
                                                           Executor executor,
-                                                          Set<PromiseOrigin> enlistOptions) {
+                                                          Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBothAsync(other, action, executor, enlistOptions));
     }
 
     @Override
-    public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBoth(other, action, enlistOptions));
     }
     
     @Override
-    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBothAsync(other, action, enlistOptions));
     }
     
@@ -292,14 +292,14 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
                                                     Runnable action, 
                                                     Executor executor,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBothAsync(other, action, executor, enlistOptions));
     }
     
     @Override
     public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
                                                  Function<? super T, U> fn,
-                                                 Set<PromiseOrigin> enlistOptions) {
+                                                 Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEither(other, fn, enlistOptions));
     }
     
@@ -307,7 +307,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     @Override
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEitherAsync(other, fn, enlistOptions));
     }
 
@@ -315,7 +315,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
                                                       Function<? super T, U> fn,
                                                       Executor executor,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEitherAsync(other, fn, executor, enlistOptions));
     }
     
@@ -323,14 +323,14 @@ public abstract class AbstractDependentPromiseDecorator<T>
     @Override
     public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
                                                Consumer<? super T> action,
-                                               Set<PromiseOrigin> enlistOptions) {
+                                               Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEither(other, action, enlistOptions));
     }
 
     @Override
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEitherAsync(other, action, enlistOptions));
     }
 
@@ -339,18 +339,18 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
                                                     Consumer<? super T> action,
                                                     Executor executor,
-                                                    Set<PromiseOrigin> enlistOptions) {
+                                                    Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEitherAsync(other, action, executor, enlistOptions));
     }
 
     
     @Override
-    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEither(other, action, enlistOptions));
     }
     
     @Override
-    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<PromiseOrigin> enlistOptions) {
+    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEitherAsync(other, action, enlistOptions));
     }
     
@@ -358,7 +358,7 @@ public abstract class AbstractDependentPromiseDecorator<T>
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
                                                       Runnable action, 
                                                       Executor executor,
-                                                      Set<PromiseOrigin> enlistOptions) {
+                                                      Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEitherAsync(other, action, executor, enlistOptions));
     }
 

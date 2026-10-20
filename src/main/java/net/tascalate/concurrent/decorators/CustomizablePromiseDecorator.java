@@ -26,7 +26,6 @@ import java.util.function.Supplier;
 
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
-import net.tascalate.concurrent.PromiseOrigin;
 
 public class CustomizablePromiseDecorator<T> extends ExtendedPromiseDecorator<T> {
     
@@ -90,7 +89,7 @@ public class CustomizablePromiseDecorator<T> extends ExtendedPromiseDecorator<T>
     }
 
     @Override
-    public DependentPromise<T> dependent(Set<PromiseOrigin> defaultEnlistOptions) {
+    public DependentPromise<T> dependent(Set<Promise.Origin> defaultEnlistOptions) {
         return new CustomizableDependentPromiseDecorator<>(
             delegate.dependent(defaultEnlistOptions), customizer
         );

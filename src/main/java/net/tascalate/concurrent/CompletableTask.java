@@ -15,7 +15,7 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.selectSecond;
+import static net.tascalate.concurrent.AsyncInternals.selectSecond;
 
 import java.time.Duration;
 import java.util.Set;
@@ -230,13 +230,13 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> {
     }
     
     public static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor) {
-        return delay(Timeouts.toDuration(timeout, unit), executor);
+        return delay(AsyncInternals.toDuration(timeout, unit), executor);
     }
     
     public static Promise<Duration> delay(Duration duration, Executor executor) {
         return asyncOn(executor)
                .dependent()
-               .thenCombineAsync(Timeouts.delay(duration), selectSecond(), enlistParamOrNone(true))
+               .thenCombineAsync(AsyncInternals.delay(duration), selectSecond(), enlistParamOrNone(true))
                .unwrap();
     }
     
@@ -261,7 +261,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> {
         return new CompletableSubTask<U>(executor);
     }
     
-    private static Set<PromiseOrigin> enlistParamOrNone(boolean enlistParam) {
-        return enlistParam ? PromiseOrigin.PARAM_ONLY : PromiseOrigin.NONE;
+    private static Set<Promise.Origin> enlistParamOrNone(boolean enlistParam) {
+        return enlistParam ? Promise.Origin.PARAM_ONLY : Promise.Origin.NONE;
     }
 }

@@ -38,7 +38,7 @@ class CompletionStageRef<U> extends AtomicReference<CompletionStage<U>> {
     Runnable cancel = () -> {
         CompletionStage<U> stage = get();
         if (null != stage) {
-            SharedFunctions.cancelPromise(stage, true);
+            AsyncInternals.cancelPromise(stage, true);
         }
     };
 }

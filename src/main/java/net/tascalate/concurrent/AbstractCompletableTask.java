@@ -22,11 +22,11 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.SharedFunctions.cancelPromise;
-import static net.tascalate.concurrent.SharedFunctions.iif;
-import static net.tascalate.concurrent.SharedFunctions.unwrapCompletionException;
-import static net.tascalate.concurrent.SharedFunctions.unwrapExecutionException;
-import static net.tascalate.concurrent.SharedFunctions.wrapExecutionException;
+import static net.tascalate.concurrent.AsyncInternals.cancelPromise;
+import static net.tascalate.concurrent.AsyncInternals.iif;
+import static net.tascalate.concurrent.AsyncInternals.unwrapCompletionException;
+import static net.tascalate.concurrent.AsyncInternals.unwrapExecutionException;
+import static net.tascalate.concurrent.AsyncInternals.wrapExecutionException;
 
 import java.util.Set;
 import java.util.concurrent.Callable;
