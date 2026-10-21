@@ -89,7 +89,7 @@ public class AsyncCountDownLatch extends CompletableFutureWrapper<Long> {
     /**
      * Decrements the count by one, completing the latch if the count reaches zero.
      *
-     * @return the count before this invocation
+     * @return the count after this invocation
      */
     public long countDown() {
         return countDown(1);
@@ -100,7 +100,7 @@ public class AsyncCountDownLatch extends CompletableFutureWrapper<Long> {
      * reaches zero.
      *
      * @param delta the amount to decrement by; must be positive
-     * @return the count before this invocation
+     * @return the count after this invocation
      * @throws IllegalArgumentException if {@code delta <= 0}
      */
     public long countDown(long delta) {
