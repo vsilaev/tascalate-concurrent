@@ -1,4 +1,3 @@
-
 [![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.9.13/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.13) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
@@ -24,14 +23,17 @@ Old Name
     <version>0.7.1</version>
 </dependency>
 ```
-# Why a CompletableFuture is not enough?
-There are several shortcomings associated with [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its usage for real-life asynchronous programming, especially when you have to work with I/O-bound interruptible tasks:
-1.	`CompletableFuture.cancel()` [method](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html#cancel-boolean-) does not interrupt underlying thread; it merely puts future to exceptionally completed state. So even if you use any blocking calls inside functions passed to `thenApplyAsync` / `thenAcceptAsync` / etc - these functions will run till the end and never will be interrupted. Please see [CompletableFuture can't be interrupted](http://www.nurkiewicz.com/2015/03/completablefuture-cant-be-interrupted.html) by Tomasz Nurkiewicz.
-2.	By default, all `*Async` composition methods of `CompletableFutrure` use `ForkJoinPool.commonPool()` ([see here](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html#commonPool--)) unless explicit [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) is specified. This thread pool is shared between all [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html)-s and all parallel streams across all applications deployed on the same JVM. This hard-coded, unconfigurable thread pool is completely outside of application developers' control, hard to monitor and scale. Therefore, in robust real-life applications you should always specify your own `Executor`. With API enhancements in Java 9+, you can fix this drawback, but it will require some custom coding.
-3.	Additionally, built-in Java 8 concurrency classes provides pretty inconvenient API to combine several [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)-s. `CompletableFuture.allOf` / `CompletableFuture.anyOf` methods accept only [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) as arguments; you have no mechanism to combine arbitrary [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)-s without converting them to [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) first. Also, the return type of the aforementioned `CompletableFuture.allOf` is declared as `CompletableFuture<Void>` - hence you are unable to extract conveniently individual results of the each future supplied. `CompletableFuture.anyOf` is even worse in this regard; for more details please read on here: [CompletableFuture in Action](http://www.nurkiewicz.com/2013/05/java-8-completablefuture-in-action.html) (see Shortcomings) by Tomasz Nurkiewicz.
-4. Support for timeouts/delays was introduced to [CompletableFuture](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html) only in Java 9, so still widely supported applications running on Java 8 are left out without this important functionality. Plus, some design decisions like using delayed executors instead of 'delay' operator, are somewhat questionable.
 
-There are numerous free open-source libraries that address some of the aforementioned shortcomings. However, none of them provides implementation of interruptible `CompletionStage` and no one solves _all_ of the issues coherently.
+# Why `CompletableFuture` is Not Enough?
+
+There are several shortcomings in the [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its use in real-world asynchronous programming, especially when dealing with I/O-bound, interruptible tasks:
+
+1.  **Lack of true interruptibility**: The `CompletableFuture.cancel()`  [method](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html#cancel-boolean-) does not interrupt the underlying thread; it merely transitions the future to an exceptionally completed state. Consequently, even if you use blocking calls inside functions passed to `thenApplyAsync`, `thenAcceptAsync`, etc., these functions will run to completion and cannot be interrupted. For more details, see [CompletableFuture can't be interrupted](http://www.nurkiewicz.com/2015/03/completablefuture-cant-be-interrupted.html) by Tomasz Nurkiewicz.
+2.  **Unconfigurable default executor**: By default, all `*Async` composition methods of `CompletableFuture` use the `ForkJoinPool.commonPool()` ([see here](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/ForkJoinPool.html#commonPool--)) unless an explicit [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) is specified. This thread pool is shared among all [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) instances and parallel streams across all applications deployed on the same JVM. This hard-coded, unconfigurable thread pool is completely outside the application developer's control, making it difficult to monitor and scale. Therefore, in robust real-life applications, you should always specify your own `Executor`. While Java 9+ introduced API enhancements to mitigate this, addressing it still requires custom coding.
+3.  **Inconvenient composition API**: The built-in Java concurrency API provides a rather limited way to combine multiple [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)s. The `CompletableFuture.allOf` and `CompletableFuture.anyOf` methods accept only [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) arguments, meaning there is no built-in mechanism to combine arbitrary [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)s without first converting them to [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html). Furthermore, `CompletableFuture.allOf` returns a `CompletableFuture<Void>`, making it inconvenient to extract the individual results of each supplied future. `CompletableFuture.anyOf` is even more restrictive in this regard; for more details, please read [CompletableFuture in Action](http://www.nurkiewicz.com/2013/05/java-8-completablefuture-in-action.html) (see "Shortcomings") by Tomasz Nurkiewicz.
+4.  **Late addition of timeouts and delays**: Support for timeouts and delays was introduced to [CompletableFuture](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html) only in Java 9, leaving widely used Java 8 applications without this crucial functionality. Furthermore, certain design decisions, such as relying on delayed executors instead of a dedicated `delay` operator, are somewhat questionable.
+
+While numerous open-source libraries address some of these shortcomings, none provide a fully interruptible `CompletionStage` implementation, and none solve _all_ of these issues coherently.
 
 # How to use?
 To use a library you have to add a single Maven dependency
@@ -43,90 +45,136 @@ To use a library you have to add a single Maven dependency
 </dependency>
 ```
 
-# What is inside?
-## 1.	Promise interface
-This is the core interface of the Tascalate Concurrent library. It may be best described by the formula: 
+# 1. The `Promise` Interface
+
+This is the core interface of the Tascalate Concurrent library. Its design philosophy can be best described by the following formula:
+
 ```java
 Promise == CompletionStage + Future
 ```
-I.e., it combines both blocking [Future](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html)’s API, including `cancel(boolean mayInterruptIfRunning)` [method](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html#cancel-boolean-), _AND_ composition capabilities of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html)’s API. Importantly, all composition methods of [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) API (`thenAccept`, `thenCombine`, `whenComplete` etc.) are re-declared to return `Promise` as well.
+It seamlessly merges the blocking API of `java.util.concurrent.Future` (including the crucial `cancel(boolean mayInterruptIfRunning)` method) **and** the rich composition capabilities of `java.util.concurrent.CompletionStage`. Importantly, all composition methods inherited from `CompletionStage` (such as `thenApply`, `thenCombine`, `whenComplete`, etc.) are re-declared in this interface to return a `Promise`, allowing for fluent, uninterrupted chaining.
 
-The decision to introduce an interface that merges `CompletionStage` and `Future` is aligned with the design of `CompletableFuture` API.  In addition, several useful methods of `CompletableFuture` API are added as well:
+## Forward-Compatible with Java 9+ and Beyond
+
+Although the library is fully compatible with JDK 1.8, the `Promise` interface has been meticulously designed to be forward-compatible. **All enhancements introduced to `CompletionStage` and `Future` in Java 9+ (and even Java 12+) have been backported to the `Promise` API.** This ensures you get modern, expressive concurrency primitives regardless of your baseline JDK version.
+
+Key backported methods include:
 ```java
-T getNow(T valueIfAbsent) throws CancellationException, CompletionException;
+// Java 9+ Future/CompletionStage enhancements
+boolean isCompletedExceptionally();
+T resultNow() throws IllegalStateException;
+T exceptionNow() throws IllegalStateException;
 T getNow(Supplier<? extends T> valueIfAbsent) throws CancellationException, CompletionException;
 T join() throws CancellationException, CompletionException;
-```
-So it should be pretty straightforward to use the `Promise` as a drop-in replacement for the `CompletableFuture` in many cases.
 
-Although the library is compatible with JDK 1.8 there are methods in `Promise` interface that makes it "upfront compatible" with the higher JDK versions (available since version [0.8.2](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.8.2)):
-```java
+// Java 12+ CompletionStage enhancements
 Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn);
 Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor);
 Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn);
 Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn);
-Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
-                                     Executor executor);
+Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor);
 ```
+## Advanced Filtering and Lifecycle Management
 
-Plus, there are several overloads of the filtering operator that complements canonical `map/flatMap` (or `thenApply/thenCompose` in terms of the `CompletionStage` API), available since version [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.1):
+Since version 0.9.0, the API also includes a powerful filtering operator that complements the canonical `map`/`flatMap` (or `thenApply`/`thenCompose`) operations. It allows you to short-circuit a pipeline if a condition is not met, optionally providing a custom error:
 ```java
 Promise<T> thenFilter(Predicate<? super T> predicate);
 Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier);
 Promise<T> thenFilterAsync(Predicate<? super T> predicate);
 Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier);
 Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor);
-Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier,
-                           Executor executor);
+Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor);
 ```
+Additionally, the `Promise` interface provides numerous operators for lifecycle management, timeouts, and decorator patterns, such as `onCancel(Runnable)`, `delay(...)`, `orTimeout(...)`, `onTimeout(...)`, `defaultAsyncOn(Executor)`, `unwrap()`, and `raw()`. These will be explored in detail in their respective dedicated sections.
 
-Besides this, there are numerous operators in the `Promise` API to work with timeouts and delays, to override default asynchronous executor and similar. All of them will be discussed later.
+----------
 
-When discussing `Promise` interface, it's mandatory to mention the accompanying class `Promises` that provides several useful methods to adapt third-party `CompletionStage` (including the standard `CompletableFuture`) to the `Promise` API. First, there are two unit operations to create successfully/faulty settled `Promise`-es: 
+## The `Promises` Utility Class
+
+When working with the `Promise` interface, the accompanying `Promises` utility class is indispensable. It provides factory and adapter methods to create and bridge asynchronous computations.
+
+### 1. Unit Operations and Constants
+
+  
+
+The `Promises` utility class provides factory methods to create pre-resolved promises, as well as highly optimized shared constants for the most common terminal states. Using these avoids unnecessary object allocation.
+
 ```java
-public final class Promises {
-  ...
-  static <T> Promise<T> success(T value)
-  static <T> Promise<T> failure(Throwable exception)
-  ...
+public  final  class Promises {
+	// --- Shared Constants (Zero Allocation) ---
+	
+	/** A shared, pre-resolved promise yielding {@link Boolean#TRUE}. */
+	public  static  final Promise<Boolean> TRUE = Promises.success(Boolean.TRUE);
+
+	/** A shared, pre-resolved promise yielding {@link Boolean#FALSE}. */
+	public  static  final Promise<Boolean> FALSE = Promises.success(Boolean.FALSE);
+
+	// --- Factory Methods ---
+	
+	/** Creates a new promise successfully completed with the given value. */
+	public  static  <T> Promise<T> success(T value);
+
+	/** Creates a new promise completed exceptionally with the given throwable. */
+	public  static  <T> Promise<T> failure(Throwable exception);
+
+	/**
+	 * Adapts an {@link Optional} into a {@link Promise}.
+	 * If present, it returns {@code success(value)}; if empty, it returns
+	 * {@code failure(new NoSuchElementException())}.
+	 */
+	public  static  <T> Promise<T> maybe(Optional<T> maybeValue);
+
+	/**
+	 * Returns a shared, pre-resolved promise that completes with {@code null}.
+	 * Using this avoids allocating a new promise when a null result is acceptable.
+	 */
+	public  static  <T> Promise<T> nothing();
+
+	/**
+ 	 * Returns a shared promise that is already in the cancelled state.
+	 * Useful when you need to immediately return a cancelled promise without
+	 * allocating a new one.
+	 */
+	public  static  <T> Promise<T> canceled();
 }
 ```
-Actually, release [0.9.0](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.0) adds the third unit operation:
+**When to use which:**
+
+-   **`Promises.TRUE` / `Promises.FALSE`**: Always prefer these over `Promises.success(true)` or `Promises.success(false)` when returning a boolean result. They are singletons and incur zero allocation overhead.
+-   **`Promises.nothing()`**: Ideal for `Promise<Void>` chains or when a method signature requires a `Promise<T>` but you have no meaningful value to return (equivalent to `success(null)` but without allocation).
+-   **`Promises.canceled()`**: Use this when a method needs to short-circuit and return an already-cancelled promise (e.g., when a feature flag is disabled or a request is preemptively rejected), allowing downstream `onCancel` handlers to fire immediately.
+-   **`Promises.maybe(...)`**: Perfect for bridging legacy APIs that return `Optional<T>` into your asynchronous `Promise` pipelines without writing verbose `if/else` blocks.
+
+### 2. Adapting External Stages
+
+The `from` method is the primary bridge for integrating third-party `CompletionStage` implementations (including the standard `CompletableFuture`) into the Tascalate Concurrent ecosystem:
 ```java
 public final class Promises {
-  ...
-  static <T> Promise<T> maybe(Optional<T> maybeValue)
-  ....
+    public static <T> Promise<T> from(CompletionStage<T> stage);
 }
 ```
-It converts the `Optional` supplied either to the successfully settled `Promise` or to the faulty settled one with [NoSuchElementException](https://docs.oracle.com/javase/8/docs/api/java/util//NoSuchElementException.html).
+The `from` method employs a smart, multi-step resolution strategy to ensure maximum performance and compatibility:
 
-Second, there is an adapter method `from`:
-```java
-public final class Promises {
-  ...
-  static <T> Promise<T> from(CompletionStage<T> stage)
-  ...
-}
-```
-It behaves as the following: 
-1. If the supplied `stage` is already a `Promise` then it is returned unchanged
-2. If `stage` is a `CompletableFuture` then a specially-tailored wrapper is returned.
-3. If `stage` additionally implements `Future` then specialized wrapper is returned that delegates all the blocking methods defined in `Future` API
-4. Otherwise generic wrapper is created with good-enough implementation of blocking `Future` API atop of asynchronous `CompletionStage` API.
+1.  If the supplied `stage` is already a `Promise`, it is returned **unchanged** (zero overhead).
+2.  If the `stage` is a `CompletableFuture`, a specially tailored, lightweight wrapper is returned.
+3.  If the `stage` additionally implements `Future`, a specialized wrapper is returned that delegates all blocking `Future` API methods directly to the underlying instance.
+4.  Otherwise, a generic wrapper is created, providing a robust implementation of the blocking `Future` API atop the asynchronous `CompletionStage` API.
 
-To summarize, the returned wrapper delegates as much as possible functionality to the supplied `stage` and _never_ resorts to [CompletionStage.toCompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html#toCompletableFuture--) because in Java 8 API it's an optional method. From documentation: "A CompletionStage implementation that does not choose to interoperate with others may throw UnsupportedOperationException." (this text was dropped in Java 9+). In general, Tascalate Concurrent library does not depend on this method and should be interoperable with any minimal (but valid) `CompletionStage` implementation.
+**Crucially, this method _never_ resorts to `CompletionStage.toCompletableFuture()`.** In the Java 8 API, `toCompletableFuture()` is an optional operation, and the documentation explicitly states: _"A CompletionStage implementation that does not choose to interoperate with others may throw UnsupportedOperationException."_ By avoiding it, Tascalate Concurrent guarantees seamless interoperability with any minimal, yet valid, `CompletionStage` implementation.
 
-It's important to emphasize, that `Promise`-s returned from `Promises.success`, `Promises.failure` and `Promises.from` methods are cancellable in the same way as `CompletableFuture`, but are not interruptible in general, while interruption depends on a concrete implementation. Next we discuss the concrete implementation of an interruptible `Promise` provided by the Tascalate Concurrent library -- the `CompletableTask` class.
+## A Note on Cancellation vs. Interruption
 
+It is important to emphasize that `Promise`s returned from `Promises.success`, `Promises.failure`, `Promises.maybe`, and `Promises.from` are **cancellable** (calling `cancel(true)` will propagate the cancellation to dependent stages). However, they are **not inherently interruptible** at the thread level. True thread interruption depends on the concrete implementation executing the task.
 
-## 2. CompletableTask
+In the next section, we will discuss the library's primary concrete implementation of an interruptible, blocking `Promise`: the `CompletableTask` class.
+
+# 2. CompletableTask
 
 This is the foundational building block of the library. `CompletableTask` is the implementation of the `Promise` API designed specifically for **long-running, blocking tasks** (e.g., I/O operations, database queries, blocking queue reads). 
 
 Unlike standard `CompletableFuture`, which is optimized for non-blocking, CPU-bound computations, `CompletableTask` wraps a `RunnableFuture` (specifically a `FutureTask`). This design ensures that the task runs on a dedicated thread from an `Executor`, making it fully responsive to cancellation and interruption.
 
-### 1. Submitting Blocking Tasks
+## 1. Submitting Blocking Tasks
 
 You can submit blocking work to an `Executor` using familiar entry points, similar to `CompletableFuture`:
 
@@ -154,7 +202,7 @@ Promise<byte[]> contentPromise = CompletableTask.submit(
     executorService
 ); 
 ```
-### 2. Executor Binding and Propagation
+## 2. Executor Binding and Propagation
 
 A unique feature of `CompletableTask` is **executor binding**. When you create a task, it becomes "bound" to the provided executor. Any subsequent asynchronous composition method (`thenApplyAsync`, `thenAcceptAsync`, etc.) will automatically use this bound executor, **unless** you explicitly override it.
 
@@ -167,7 +215,7 @@ CompletableTask
   .thenAcceptAsync(myConsumer)     // Runs on myExecutor
   .thenRunAsync(myAction);         // Runs on myExecutor
   ```
-#### Enforcing Executor Propagation
+### Enforcing Executor Propagation
 
 By default, if a step in the chain explicitly specifies a _different_ executor, subsequent steps without an explicit executor will revert to that _new_ executor. If you want to guarantee that your original executor is **always** used for async steps (unless explicitly overridden at that specific step), use the `enforceDefaultAsync` flag:
 ```java
@@ -177,7 +225,7 @@ Promise<String> robustChain = CompletableTask
     .thenApplyAsync(data -> transform(data), otherExecutor) // Explicitly uses otherExecutor
     .thenApplyAsync(data -> save(data)); // Reverts to myPrimaryExecutor (enforced!)
 ```
-### 3. True Cancellation and Interruption
+## 3. True Cancellation and Interruption
 
 Because `CompletableTask` is backed by a `FutureTask`, it supports **true cancellation**. If you cancel the returned `Promise` with `mayInterruptIfRunning = true`, the underlying thread executing the blocking code will be interrupted.
 ```java
@@ -197,7 +245,7 @@ if (wasCancelled) {
 ```
 > **Important Caveat:** Cancellation via interruption **only works if the underlying `Executor` supports it**. For example, `ThreadPoolExecutor` respects interruptions and will interrupt the worker thread. However, `ForkJoinPool` generally ignores interruptions for running tasks, meaning a cancelled `CompletableTask` running on a `ForkJoinPool` may continue executing until it naturally completes.
 
-### 4. Async vs. Non-Async Composition
+## 4. Async vs. Non-Async Composition
 
 You may notice the emphasis on `*Async` methods (e.g., `thenApplyAsync`) in the examples above. This is intentional:
 
@@ -207,13 +255,13 @@ You may notice the emphasis on `*Async` methods (e.g., `thenApplyAsync`) in the 
 **Guideline:** Use `*Async` composition methods when the function itself performs heavy I/O or blocking operations that you might want to cancel. Use non-async methods for lightweight, non-blocking CPU calculations (like simple mappings or filtering) where the overhead of executor queuing would outweigh the execution time.
 
 
-### 5. A Note on TaskExecutorService
+## 5. A Note on TaskExecutorService
 
 While `CompletableTask` is the standard way to wrap standard Java `Executor` instances, the Tascalate Concurrent library also provides a specialized `TaskExecutorService` interface. This interface natively returns `Promise`s from its `submit` methods, completely eliminating the need to manually wrap tasks with `CompletableTask`.
 
 We will cover this advanced executor integration, along with custom thread factories and completion services, in detail in **Chapter 16**.
 
-## 3. Dependent Promises
+# 3. Dependent Promises
 
 As mentioned earlier, when you cancel a `Promise`, all `Promise`s that depend on it are completed exceptionally with a `CompletionException` wrapping a `CancellationException`. This is the standard behavior, and `CompletableFuture` works exactly the same way.
 
@@ -351,121 +399,133 @@ public Promise<?> forkWmiProcessingChain(Promise<Stats> collectedStatsPromise) {
 ```
 The final operation in the function above—`unwrap()`—removes the most recently applied decorator (in this case, `dependent(...)`). Looking ahead, it is worth mentioning that `raw()` will remove _all_ applied decorators. There are several possible decorators, and `dependent(...)` is just one of them. In the next chapters, we will discuss the `defaultAsyncOn` decorator, and later you will see how to apply custom decorators (which are not directly bound to the `Promise` API as methods).
 
-## 4. Wait! Wait! It's not cancellable!!!
-One of the most common complains in the issue tracker of Tascalate Concurrent project is a variation of the report "code is not cancelled when requested". The symptoms are typical: `Promise` is cancelled, any dependent `Promise`-s are completed exceptionally (as expected) but threads keep running till the end of the code submitted to an executor. So the primary promise of the library is broken: execution is not interrupted.
+# 4. Wait! Why isn't my task cancelling?
 
-Is library broken? No. Is user code correct? Well, yes. But library code and user code do not cooperate well to really cancel asynchronous execution.
+One of the most common complaints in the issue tracker is a variation of the report: *"My code is not cancelled when requested."* The symptoms are typical: the `Promise` is cancelled, any dependent `Promise`s complete exceptionally (as expected), but the underlying thread keeps running until the end of the submitted code. It feels like the primary promise of the library—interruptible execution—is broken.
 
-The promise returned from `CompletableTask` methods like `supplyAsync` / `runAsync` as well as any derived `Promise` (via `thenApply` or `thenRun`) does the following two things:
-1. Set own state to _cancelled_ and let transitions to any dependent promises run (same as `CompletableFuture`)
-2. Interrupt the current `Thread` via `Thread.currentThread().interrupt()` (unlike `CompletableFuture`)
+Is the library broken? No. Is the user code correct? Technically, yes. But the library and the user code are not cooperating to actually halt the asynchronous execution.
 
-And it's responsibility of the user code - all of these `Runnable`, `Consumer<T>` and `Function<T,R>` passed - to react on the `Thread.currentThread().isInterrupted()` flag. Let us consider typical scenarios.
-1. User code is a computational code and do not use I/O.
+When you call `cancel(true)` on a `Promise` returned by `CompletableTask` (or any derived `Promise`), the library does exactly two things:
+1. It sets its own state to *cancelled* and propagates this failure to any dependent promises (standard `CompletableFuture` behavior).
+2. It calls `Thread.currentThread().interrupt()` on the thread currently executing the task.
 
-In this case you have to put explicit checks for `Thread.currentThread().isInterrupted()` to break execution via either breaking loops, early returns or throwing exception:
+**It is the responsibility of your user code** (the `Runnable`, `Supplier`, `Consumer`, or `Function` you passed to the executor) to react to the `Thread.currentThread().isInterrupted()` flag. Let's look at typical scenarios and how to handle them.
+
+## Scenario 1: Computational Tasks (No I/O)
+
+If your code performs heavy calculations, you must explicitly check the interruption flag to break execution via early returns, loop breaks, or by throwing an exception:
 
 ```java
 outer:
 for (int i = 0; i < SOME_LARGE_SIZE; i++) {
-  for (int j = 0; j < SOME_EVEN_LARGER_SIZE; j++) {
-    if (Thread.currentThread().isInterrupted()) {
-      break outer;
-    }
-    // some calcs here
-  }
-}
-```
-
-It's up to library user to select how often to check the flag: there are always trade-offs between overhead for regular execution time (when execution is not cancelled) and the delay before thread react on cancellation. In the example above the check may be moved from the inner loop to the outer loop - this will speed-up normal execution path but the code will react on the cancellation with delay.
-
-Some API provides good built-in points to check for early exit, the good example is [java.nio.file.FileVisitor](https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileVisitor.html) + [java.nio.file.Files walkFileTree](https://docs.oracle.com/javase/7/docs/api/java/nio/file/Files.html#walkFileTree(java.nio.file.Path,%20java.nio.file.FileVisitor)). Here you can just put checks in `previsitDirectory` / `visitFile`:
-
-```java
-@Test
-@SuppressWarnings("unchecked")
-public void testReallife() throws Exception {
-  ElapsedTime time = new ElapsedTime();
-  Executor executor = Executors.getDefaultExecutor();
-  Promise<Void> promise = CompletableTask.runAsync(() -> {
-    try {
-      Files.walkFileTree(Paths.get("d:/"), new FileVisitor<>() {
-        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-          System.out.printf("[%d ms] [%s] Task#%d: visiting dir %s%n", 
-                            time.current(), Thread.currentThread(), id, dir);
-          if (Thread.currentThread().isInterrupted()) {
-            // STOP when interrupted
-            return FileVisitResult.TERMINATE;
-          } else {
-            return FileVisitResult.CONTINUE;
-          }
+    for (int j = 0; j < SOME_EVEN_LARGER_SIZE; j++) {
+        if (Thread.currentThread().isInterrupted()) {
+            break outer; // Exit cleanly when interrupted
         }
-
-      public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {...}
-      public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {...}
-      public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {...}
-  }, executor);
-  Thread.sleep(3000);
-  System.out.printf("[%d ms] canceling%n", time.current());
-  promise.cancel(true);
-  assertCanceled(promise);
+        // ... perform calculations here ...
+    }
 }
 ```
+It is up to you to decide how often to check the flag. There is always a trade-off between the overhead of checking during normal execution and the delay before the thread reacts to cancellation. In the example above, moving the check to the outer loop speeds up the normal path but increases the cancellation reaction time.
 
-2. You are using old blocking API of `java.io.InputStream` or `java.net.URLConnection`
-Probably, your code uses old blocking streams from `java.io` like `java.io.FileInputStream` or `SocketInputStream` opened from `java.net.Socket`. Or you are using `java.net.URLConnection`. Or outdated blocking Apache HTTP Client. These all prevents running thread from termination once interrupted -- all of these API-s are blocking and do not react on interruptions. The options are:
-- If you are using some third-party synchronous networking library then try to replace it with the asynchronous version. For HTTP protocol there is a plenty of options like AsyncHttpClient and OkHttp. Both returns `CompletableFuture` as operation results and therefore could be easily plugged with the rest of Tascalate Concurrent code.
-- If you are using blocking file API try to replace it with NIO version, it's the best option:
-
+Some APIs provide natural hooks for early exit. A great example is `java.nio.file.Files.walkFileTree` combined with `FileVisitor`:
 ```java
+Executor executor = Executors.newFixedThreadPool(4);
+Promise<Void> promise = CompletableTask.runAsync(() -> {
+    try {
+        Files.walkFileTree(Paths.get("/some/large/directory"), new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return FileVisitResult.TERMINATE; // STOP when interrupted
+                }
+                return FileVisitResult.CONTINUE;
+            }
+            
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return FileVisitResult.TERMINATE;
+                }
+                // ... process file ...
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    } catch (IOException e) {
+        throw new RuntimeException(e);
+    }
+}, executor);
+
+// ... later, from another thread ...
+promise.cancel(true);
+```
+## Scenario 2: Legacy Blocking I/O
+
+If your code uses legacy blocking APIs like `java.io.FileInputStream`, `java.net.Socket`, `java.net.URLConnection`, or outdated synchronous HTTP clients, **the thread will not terminate when interrupted**. These APIs block at the OS level and simply ignore the Java thread interrupt flag.
+
+You have three options to resolve this:
+
+### Option A: Migrate to Asynchronous APIs (Recommended)
+
+Replace synchronous networking libraries with modern asynchronous alternatives. For HTTP, options like Java 11+ `java.net.http.HttpClient`, OkHttp, or AsyncHttpClient return `CompletableFuture` natively and integrate seamlessly with Tascalate Concurrent.
+
+### Option B: Migrate to NIO
+
+Replace legacy `java.io` streams with their NIO counterparts, which are inherently interruptible:
+```java
+// Legacy (NOT interruptible)
 try (InputStream in = new FileInputStream("E:/Downloads/LargeFile.rar")) {
-... // Work with input stream
+    // ... work with stream ...
 }
 
-==>
+// NIO (Interruptible)
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-...
-try (InputStream in = 
-  Channels.newInputStream(FileChannel.open(Paths.get("E:/Downloads/LargeFile.rar"), 
-                                           StandardOpenOption.READ)))) {
-... // Work with input stream
-} 
-// Same could be done for sockets
+// ...
+try (InputStream in = Channels.newInputStream(
+        FileChannel.open(Paths.get("E:/Downloads/LargeFile.rar"), StandardOpenOption.READ))) {
+    // ... work with stream ...
+}
+// The same principle applies to SocketChannel for network I/O.
 ```
-- If don't like to use new NIO API, but sources with blocking IO may be altered, then `BlockingIO` class provided by Tascalate Concurrent can help:
+### Option C: Use the `BlockingIO` Utility
 
+If you cannot migrate to NIO but can alter the source code, Tascalate Concurrent provides the `BlockingIO` utility class (available since version 0.9.5). It wraps functional interfaces and forcefully closes registered resources when the thread is interrupted, unblocking the I/O operation.
 ```java
-Promise<?> promise = CompletableTask.supplyAsync(
-  BlockingIO.interruptible( // Wrap Supplier into interruptible Supplier
-    () -> {
-      // Register InputStream after creation as interruption target
-      try (InputStream in = BlockingIO.register(new FileInputStream("E:/Downloads/LargeFile.rar"))) {
-        ... // Work with input stream
-      } catch (IOException ex) {
-        throw new RuntimeException(ex);
-      } 
-    }
-  )
+Promise<byte[]> promise = CompletableTask.supplyAsync(
+    BlockingIO.interruptible(() -> {
+        // Register the stream as an interruption target immediately after creation
+        try (InputStream in = BlockingIO.register(new FileInputStream("E:/Downloads/LargeFile.rar"))) {
+            return in.readAllBytes(); // This will throw if the thread is interrupted
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+ are 
+        } 
+    }), 
+    executor
 );
-...
-promise.cancel(true);
-```
-`BlockingIO.interruptible(...)` can wrap as interruptible all the functional interfaces used in `CompletionStage` / `Promise` API. The parameter to the `BlockingIO.register` should be any implementation of `java.lang.Closeable` that will be closed on thread interruption. For `InputStream` or `OutputStream` it is just the stream itself. For `java.net.HttpUrlConnection` you can use
 
+// ... later ...
+promise.cancel(true); // This will close the FileInputStream, unblocking the read
+```
+`BlockingIO.interruptible(...)` can wrap any functional interface used in the `Promise` API. The argument to `BlockingIO.register()` can be any `AutoCloseable`. For example, with `HttpURLConnection`:
 ```java
-HttpURLConnection conn = (HttpURLConnection)(new URL(url).openConnection());
-BlockingIO.register(conn::disconnect);
+HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+BlockingIO.register((AutoCloseable) conn::disconnect);
 ```
+## ⚠️ The Java 21+ Virtual Threads Caveat
 
-`BlockingIO` is a late addition to the Tascalate Concurrent, it's available only since version [0.9.5](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.5).
+If you are running on **JDK 21 or higher** and your tasks are executed on **Virtual Threads** (e.g., via `ThrottledExecutorService` or a custom `Thread.ofVirtual()` factory), **you generally do not need `BlockingIO`**.
 
-Unfortunately, it's necessary to put this statement straight at the end: if the blocking API is hidden behind third-party library code (like Spring RestTemplate) then you are out of luck - Tascalate Concurrent will not support true interruptions in this scenario. 
+Project Loom natively handles I/O interruption for Virtual Threads. When a Virtual Thread performing blocking I/O is interrupted, the JVM automatically unmounts it and aborts the blocking operation (typically throwing a `ClosedByInterruptException`). The `BlockingIO` hack is primarily intended for pre-Loom JDKs (8–20) or when you are explicitly using traditional Platform Thread pools.
 
+## The Hard Truth
 
-## 5. Overriding the Default Asynchronous Executor
+If the blocking I/O is hidden deep inside a third-party library that you cannot modify (e.g., Spring's legacy `RestTemplate`, old JDBC drivers, or proprietary SDKs), **true interruption is generally impossible**. Tascalate Concurrent can mark the `Promise` as cancelled, but it cannot magically force a black-box native blocking call to return. In such cases, you must rely on application-level timeouts or migrate to libraries that support modern asynchronous or interruptible patterns.
+
+# 5. Overriding the Default Asynchronous Executor
 
 One of the well-known pitfalls of the standard `CompletableFuture` API is how it handles the default asynchronous executor. Consider the following example:
 
@@ -479,7 +539,7 @@ The initial call to `produceValue` runs on `executorInitial`. However, because `
 
 To fix this in standard Java, you are forced to pass an explicit `Executor` to every single `*Async` method. While Java 9+ introduced `defaultExecutor()` and `newIncompleteFuture()` to allow subclassing `CompletableFuture` to change this behavior, it requires significant boilerplate and custom entry-point methods.
 
-### The `CompletableTask` Advantage
+## The `CompletableTask` Advantage
 
 As discussed in **Chapter 2**, `CompletableTask` was designed specifically to solve this and other blocking-task pitfalls. With `CompletableTask`, the behavior is much more intuitive and predictable:
 ```java
@@ -490,7 +550,7 @@ Promise<String> p4 = p3.thenApplyAsync(this::transformValueC);          // Uses 
 ```
 Here, the rule is simple: **the latest explicitly specified `Executor` becomes the new default** for all subsequent nested asynchronous composition methods that do not provide their own executor.
 
-### Fine-Grained Executor Control
+## Fine-Grained Executor Control
 
 Since "one size fits all" is rarely true in complex applications, Tascalate Concurrent (since release 0.6.6) provides two additional mechanisms to precisely control executor propagation:
 
@@ -508,7 +568,7 @@ Promise<T> defaultAsyncOn(Executor executor)
 ```
 This allows you to switch the default executor at _any point_ in the chain. All subsequent nested asynchronous composition methods (without an explicit executor) will use this newly defined default.
 
-### Summary of Executor Propagation Rules
+## Summary of Executor Propagation Rules
 
 With Tascalate Concurrent, you have three powerful, composable options to control asynchronous execution:
 
@@ -518,7 +578,7 @@ With Tascalate Concurrent, you have three powerful, composable options to contro
 
 Having the best of all three worlds, the only responsibility of the library user is to apply these options consistently.
 
-### Bridging Standard `CompletableFuture` to Interruptible Tasks
+## Bridging Standard `CompletableFuture` to Interruptible Tasks
 
 A common scenario is needing to start an interruptible, blocking operation _after_ a standard, non-interruptible `CompletableFuture` completes. For this, `CompletableTask` provides a dedicated utility method:
 ```java
@@ -540,7 +600,7 @@ Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorS
 ```
 This pattern ensures that your blocking, interruptible work is correctly isolated on a dedicated thread pool and remains fully responsive to `Promise.cancel(true)`.
 
-## 6. Timeouts
+# 6. Timeouts
 
 Any robust application requires a certain level of functionality to handle situations when things go wrong. While the ability to cancel a hung operation has existed in the library since day one, it is obviously not enough on its own. Cancellation defines *what* to do in the face of a problem, but the responsibility of *when* to do it was previously left entirely to application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4), the library fills this gap with comprehensive timeout-related features.
 
@@ -640,7 +700,7 @@ Promise<List<String>> resultPromise = CompletableTask
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v), Promise.Origin.ALL)
     .orTimeout(Duration.ofSeconds(5)); // Now the timeout will cancel the whole chain
 ```
-### Fallback Values on Timeout (`onTimeout`)
+## Fallback Values on Timeout (`onTimeout`)
 
 Another useful family of timeout-related methods declared in the `Promise` interface provides fallback values instead of exceptions:
 ```java
@@ -662,7 +722,7 @@ In this example, `callPromise` will be settled within 3 seconds either as a resu
 > 
 > By contrast, Java 9+ `CompletableFuture` timeout operations are mere "side effects" that mutate and return the original `CompletableFuture` itself. Calling `completableFuture.orTimeout(100, TimeUnit.MILLIS).cancel()` cancels the `completableFuture` itself, and there is no way to revert the timeout once set. Correspondingly, when time expires, the original `completableFuture` is completed exceptionally with a `TimeoutException`.
 
-### Introducing Delays (`delay`)
+## Introducing Delays (`delay`)
 
 Finally, the `Promise` interface provides an option to insert delays into the call chain:
 ```java
@@ -708,7 +768,7 @@ static Promise<Duration> delay(Duration duration, Executor executor);
 ```
 _(Note: In Java 9+, a different approach is chosen for delays. There is no corresponding operation defined directly on the `CompletableFuture` object; instead, you must use a delayed executor. Please refer to the documentation for [`CompletableFuture.delayedExecutor`](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#delayedExecutor-long-java.util.concurrent.TimeUnit-java.util.concurrent.Executor-) for details.)_
 
-## 7. Combining multiple CompletionStages
+# 7. Combining multiple CompletionStages
 
 The standard `CompletableFuture.allOf()` and `anyOf()` methods are notoriously limited: `allOf` returns `CompletableFuture<Void>` (discarding individual results), and `anyOf` returns `Object` (requiring unsafe casting). Furthermore, they strictly require `CompletableFuture` instances, ignoring the broader `CompletionStage` interface.
 
@@ -722,7 +782,7 @@ Tascalate Concurrent provides a rich, type-safe suite of combinators in the `Pro
 5. **Partial Success:** Supports "M out of N" success scenarios.
 6. **Strict vs. Non-Strict Errors:** Choose whether to tolerate individual failures or fail fast.
 
-### The Core Combinators
+## The Core Combinators
 
 | Method | Success Condition | Failure Condition | Result Type |
 | :--- | :--- | :--- | :--- |
@@ -733,33 +793,33 @@ Tascalate Concurrent provides a rich, type-safe suite of combinators in the `Pro
 | **`atLeastStrict(M)`**| **M** stages succeed | **Any 1** fails *(before M successes)*| `List<T>` or `Map<K,T>` |
 | **`atLeastOrdered(M)`**| **M** stages succeed | **N-M+1** stages fail | `List<Optional<T>>` |
 
-#### 7.1. `all` — Wait for everything
+### 1. `all` — Wait for everything
 Completes successfully only when every provided stage succeeds. If any stage fails, the combined promise fails immediately with a `MultitargetException`.
 ```java
 Promise<List<User>> users = Promises.all(fetchUser(1), fetchUser(2), fetchUser(3));
 ```
-#### 7.2. `any` vs `anyStrict` — Race for the first success
+### 2. `any` vs `anyStrict` — Race for the first success
 
 Both methods return the result of the _first_ stage that completes successfully.
 
 -   **`any` (Non-Strict):** Ignores exceptions. If 3 stages fail but the 4th succeeds, the combined promise succeeds. It only fails if _all_ stages fail.
 -   **`anyStrict` (Strict):** Fails fast. If _any_ stage throws an exception before a successful result is found, the combined promise immediately fails with that exact exception.
 
-#### 7.3. `atLeast` — M out of N successes
+### 3. `atLeast` — M out of N successes
 
 A generalization of `any`. It succeeds if at least `M` stages complete normally. The resulting `List` contains the successful values at their original indices, with `null` in the positions of failed or uncompleted stages.
 ```java
 // Succeeds if at least 2 out of 3 DNS servers respond
 Promise<List<String>> dnsResults = Promises.atLeast(2, queryDns1(), queryDns2(), queryDns3());
 ```
-#### 7.4. `atLeastOrdered` — Safe handling of `null` results
+### 4. `atLeastOrdered` — Safe handling of `null` results
 
 Because `atLeast` uses `null` to represent failed/uncompleted stages in the result list, it cannot distinguish between a stage that failed and a stage that successfully returned `null`. `atLeastOrdered` solves this by returning a `List<Optional<T>>`.
 ```java
 Promise<List<Optional<CacheEntry>>> cacheLookups = 
     Promises.atLeastOrdered(2, cache1.get(), cache2.get());
 ```
-### Collection Types: Arrays, Lists, and Maps
+## Collection Types: Arrays, Lists, and Maps
 
 Every combinator provides three input overloads:
 
@@ -776,11 +836,11 @@ Map<String, CompletionStage<Integer>> stockFetchers = Map.of(
 
 Promise<Map<String, Integer>> stockPrices = Promises.all(stockFetchers);
 ```
-### Eager Cancellation (`cancelRemaining`)
+## Eager Cancellation (`cancelRemaining`)
 
 Most combinators accept an optional `boolean cancelRemaining` parameter (which defaults to `true`). When the outcome of the combined operation is mathematically determined (e.g., the first success in `any`, or the first failure in `all`), the combinator will automatically invoke `.cancel(true)` on all remaining, uncompleted stages. This frees up network connections and thread pool resources immediately.
 
-### Error Handling and `MultitargetException`
+## Error Handling and `MultitargetException`
 
 When a non-strict combinator fails (e.g., `all` fails because one stage failed, or `any` fails because _all_ stages failed), it wraps the underlying exceptions in a `MultitargetException`.
 
@@ -797,18 +857,18 @@ Promises.all(stage1, stage2)
 ```
 _(Note: `anyStrict` and `atLeastStrict` bypass `MultitargetException` and throw the exact exception of the first stage that caused the strict failure)._
 
-### Characteristics of the Returned Promise
+## Characteristics of the Returned Promise
 
 1.  **Cancellation Propagation:** Manually cancelling the returned combined `Promise` will cascade and cancel _all_ underlying `CompletionStage` arguments.
 2.  **Default Executor:** The default asynchronous executor for subsequent operations (like `.thenApplyAsync`) on the combined promise is undefined (it inherits from the underlying stages). To guarantee a specific executor for downstream operations, chain `.defaultAsyncOn(myExecutor)` immediately after the combinator.
 
-## 8. Asynchronous Loops and Iteration
+# 8. Asynchronous Loops and Iteration
 
 When working with asynchronous APIs, traditional `for` or `while` loops fall short because they do not wait for asynchronous operations to complete. If you need to process a sequence of items one by one (e.g., paginating through an API, processing files sequentially, or polling a resource), firing all requests at once with `Promises.all()` might overwhelm the target system or exhaust local resources.
 
 Tascalate Concurrent provides two stack-safe, cancellable constructs for sequential asynchronous execution: `Promises.loop` and `Promises.forEach`.
 
-### 8.1. `Promises.loop` — The Asynchronous `while` Loop
+## 1. `Promises.loop` — The Asynchronous `while` Loop
 
 `Promises.loop` is the asynchronous equivalent of a `while` loop. It takes an initial state, a synchronous condition, and an asynchronous body that produces the next state.
 
@@ -834,7 +894,7 @@ Promise<List<String>> allItems = Promises.loop(
              ))
 ).thenApply(State::accumulated);
 ```
-### 8.2. `Promises.forEach` — Sequential Iteration with Early Exit
+## 2. `Promises.forEach` — Sequential Iteration with Early Exit
 
 `Promises.forEach` is designed for iterating over an `Iterable` sequentially. The body returns a `CompletionStage<Boolean>`. If the stage completes with `true`, the loop continues to the next element; if `false`, the loop terminates early.
 ```java
@@ -860,7 +920,7 @@ Promise<Void> search = Promises.forEach(logFiles, file ->
 
 search.thenRun(() -> log.info("Search completed."));
 ```
-### 8.3. Cancellation and Stack Safety
+## 3. Cancellation and Stack Safety
 
 Both `loop` and `forEach` return a standard `Promise`, which means they fully support cancellation. If you cancel the returned promise, Tascalate Concurrent will automatically attempt to cancel the `CompletionStage` that is currently executing in the loop body.
 ```java
@@ -873,7 +933,7 @@ longRunningTask.cancel(true);
 Furthermore, the underlying `AsyncLoop` implementation is **stack-safe**. If your asynchronous body happens to return an already-completed stage (e.g., a cached result, a synchronous computation wrapped in a promise, or an empty collection in `forEach`), the loop will "trampoline" to the next iteration without growing the call stack. This prevents `StackOverflowError` even for millions of synchronous iterations.
 
 
-## 9. Chunked processing with bounded concurrency
+# 9. Chunked processing with bounded concurrency
 
 When a large collection of items must be processed asynchronously, two naive strategies compete:
 
@@ -900,14 +960,14 @@ static <S, T, A, R> Promise<R> chunked(Stream<? extends S> values, int chunkSize
                                        Collector<T, A, R> downstream);
 // ...and the Stream + downstreamExecutor combination
 ```
-### Execution model
+## Execution model
 
 -   **Bounded concurrency.** Values are pulled from the source lazily, at most `chunkSize` at a time; the next chunk is not pulled until the current one completes. At any moment at most `chunkSize` spawned tasks are in flight — this is the library's built-in backpressure.
 -   **Ordered collection.** Chunks are processed sequentially and results within a chunk keep their positional order, so ordered collectors (`toList()`, `joining()`, `toMap()`, ...) produce results in the source encounter order. Each chunk is accumulated into a fresh container and merged via the collector's `combiner` — therefore the combiner must be correctly implemented (all standard `Collectors` are).
 -   **Empty sources.** An empty input completes successfully with the collector's empty result (`supplier()` followed by `finisher()`).
 -   **Failure and cancellation.** If a spawned task fails, the whole operation fails and the remaining in-flight tasks of the current chunk are cancelled. Cancelling the returned promise stops the loop — no further chunks are started.
 
-### Example 1 — bounded parallel fetch
+## Example 1 — bounded parallel fetch
 
 Fetch user profiles with at most 10 concurrent requests:
 ```java
@@ -922,7 +982,7 @@ Promise<List<Profile>> profiles = Promises.chunked(
 
 profiles.thenAccept(list -> render(list));
 ```
-### Example 2 — collecting into a map
+## Example 2 — collecting into a map
 
 Any collector works; collisions and merge semantics follow the collector itself:
 ```java
@@ -933,7 +993,7 @@ Promise<Map<Long, Profile>> profileMap = Promises.chunked(
     Collectors.toMap(Profile::id, Function.identity())
 );
 ```
-### Example 3 — Stream source with automatic closing
+## Example 3 — Stream source with automatic closing
 
 `Stream` sources are consumed lazily and **closed automatically** when the processing completes (successfully or not) — do not close them yourself:
 ```java
@@ -945,7 +1005,7 @@ Promise<Statistics> stats = Promises.chunked(
     Statistics.collector()
 );
 ```
-### Example 4 — offloading accumulation
+## Example 4 — offloading accumulation
 
 If accumulation is expensive or must run on a particular thread, pass a downstream executor. The collector's supplier/accumulator/combiner/finisher then run on that executor instead of the threads completing the spawned tasks (e.g., your HTTP I/O threads):
 ```java
@@ -957,7 +1017,7 @@ Promise<Report> report = Promises.chunked(
     accumulationExecutor
 );
 ```
-### Blocking Consumption: `AsyncCompletions`
+## Blocking Consumption: `AsyncCompletions`
 
 Every combinator discussed so far (`all`, `any`, `chunked`, `forEach`, `loop`) is **non-blocking**: it accepts `CompletionStage`s and returns a `Promise`, keeping your code fully asynchronous. `AsyncCompletions` is the deliberate exception — a **blocking, pull-based bridge** from the asynchronous world into synchronous code. 
 
@@ -1017,7 +1077,7 @@ try (Stream<Record> records = AsyncCompletions.stream(pendingPages, 4,
 **Rule of thumb:** stay with the `Promise`-based combinators whenever possible — they never occupy a thread while waiting. Use `AsyncCompletions` only at the boundary where asynchronous results must re-enter the blocking world.
 
 
-## 10. Context variables & contextual Promises
+# 10. Context variables & contextual Promises
 
 Ah, those dreaded `ThreadLocal`s we all hate, love to hate, but, nevertheless, use everywhere. It's quite common to store some contextual data (like the authenticated user and current locale) inside thread-local variables. Sometimes it's custom code, sometimes it's from a third-party library we can't alter. 
 
@@ -1025,24 +1085,24 @@ Typically, we spawn asynchronous code from a thread with well-known characterist
 
 To solve this issue, Tascalate Concurrent provides the `ContextVar` API. It serves as a unified, multi-release abstraction over context storage: it uses `ThreadLocal` on JDK 8–24 and `ScopedValue` on JDK 25+, while also allowing you to wrap custom context stores.
 
-### 10.1. Defining Context Variables
+## 1. Defining Context Variables
 
 You can define context variables in several ways depending on your needs:
 
-#### Portable Variables (Recommended)
+### Portable Variables (Recommended)
 Uses `ThreadLocal` on JDK 8-24, and `ScopedValue` on JDK 25+. This is the default choice for new code.
 ```java
 static final ContextVar<Principal> CURRENT_PRINCIPAL = ContextVar.newInstance("principal");
 static final ContextVar<Locale> CURRENT_LOCALE = ContextVar.newInstance("locale");
 ```
-#### Wrapping Existing ThreadLocals
+### Wrapping Existing ThreadLocals
 
 If you need to integrate with a legacy third-party library that exposes a raw `ThreadLocal`:
 ```java
 static final ThreadLocal<String> LEGACY_TRACE_ID = new ThreadLocal<>();
 static final ContextVar<String> TRACE_ID = ThreadLocalVar.of("traceId", LEGACY_TRACE_ID);
 ```
-#### Wrapping Custom Context Stores (e.g., Spring)
+### Wrapping Custom Context Stores (e.g., Spring)
 
 Sometimes context isn't stored in a simple `ThreadLocal`, but rather in a framework-specific registry. For example, Spring Web stores request-scoped attributes in `RequestContextHolder`. You can adapt any custom context store using `CustomContextVar.define(...)` by providing a reader, a writer, and a cleanup action:
 ```java
@@ -1057,7 +1117,7 @@ static final ContextVar<RequestAttributes> SPRING_REQUEST_ATTRS = CustomContextV
 );
 ```
 
-### 10.2. Propagation Modes: Strict vs. Optimized
+## 2. Propagation Modes: Strict vs. Optimized
 
 When a context variable is applied to a block of code, what happens to the _existing_ (ambient) value already present on the current thread? Tascalate Concurrent offers two modes to handle this:
 
@@ -1070,7 +1130,7 @@ ContextRelay<?> optimizedRelay = ContextVar.relay(MY_VAR1, MY_VAR2, MY_VAR3).opt
 ```
 _(Note: On JDK 25+, `ScopedValue` bindings are inherently immutable and automatically restoring, so `strict()` and `optimized()` are effectively identical and carry no performance difference.)_
 
-### 10.3. Synchronous Execution
+## 3. Synchronous Execution
 
 For synchronous blocks, you can bind values to context variables using a fluent chain. The context is applied for the duration of the block and automatically restored (or cleared) afterward:
 ```java
@@ -1082,7 +1142,7 @@ ContextVar.bind(MyService.CURRENT_PRINCIPAL, principal)
               processRequest();
           });
 ```
-### 10.4. Asynchronous Execution & Contextual Promises
+## 4. Asynchronous Execution & Contextual Promises
 
 To propagate context across thread boundaries (e.g., to thread pools or asynchronous `Promise` chains), you create a `ContextRelay`.
 
@@ -1122,7 +1182,7 @@ Promise<Void> httpRequest =
 ```
 In the example above, after applying `.as(contextualPromise)`, all derived promises (i.e., code blocks in `thenApply` / `thenAccept`) will have access to the contextual information captured from the originating thread even that task submitted to `supplyAsync` is not contextual. _(Note the use of `.get()` to read the `ContextVar` value inside the asynchronous blocks)._
 
-### 10.5. Undecorating Promises
+## 5. Undecorating Promises
 
 Copying contextual variables and applying them to every callback carries a slight performance penalty. If you reach a point in your asynchronous chain where the context is no longer needed, you can stop the propagation by using `Promise.unwrap()` or `Promise.raw()` to undecorate the derived promises (as with any other decorator in Tascalate Concurrent):
 ```java
@@ -1133,7 +1193,7 @@ Promise<Void> afterHttpRequest =
                    cleanupResources();
                });
 ```
-### 10.6. Contextual Executors
+## 6. Contextual Executors
 
 If you prefer to contextualize the executor itself rather than individual promises, you can wrap any `Executor` or `ExecutorService`. The context will be captured dynamically at the exact moment a task is submitted:
 ```java
@@ -1145,7 +1205,7 @@ contextualExecutor.submit(() -> {
 });
 ```
 
-## 11. Polling and asynchronous retry functionality
+# 11. Polling and asynchronous retry functionality
 
 Once you depart from pure algebraic calculations into the unreliable terrain of I/O-related functionality, you have to deal with failures. Network outages, insufficient disk space, overloaded third-party servers, exhausted database connection pools — these and many similar infrastructure failures are what applications have to cope with flawlessly. Many of the aforementioned issues are temporary by nature, so it makes sense to retry after a small delay and keep fingers crossed that this time everything will run smoothly. This is the primary use case for the retry functionality — or better yet, the *asynchronous* retry functionality, since we want our applications to be as scalable as possible.
 
@@ -1193,7 +1253,7 @@ All in all, `RetryPolicy` provides an API with customizations for every imaginab
 1.  Context-less retriable operations are captured as `Runnable` or `Callable` lambdas — they behave the same on every iteration and hence do not need a context.
 2.  Methods with `RetryRunnable` and `RetryCallable` are _contextual_: they may dynamically alter their behavior for the given iteration depending on the context passed.
 
-### RetryContext — what the operation knows about the loop
+## RetryContext — what the operation knows about the loop
 
 The contextual variants receive an immutable `RetryContext<T>` before every attempt:
 ```java
@@ -1212,7 +1272,7 @@ Promise<RowSet> rows = Promises.retry(ctx -> {
     return dao.fetchRows(window);
 }, dbExecutor, policy);
 ```
-### RetryPolicy — attempts, delays, timeouts, exceptions, results
+## RetryPolicy — attempts, delays, timeouts, exceptions, results
 
 `RetryPolicy` is immutable and fluent — every mutator returns a new instance, so a configured policy is thread-safe and shareable:
 ```java
@@ -1235,19 +1295,19 @@ The essential semantics to keep in mind:
 -   **Result validation.** By default any result — including `null` — is valid. Use `rejectNullResult()` or `withResultValidator(predicate)` to treat an unsatisfactory result as a retryable failure; the rejected result remains visible via `RetryContext.getLastResult()`.
 -   **Backoff and timeout are schedules, not constants.** Both are defined by a `DelayPolicy`, which receives the current `RetryContext` — so delays and timeouts may adapt to the attempt number, the previous error, or the duration of the previous call. The `long`-based constructors install a fixed interval with _no delay before the first attempt_.
 
-### `retryOptional` — when "no result yet" is not a failure
+## `retryOptional` — when "no result yet" is not a failure
 
 `retryOptional` unwraps the `Optional` returned by the operation: an empty `Optional` is passed to the policy as a `null` result. Combined with `rejectNullResult()` this is exactly the "not ready yet — try again" semantics.
 
-### `retryFuture` — retrying genuinely asynchronous operations
+## `retryFuture` — retrying genuinely asynchronous operations
 
 `retryFuture` accepts a _factory_ of `CompletionStage`s. A fresh stage is produced on every attempt; both an exception thrown by the factory and an exceptional completion of the produced stage are retryable subject to the policy. The per-attempt timeout applies to the produced stage. Since the asynchronous machinery belongs to the third-party API, no `Executor` parameter is needed.
 
-### When the policy gives up
+## When the policy gives up
 
 If the budget is exhausted or an abort rule matches, the returned promise fails with a `RetryException` carrying the attempt count, the duration of the last attempt, and the last error.
 
-### Polling — retry as a first-class citizen
+## Polling — retry as a first-class citizen
 
 Polling is expressed with the same tools: the polling operation returns `null` (or an empty `Optional`) while the awaited resource is unavailable, and the policy turns that into a retryable condition:
 ```java
@@ -1467,7 +1527,7 @@ public class ProviderClient {
 ```
 
 
-## 12. Asynchronous Try-With-Resources
+# 12. Asynchronous Try-With-Resources
 
 In synchronous Java, the `try-with-resources` statement guarantees that `AutoCloseable` resources (like streams, connections, or locks) are released immediately after use, even if an exception occurs. 
 
@@ -1475,7 +1535,7 @@ In asynchronous pipelines, standard `try-with-resources` fails because the `try`
 
 Tascalate Concurrent solves this with the `Promises.tryApply`, `tryCompose`, `tryApplyEx`, and `tryComposeEx` methods. They defer the closing of the resource until the asynchronous pipeline completes.
 
-### The `AsyncCloseable` Interface
+## The `AsyncCloseable` Interface
 
 Some modern resources cannot be closed synchronously without blocking a thread. For example, releasing a distributed Redis lock or flushing an asynchronous network buffer requires I/O. For these, Tascalate Concurrent provides `AsyncCloseable`:
 
@@ -1497,7 +1557,7 @@ Depending on whether your business logic is synchronous/asynchronous, and whethe
 | **`tryApplyEx`** | Synchronous (`Function`) | Asynchronous (`AsyncCloseable`) | Reading a cached value, then releasing a distributed lock asynchronously. |
 | **`tryComposeEx`**| Asynchronous (`Function<..., Stage>`) | Asynchronous (`AsyncCloseable`) | Fully async I/O operations requiring async cleanup. |
 
-### Example 1: Async Operation, Sync Close (`tryCompose`)
+## Example 1: Async Operation, Sync Close (`tryCompose`)
 
 Imagine an asynchronous database connection pool. You acquire the connection asynchronously, perform an async query, and the connection must be returned to the pool (synchronously) only _after_ the query finishes.
 ```java
@@ -1512,7 +1572,7 @@ Promise<User> userPromise = Promises.tryCompose(
 // connection.close() is automatically called AFTER executeQueryAsync completes, 
 // regardless of whether the query succeeded or failed.
 ```
-### Example 2: Fully Asynchronous (`tryComposeEx`)
+## Example 2: Fully Asynchronous (`tryComposeEx`)
 
 Suppose you are interacting with a distributed lock that requires a network call to acquire and another network call to release.
 ```java
@@ -1536,7 +1596,7 @@ Promise<Report> report = Promises.tryComposeEx(
 
 // The lock is released asynchronously ONLY AFTER generateReportAsync() finishes.
 ```
-### Cancellation Semantics
+## Cancellation Semantics
 
 The promises returned by the `try*` methods are fully cancellable. If you cancel the resulting promise (or if a downstream stage cancels it):
 
@@ -1544,7 +1604,7 @@ The promises returned by the `try*` methods are fully cancellable. If you cancel
 2.  **The resource is still closed.** The library ensures that `close()` (or `close().toCompletableFuture()`) is invoked to prevent resource leaks, even during cancellation.
 
 
-## 13. Asynchronous locks
+# 13. Asynchronous locks
 
 Standard `java.util.concurrent` synchronizers — `Lock`, `Semaphore`, `CountDownLatch` — were designed for blocking code: a thread that cannot acquire a lock is *parked* until it can. In a non-blocking, promise-based application this is exactly what you must not do: a parked thread is a wasted thread (and on an event-loop thread, a parked loop is a dead application).
 
@@ -1552,7 +1612,7 @@ The `net.tascalate.concurrent.locks` package provides asynchronous analogs of th
 
 > **Acquisition never blocks.** Instead of parking the calling thread, an acquisition returns either an immediate result or a `Promise` that completes when the lock/permits are granted. Waiting parties are promises in a queue, not threads in a waiting state.
 
-### 13.1. The token pattern
+## 1. The token pattern
 
 Instead of the error-prone paired `lock()` / `unlock()` calls that must be matched manually, a successful acquisition yields a **token** — an object that owns the release responsibility:
 
@@ -1572,7 +1632,7 @@ Promise<Result> r2 = Promises.tryCompose(lock.acquire(), $ -> criticalAsyncWork(
 ```
 Both forms call `token.close()` (i.e., `token.release()`) exactly once, after the protected stage completes — successfully, exceptionally, or via cancellation.
 
-### 13.2. `AsyncLock` — mutual exclusion
+## 2. `AsyncLock` — mutual exclusion
 
 `AsyncLock` is the asynchronous analogue of `java.util.concurrent.locks.Lock`. At most one party holds it at any moment, and waiting acquirers are served **in arrival order** (FIFO).
 ```java
@@ -1588,7 +1648,7 @@ Promise<CacheEntry> refreshed = cacheLock.guard(() ->
 ```
 If the lock must be released from a _different_ scope than the acquisition (e.g., the token is passed around), hold the token explicitly and call `token.release()` once — releasing a token more than once is a harmless no-op.
 
-### 13.3. `AsyncSemaphoreLock` — counting semaphore with tokens
+## 3. `AsyncSemaphoreLock` — counting semaphore with tokens
 
 `AsyncSemaphoreLock` is the asynchronous analogue of `java.util.concurrent.Semaphore`, in token style. It manages a fixed number of permits; acquiring a token consumes permits, and releasing the token returns exactly the permits it holds (`token.permits()`).
 ```java
@@ -1605,7 +1665,7 @@ long free    = dbPermits.availablePermits();   // permits available right now
 int  waiting = dbPermits.getQueueLength();     // queued acquisition requests
 Optional<AsyncSemaphoreLock.Token> all = dbPermits.drainPermits(); // take whatever is free
 ```
-### 13.4. `AsyncSemaphore` — counting semaphore, JDK style
+## 4. `AsyncSemaphore` — counting semaphore, JDK style
 
 `AsyncSemaphore` offers the same permit accounting with an API that mirrors the JDK `Semaphore` directly: acquisitions resolve to the _granted permit count_, and releasing is an explicit call made by you:
 ```java
@@ -1625,7 +1685,7 @@ When in doubt, prefer the token-based `AsyncSemaphoreLock`: the token makes leak
 | Release | `token.release()` — self-contained | explicit `release(n)` — caller's duty |
 | Best for | permits guarding an async action — use with `guard(...)` / `tryCompose` | permits managed manually, or released from a different scope than the acquisition |
 
-### 13.5. `AsyncCountDownLatch` — the latch _is_ the promise
+## 5. `AsyncCountDownLatch` — the latch _is_ the promise
 
 `AsyncCountDownLatch` replaces the blocking `await()` of the JDK latch with subscription: the latch itself **is a `Promise<Long>`** that completes with the initial count when the count reaches zero. Like the JDK latch, it is one-shot and cannot be reset.
 ```java
@@ -1646,12 +1706,12 @@ Promise<Void> report = allDone.dependent().thenAccept($ -> generateReport());
 ```
 A latch created with a count of zero is already complete; `countDown(long delta)` decrements by the given amount, and the count never goes below zero.
 
-### 13.6. Fairness and cancellation
+## 6. Fairness and cancellation
 
 -   **Fairness.** Semaphores accept a `fair` flag at creation. In fair mode permits are granted strictly in arrival order — barging is prevented because immediate acquisitions refuse to proceed while any waiter is queued. In unfair mode (and always for `AsyncLock`'s FIFO queue) the overhead of strict ordering is avoided where appropriate.
 -   **Cancellation.** Pending acquisitions are ordinary promises and are fully cancellable: cancelling an acquisition removes the waiter from the queue, and any permits tentatively reserved for it are returned to the pool. No leaked permits, no stranded waiters.
 
-### 13.7. Implementation notes
+## 7. Implementation notes
 
 All implementations are lock-free: permit accounting uses compare-and-set operations, waiter queues are based on `ConcurrentLinkedQueue`, and release operations are guarded by idempotent release-once flags (double-release is a no-op). Instances are obtained through the static factories on the interfaces:
 | Class | JDK analog | Acquisition yields | Created via |
@@ -1667,11 +1727,11 @@ TBD
 ## 15. Decorators for CompletionStage / CompletableFuture / Promise
 TBD
 
-## 16. Promise-Aware Executors and Thread Builders
+# 16. Promise-Aware Executors and Thread Builders
 
 While the Tascalate Concurrent library works seamlessly with any standard `java.util.concurrent.Executor`, using standard executors means their `submit(...)` methods return blocking `Future<T>` objects. To fully leverage the non-blocking, composable `Promise` API without constantly wrapping results in `Promises.from(...)`, the library provides a suite of Promise-aware executor interfaces, implementations, and fluent thread builders.
 
-### 16.1. `TaskExecutorService` and `ThreadPoolTaskExecutor`
+## 1. `TaskExecutorService` and `ThreadPoolTaskExecutor`
 
 `TaskExecutorService` is a specialization of the standard `ExecutorService` interface. The key difference is that its `submit(...)` methods return a `Promise<T>` instead of a `Future<T>`. This allows you to immediately chain asynchronous callbacks (`thenApply`, `thenCompose`, etc.) without blocking a thread to wait for the result.
 
@@ -1686,7 +1746,7 @@ Promise<User> userPromise = executor.submit(() -> fetchUserFromDb(123));
 userPromise.thenAccept(user -> sendWelcomeEmail(user))
            .exceptionally(ex -> logError(ex));
 ```
-### 16.2. `TaskExecutors` Factory
+## 2. `TaskExecutors` Factory
 
 `TaskExecutors` is a drop-in replacement for the standard `java.util.concurrent.Executors` utility class. It provides familiar factory methods that return `TaskExecutorService` instances:
 
@@ -1702,7 +1762,7 @@ TaskExecutorService promiseExecutor = TaskExecutors.adapt(standardExecutor);
 // The adapter intercepts submit() to return Promises
 Promise<String> result = promiseExecutor.submit(() -> "Hello, Promises!");
 ```
-### 16.3. `TaskCompletionService`
+## 3. `TaskCompletionService`
 
 The standard `CompletionService` is useful when you want to submit a batch of tasks and process their results in the order they _complete_, rather than the order they were submitted.
 
@@ -1722,11 +1782,11 @@ for (int i = 0; i < 2; i++) {
     completedTask.thenAccept(result -> System.out.println("Got: " + result));
 }
 ```
-### 16.4. Fluent Thread and ThreadGroup Builders
+## 4. Fluent Thread and ThreadGroup Builders
 
 Configuring thread pools in plain Java often requires writing verbose, anonymous `ThreadFactory` classes. The library provides fluent builders to make this clean, expressive, and highly configurable.
 
-#### `ThreadFactoryBuilder`
+### `ThreadFactoryBuilder`
 
 Allows you to configure thread names, daemon status, priority, context class loaders, and uncaught exception handlers.
 
@@ -1744,7 +1804,7 @@ ThreadFactory factory = TaskExecutors.newThreadFactory()
 
 TaskExecutorService executor = TaskExecutors.newFixedThreadPool(4, factory);
 ```
-#### `ThreadGroupBuilder`
+### `ThreadGroupBuilder`
 
 Allows you to create and configure a `ThreadGroup` to organize your worker threads, which can then be passed to the `ThreadFactoryBuilder`.
 ```java
@@ -1759,7 +1819,7 @@ ThreadFactory factory = TaskExecutors.newThreadFactory()
     .withNameFormat("io-pool-%3$d-thread-%1$d")
     .build();
 ```
-### Summary of Executor Classes
+## Summary of Executor Classes
 | Class / Interface | JDK Equivalent | Tascalate Concurrent Advantage |
 | :--- | :--- | :--- |
 | **`TaskExecutorService`** | `ExecutorService` | `submit(...)` returns `Promise<T>` instead of `Future<T>`. |
@@ -1769,13 +1829,13 @@ ThreadFactory factory = TaskExecutors.newThreadFactory()
 | **`ThreadFactoryBuilder`** | *None* | Fluent API for creating highly configured `ThreadFactory` instances. |
 | **`ThreadGroupBuilder`** | *None* | Fluent API for creating `ThreadGroup` instances. |
 
-## 17. Throttled Executors and Virtual Threads (Java 21+)
+# 17. Throttled Executors and Virtual Threads (Java 21+)
 
 With the introduction of Virtual Threads in Java 21, the traditional "thread pool" paradigm — where a fixed number of long-lived platform threads pull tasks from a queue — is no longer the only (or best) way to handle massive concurrency. Virtual threads are so lightweight that you can spawn a new one for every single task. However, you still need to prevent overwhelming downstream resources (like a database connection pool or a third-party API rate limit).
 
 To solve this, Tascalate Concurrent provides a specialized executor for Java 21+ environments: `ThrottledExecutorService` (and its Promise-returning counterpart, `ThrottledTaskExecutorService`).
 
-### The Concurrency Model: Semaphore-Bounded Virtual Threads
+## The Concurrency Model: Semaphore-Bounded Virtual Threads
 
 Instead of maintaining a pool of reusable threads, `ThrottledExecutorService` uses a **`Semaphore`** to enforce a strict limit on concurrent executions (`maxConcurrentThreads`):
 
@@ -1786,7 +1846,7 @@ Instead of maintaining a pool of reusable threads, `ThrottledExecutorService` us
 
 This gives you the exact concurrency guarantees of a fixed-size thread pool (e.g., "never more than 50 concurrent DB queries"), but with the immense scalability of virtual threads, allowing thousands of pending tasks to wait in the queue without consuming OS-level thread resources.
 
-### Usage
+## Usage
 
 Because these classes rely on the `Thread.ofVirtual()` API, they are packaged in the Java 21+ section of the Tascalate Concurrent multi-release JAR. 
 
@@ -1801,7 +1861,7 @@ throttledExecutor.execute(() -> {
     callRemoteApi(); 
 });
 ```
-### Promise Integration: `ThrottledTaskExecutorService`
+## Promise Integration: `ThrottledTaskExecutorService`
 
 If you want to combine virtual-thread throttling with the Tascalate Concurrent `Promise` API, use `ThrottledTaskExecutorService`. It extends the throttled executor and implements `TaskExecutorService`, ensuring that `submit(...)` returns a `Promise<T>`.
 ```java
