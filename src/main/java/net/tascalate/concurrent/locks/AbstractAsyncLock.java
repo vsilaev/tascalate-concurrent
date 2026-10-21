@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,52 +22,118 @@ import java.util.function.Supplier;
 import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.Promises;
 
+/**
+ * The base contract for all asynchronously acquirable locks in this package &mdash;
+ * the non-blocking counterpart of the {@code java.util.concurrent.locks} family.
+ *
+ * <h2>Acquisition never blocks</h2>
+ * <ul>
+ *   <li>{@link #tryAcquire()} attempts an <b>immediate</b> acquisition and returns an
+ *       {@link Optional} {@link Token}: populated on success, empty when the lock is
+ *       currently held. It never waits.</li>
+ *   <li>{@link #acquire()} returns a {@link Promise} of a {@link Token} that completes
+ *       once the lock is exclusively acquired &mdash; immediately if the lock is free,
+ *       or later, when preceding holders release it. The calling thread is never
+ *       blocked while waiting.</li>
+ * </ul>
+ *
+ * <h2>The token pattern</h2>
+ * <p>
+ * Instead of paired {@code lock()} / {@code unlock()} calls that must be matched
+ * manually, acquisition yields a {@link Token} object that owns the release
+ * responsibility. The token <b>must</b> be released via {@link Token#release()}
+ * (or {@link Token#close()}) after the protected action completes. Because tokens
+ * implement {@link AutoCloseable}, they integrate directly with the library's
+ * asynchronous try-with-resources support:
+ * </p>
+ *
+ * <pre>{@code
+ * AsyncLock lock = AsyncLock.create();
+ *
+ * // Explicit token handling
+ * Promise<Result> r1 = Promises.tryCompose(
+ *     lock.acquire(),          // Promise<Token>
+ *     token -> doWorkAsync()   // runs while the lock is held
+ * );                           // token.close() releases the lock afterwards
+ *
+ * // Or, concisely:
+ * Promise<Result> r2 = lock.guard(() -> doWorkAsync());
+ * }</pre>
+ *
+ * <p>
+ * In both forms the lock is released even if the protected action fails or the
+ * resulting promise is cancelled.
+ * </p>
+ *
+ * @param <T> the concrete token type of the lock implementation
+ * @see AsyncLock
+ * @see AsyncSemaphoreLock
+ */
 public interface AbstractAsyncLock<T extends AbstractAsyncLock.Token> {
+
     /**
-     * Attempts to immediately acquire the lock, returning a populated {@link Optional} if the lock is
-     * not currently held.
+     * Attempts to immediately acquire the lock, without blocking or waiting.
      *
-     * @return An {@link Optional} holding a {@link Token} if the lock is not held; otherwise an
-     *         empty Optional
+     * @return an {@link Optional} holding the {@link Token} if the lock was acquired;
+     *         an empty {@code Optional} if the lock is currently held
      */
     Optional<T> tryAcquire();
-    
+
     /**
-     * Exclusively acquires this lock. The returned stage will complete when the
-     * lock is exclusively acquired by this caller. The stage may already be
-     * complete if the lock was not held.
-     *
+     * Exclusively acquires this lock asynchronously.
      * <p>
-     * The {@link Token} held by the returned stage is used to release the
-     * lock after it has been acquired and the lock-protected action has
-     * completed.
+     * The returned promise completes when the lock is exclusively acquired by the
+     * caller. It may already be complete if the lock was not held. The promised
+     * {@link Token} must be released once the protected action completes.
+     * </p>
      *
-     * @return A {@link Promise} which will complete with a
-     *         {@link Token} when the lock has been exclusively acquired
+     * @return a {@link Promise} that completes with a {@link Token} when the lock
+     *         has been exclusively acquired
      */
     Promise<T> acquire();
 
     /**
-     * A lock token indicating that the associated lock has been exclusively
-     * acquired. Once the protected action is completed, the lock may be
-     * released by calling {@link Token#release()}
+     * A lock token indicating that the associated lock has been exclusively acquired.
+     * <p>
+     * Once the protected action is completed, the lock must be released by calling
+     * {@link #release()} (or {@link #close()}). Implementing {@link AutoCloseable}
+     * lets tokens participate in {@link Promises#tryCompose} and related
+     * asynchronous try-with-resources combinators.
+     * </p>
      */
     interface Token extends AutoCloseable {
-        /** Releases this lock, allowing others to acquire it. */
+
+        /**
+         * Releases the lock, allowing other parties to acquire it.
+         */
         void release();
 
         /**
-         * Releases this lock, allowing others to acquire it.
+         * Releases the lock; identical to {@link #release()}.
          *
          * <p>
          * {@inheritDoc}
+         * </p>
          */
         @Override
         default void close() {
             release();
         }
     }
-    
+
+    /**
+     * Runs the given asynchronous action while holding this lock, releasing the lock
+     * automatically when the action's stage completes &mdash; successfully,
+     * exceptionally, or via cancellation.
+     * <p>
+     * Equivalent to {@code Promises.tryCompose(acquire(), $ -> action.get())}.
+     * </p>
+     *
+     * @param <V>    the result type of the action
+     * @param action a supplier of the asynchronous action to run under the lock
+     * @return a promise that completes with the action's result after the lock has
+     *         been released
+     */
     default <V> Promise<V> guard(Supplier<? extends CompletionStage<V>> action) {
         return Promises.tryCompose(this.acquire(), $ -> action.get());
     }

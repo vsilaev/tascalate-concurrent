@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,50 @@
  */
 package net.tascalate.concurrent.locks;
 
+import net.tascalate.concurrent.Promise;
+
 /**
- * An asynchronously acquirable mutual exclusion lock.
+ * An asynchronously acquirable <b>mutual exclusion</b> lock &mdash; the non-blocking
+ * analogue of {@link java.util.concurrent.locks.Lock}.
  *
+ * <p>
+ * At most one party holds the lock at any moment. Instead of blocking in
+ * {@code lock()}, callers receive a {@link Promise} of a {@link Token}:
+ * </p>
+ *
+ * <pre>{@code
+ * AsyncLock lock = AsyncLock.create();
+ *
+ * Promises.tryCompose(lock.acquire(), t -> updateSharedStateAsync());
+ * 
+ *
+ * // or simply:
+ * lock.guard(() -> updateSharedStateAsync());
+ * }</pre>
+ *
+ * <p>
+ * Waiting acquirers are served in the order they called {@link #acquire()}; the
+ * returned promises are completed on the thread that releases the lock. Use
+ * {@link #tryAcquire()} for a non-blocking acquisition attempt.
+ * </p>
+ *
+ * @see AbstractAsyncLock
+ * @see AsyncSemaphoreLock
  */
 public interface AsyncLock extends AbstractAsyncLock<AsyncLock.Token> {
 
+    /**
+     * A token indicating that this lock has been exclusively acquired. Release the
+     * lock by calling {@link #release()} (or {@link #close()}) once the protected
+     * action completes.
+     */
     interface Token extends AbstractAsyncLock.Token {}
 
+    /**
+     * Creates a new asynchronous mutual exclusion lock.
+     *
+     * @return a new free (unheld) {@code AsyncLock}
+     */
     static AsyncLock create() {
         return new DefaultAsyncLock();
     }
