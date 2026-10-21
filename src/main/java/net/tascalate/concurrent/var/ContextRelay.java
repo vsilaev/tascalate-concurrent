@@ -260,10 +260,34 @@ public final class ContextRelay<X> {
       */
      public <T> Function<Promise<T>, Promise<T>> contextualPromises() {
          PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
-         return p -> p instanceof DependentPromise ?
-             new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
-             :
-             new CustomizablePromiseDecorator<>(p, customizer);
+         return p -> p instanceof DependentPromise 
+                     ?
+                     new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
+                     :
+                     new CustomizablePromiseDecorator<>(p, customizer);
+     }
+     
+     /**
+      * Wraps the given promise so that all its composition callbacks run within the
+      * context captured <b>eagerly, at the moment this method is invoked</b>.
+      * <p>
+      * This is a single-use variant of {@link #contextualPromises()}. Instead of
+      * returning a decorator function, it directly applies the statically captured
+      * context to the provided promise.
+      * </p>
+      *
+      * @param <T> the promise result type
+      * @param promise the promise to contextualize
+      * @return a context-bound copy of the promise
+      * @see #contextualPromises()
+      */
+     public <T> Promise<T> contextualPromise(Promise<T> promise) {
+         PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
+         return promise instanceof DependentPromise 
+                ?
+                new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)promise, customizer)
+                :
+                new CustomizablePromiseDecorator<>(promise, customizer);
      }
 
      /**
@@ -277,6 +301,21 @@ public final class ContextRelay<X> {
      public <T> Function<DependentPromise<T>, DependentPromise<T>> contextualDependentPromises() {
          PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
          return p -> new CustomizableDependentPromiseDecorator<>(p, customizer);
+     }
+     
+
+     /**
+      * Type-preserving variant of {@link #contextualPromise(Promise)} for chains that
+      * operate on {@link DependentPromise} and must keep its extended API surface.
+      *
+      * @param <T> the promise result type
+      * @param promise the dependent promise to contextualize
+      * @return a context-bound copy of the dependent promise
+      * @see #contextualDependentPromises()
+      */
+     public <T> DependentPromise<T> contextualDependentPromise(DependentPromise<T> promise) {
+         PromiseCustomizer customizer = new StaticContextualPromiseCustomizer(captureContextualization());
+         return new CustomizableDependentPromiseDecorator<>(promise, customizer);
      }
 
      /**
@@ -295,11 +334,30 @@ public final class ContextRelay<X> {
       * @see #contextualPromises()
       */
      public <T> Function<Promise<T>, Promise<T>> dynamicContextualPromises() {
+         return this::dynamicContextualPromise;
+     }
+     
+     /**
+      * Wraps the given promise so that all its composition callbacks run within the
+      * context captured <b>dynamically, each time a callback is registered</b>.
+      * <p>
+      * This is a single-use variant of {@link #dynamicContextualPromises()}. Instead
+      * of returning a decorator function, it directly applies the dynamically resolved
+      * context to the provided promise.
+      * </p>
+      *
+      * @param <T> the promise result type
+      * @param promise the promise to contextualize
+      * @return a context-bound copy of the promise
+      * @see #dynamicContextualPromises()
+      */
+     public <T> Promise<T> dynamicContextualPromise(Promise<T> promise) {
          PromiseCustomizer customizer = new DynamicContextualPromiseCustomizer(this);
-         return p -> p instanceof DependentPromise ?
-             new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)p, customizer)
-             :
-             new CustomizablePromiseDecorator<>(p, customizer);
+         return promise instanceof DependentPromise 
+                ?
+                new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)promise, customizer)
+                :
+                new CustomizablePromiseDecorator<>(promise, customizer);
      }
 
      /**
@@ -311,8 +369,22 @@ public final class ContextRelay<X> {
       * @see #dynamicContextualPromises()
       */
      public <T> Function<DependentPromise<T>, DependentPromise<T>> dynamicContextualDependentPromises() {
+         return this::dynamicContextualDependentPromise;
+     }
+     
+     /**
+      * Type-preserving variant of {@link #dynamicContextualPromise(Promise)} for
+      * chains that operate on {@link DependentPromise} and must keep its extended
+      * API surface.
+      *
+      * @param <T> the promise result type
+      * @param promise the dependent promise to contextualize
+      * @return a context-bound copy of the dependent promise
+      * @see #dynamicContextualDependentPromises()
+      */
+     public <T> DependentPromise<T> dynamicContextualDependentPromise(DependentPromise<T> promise) {
          PromiseCustomizer customizer = new DynamicContextualPromiseCustomizer(this);
-         return p -> new CustomizableDependentPromiseDecorator<>(p, customizer);
+         return new CustomizableDependentPromiseDecorator<>(promise, customizer);
      }
 
      /**

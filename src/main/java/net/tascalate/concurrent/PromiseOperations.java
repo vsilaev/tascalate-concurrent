@@ -23,6 +23,7 @@ import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
 
+import net.tascalate.concurrent.io.BlockingIO;
 import net.tascalate.concurrent.var.ContextRelay;
 
 public class PromiseOperations {
@@ -211,12 +212,28 @@ public class PromiseOperations {
         return p -> chunkedStrem(p, batchSize,  spawner, downstream, downstreamExecutor);
     }
     
-    public static <T> Promise<T> withContext(Promise<T> promise, ContextRelay<?> relay) {
-        return promise.as(relay.contextualPromises());
+    public static <T> Promise<T> contextual(Promise<T> promise, ContextRelay<?> relay) {
+        return relay.contextualPromise(promise);
     }
     
-    public static <T> Promise<T> withDynamicContext(Promise<T> promise, ContextRelay<?> relay) {
-        return promise.as(relay.dynamicContextualPromises());
+    public static <T> DependentPromise<T> contextual(DependentPromise<T> promise, ContextRelay<?> relay) {
+        return relay.contextualDependentPromise(promise);
+    }
+    
+    public static <T> Promise<T> dynamicContextual(Promise<T> promise, ContextRelay<?> relay) {
+        return relay.dynamicContextualPromise(promise);
+    }
+    
+    public static <T> DependentPromise<T> dynamicContextual(DependentPromise<T> promise, ContextRelay<?> relay) {
+        return relay.dynamicContextualDependentPromise(promise);
+    }
+
+    public static <T> Promise<T> interruptible(Promise<T> promise) {
+        return BlockingIO.interruptiblePromise(promise);
+    }
+    
+    public static <T> DependentPromise<T> interruptible(DependentPromise<T> promise) {
+        return BlockingIO.interruptibleDependentPromise(promise);
     }
 
 

@@ -100,42 +100,42 @@ When working with the `Promise` interface, the accompanying `Promises` utility c
 The `Promises` utility class provides factory methods to create pre-resolved promises, as well as highly optimized shared constants for the most common terminal states. Using these avoids unnecessary object allocation.
 
 ```java
-public  final  class Promises {
+public final class Promises {
 	// --- Shared Constants (Zero Allocation) ---
 	
 	/** A shared, pre-resolved promise yielding {@link Boolean#TRUE}. */
-	public  static  final Promise<Boolean> TRUE = Promises.success(Boolean.TRUE);
+	public static final Promise<Boolean> TRUE = Promises.success(Boolean.TRUE);
 
 	/** A shared, pre-resolved promise yielding {@link Boolean#FALSE}. */
-	public  static  final Promise<Boolean> FALSE = Promises.success(Boolean.FALSE);
+	public static final Promise<Boolean> FALSE = Promises.success(Boolean.FALSE);
 
 	// --- Factory Methods ---
 	
 	/** Creates a new promise successfully completed with the given value. */
-	public  static  <T> Promise<T> success(T value);
+	public static <T> Promise<T> success(T value);
 
 	/** Creates a new promise completed exceptionally with the given throwable. */
-	public  static  <T> Promise<T> failure(Throwable exception);
+	public static <T> Promise<T> failure(Throwable exception);
 
 	/**
 	 * Adapts an {@link Optional} into a {@link Promise}.
 	 * If present, it returns {@code success(value)}; if empty, it returns
 	 * {@code failure(new NoSuchElementException())}.
 	 */
-	public  static  <T> Promise<T> maybe(Optional<T> maybeValue);
+	public static <T> Promise<T> maybe(Optional<T> maybeValue);
 
 	/**
 	 * Returns a shared, pre-resolved promise that completes with {@code null}.
 	 * Using this avoids allocating a new promise when a null result is acceptable.
 	 */
-	public  static  <T> Promise<T> nothing();
+	public static <T> Promise<T> nothing();
 
 	/**
  	 * Returns a shared promise that is already in the cancelled state.
 	 * Useful when you need to immediately return a cancelled promise without
 	 * allocating a new one.
 	 */
-	public  static  <T> Promise<T> canceled();
+	public static <T> Promise<T> canceled();
 }
 ```
 **When to use which:**
@@ -1721,10 +1721,112 @@ All implementations are lock-free: permit accounting uses compare-and-set operat
 | **`AsyncSemaphore`** | `Semaphore` | `Promise<Long>` (granted count) | `AsyncSemaphore.create(permits, fair)` |
 | **`AsyncCountDownLatch`** | `CountDownLatch` | the latch itself is a `Promise<Long>` | `new AsyncCountDownLatch(count)` |
 
-## 14. Asynchronous I/O extensions
-TBD
+# 14. Asynchronous I/O extensions
 
-## 15. Decorators for CompletionStage / CompletableFuture / Promise
+Standard Java NIO provides `AsynchronousChannel` implementations (`AsynchronousFileChannel`, `AsynchronousSocketChannel`, etc.) that operate using `CompletionHandler` callbacks. While non-blocking, this callback-driven API quickly leads to deeply nested, hard-to-maintain code ("callback hell") when composing multiple I/O operations.
+
+The `net.tascalate.concurrent.io` package solves this by providing Promise-based wrappers around the standard NIO asynchronous channels. These wrappers adapt the callback-based methods to return `Promise`s, allowing you to use the fluent, composable API of `Promise` for all your asynchronous I/O needs.
+
+## Core Interfaces
+* **`AsyncChannel`**: A marker interface extending `java.nio.channels.AsynchronousChannel` that denotes a channel adapted for the Promise API.
+* **`AsyncByteChannel`**: Extends `AsynchronousByteChannel` and `AsyncChannel`, overriding `read` and `write` to return `Promise<Integer>` representing the number of bytes transferred.
+
+## Asynchronous File I/O
+`AsyncFileChannel` wraps the standard `AsynchronousFileChannel`. It is opened using the familiar static `open` methods, requiring an `ExecutorService` to dispatch I/O completion events.
+
+```java
+ExecutorService ioExecutor = Executors.newFixedThreadPool(4);
+Path filePath = Paths.get("/path/to/large/file.dat");
+
+// Open the file channel
+AsyncFileChannel fileChannel = AsyncFileChannel.open(filePath, ioExecutor, StandardOpenOption.READ);
+
+// Read asynchronously using Promises
+ByteBuffer buffer = ByteBuffer.allocate(1024);
+Promise<Integer> bytesReadPromise = fileChannel.read(buffer, 0);
+
+bytesReadPromise.thenAccept(bytesRead -> {
+    System.out.println("Read " + bytesRead + " bytes");
+    buffer.flip();
+    // Process buffer...
+}).exceptionally(ex -> {
+    System.err.println("I/O failed: " + ex.getMessage());
+    return null;
+});
+```
+**File Locking**  `AsyncFileChannel` also provides Promise-based methods for acquiring file locks, avoiding the blocking `lock()` methods of the standard API:
+```java
+Promise<FileLock> lockPromise = fileChannel.lock(true); // shared lock
+lockPromise.thenAccept(lock -> {
+    // Lock acquired, safe to read/write
+    lock.release(); // Release the lock
+});
+```
+## Asynchronous Network I/O (Client)
+
+`AsyncSocketChannel` wraps `AsynchronousSocketChannel`, enabling fluent TCP client operations. It is typically opened via an `AsynchronousChannelGroup`.
+```java
+AsynchronousChannelGroup group = AsynchronousChannelGroup.withThreadPool(ioExecutor);
+AsyncSocketChannel socket = AsyncSocketChannel.open(group);
+
+// Connect, then write, then read, all chained fluently
+SocketAddress remote = new InetSocketAddress("example.com", 80);
+ByteBuffer requestBuffer = ByteBuffer.wrap("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n".getBytes());
+ByteBuffer responseBuffer = ByteBuffer.allocate(4096);
+
+socket.connect(remote)
+      .thenCompose(v -> socket.write(requestBuffer))
+      .thenCompose(bytesWritten -> socket.read(responseBuffer))
+      .thenAccept(bytesRead -> {
+          responseBuffer.flip();
+          System.out.println("Received " + bytesRead + " bytes from server");
+      })
+      .exceptionally(ex -> {
+          ex.printStackTrace();
+          return null;
+      });
+```
+## Asynchronous Network I/O (Server)
+
+`AsyncServerSocketChannel` wraps `AsynchronousServerSocketChannel` for building non-blocking TCP servers. The `accept()` method returns a `Promise<AsyncSocketChannel>`, making it easy to set up continuous accept loops without callback nesting.
+```java
+AsynchronousChannelGroup group = AsynchronousChannelGroup.withThreadPool(ioExecutor);
+AsyncServerSocketChannel server = AsyncServerSocketChannel.open(group);
+
+// Bind to port 8080
+server.bind(new InetSocketAddress(8080));
+
+// Recursive accept loop using Promises
+Runnable acceptLoop = new Runnable() {
+    @Override
+    public void run() {
+        server.accept().thenAccept(clientSocket -> {
+            System.out.println("Accepted connection from: " + clientSocket.getRemoteAddress());
+            
+            // Handle the client socket (e.g., read/write)
+            handleClient(clientSocket);
+            
+            // Continue accepting the next connection
+            this.run(); 
+        }).exceptionally(ex -> {
+            System.err.println("Accept failed: " + ex.getMessage());
+            return null;
+        });
+    }
+};
+acceptLoop.run();
+```
+## Extensibility
+
+If you need to create custom channel wrappers or adapt third-party asynchronous channels, the library provides abstract base classes:
+
+-   `AbstractAsyncFileChannel<F>`
+-   `AbstractAsyncSocketChannel<C>`
+-   `AbstractAsyncServerSocketChannel<S, C>`
+
+These classes handle the delegation to the underlying JDK channel and the boilerplate of bridging `CompletionHandler` to `Promise` (via the internal `AsyncResult` bridge), allowing you to focus purely on your custom channel logic while preserving the fluent Promise API.
+
+# 15. Decorators for CompletionStage / CompletableFuture / Promise
 TBD
 
 # 16. Promise-Aware Executors and Thread Builders

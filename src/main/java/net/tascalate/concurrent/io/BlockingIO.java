@@ -316,9 +316,7 @@ public final class BlockingIO {
      * @return a function that decorates a {@link Promise} to be interruptible
      */
     public static <T> Function<Promise<T>, Promise<T>> interruptiblePromises() {
-        return p -> p instanceof DependentPromise ?
-            new CustomizableDependentPromiseDecorator<>((DependentPromise<T>) p, INTERRUPTIBLE_PROMISE_CUSTOMIZER) :
-            new CustomizablePromiseDecorator<>(p, INTERRUPTIBLE_PROMISE_CUSTOMIZER);
+        return BlockingIO::interruptiblePromise;
     }
 
     /**
@@ -329,6 +327,52 @@ public final class BlockingIO {
      * @return a function that decorates a {@link DependentPromise} to be interruptible
      */
     public static <T> Function<DependentPromise<T>, DependentPromise<T>> interruptibleDependentPromises() {
-        return p -> new CustomizableDependentPromiseDecorator<>(p, INTERRUPTIBLE_PROMISE_CUSTOMIZER);
+        return BlockingIO::interruptibleDependentPromise;
+    }
+    
+    /**
+     * Decorates the given {@link Promise} so that all its composition callbacks
+     * (e.g., {@code thenApply}, {@code thenAccept}) are executed within an
+     * {@link #interruptible(Runnable)} block.
+     * <p>
+     * This ensures that any blocking I/O performed inside those async callbacks
+     * can be forcefully unblocked if the parent {@link Promise} is cancelled.
+     * </p>
+     * <p>
+     * If the provided promise is already a {@link DependentPromise}, the returned
+     * promise will preserve that type to maintain the extended cancellation API.
+     * </p>
+     *
+     * @param <T> the result type of the promise
+     * @param promise the original promise to decorate
+     * @return the decorated, interruptible promise
+     * @see #interruptiblePromises()
+     */
+    public static <T> Promise<T> interruptiblePromise(Promise<T> promise) {
+        return promise instanceof DependentPromise 
+               ?
+               new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)promise, INTERRUPTIBLE_PROMISE_CUSTOMIZER) 
+               :
+               new CustomizablePromiseDecorator<>(promise, INTERRUPTIBLE_PROMISE_CUSTOMIZER);
+    }
+    
+    /**
+     * Decorates the given {@link DependentPromise} so that all its composition
+     * callbacks (e.g., {@code thenApply}, {@code thenAccept}) are executed within
+     * an {@link #interruptible(Runnable)} block, while strictly preserving the
+     * {@link DependentPromise} type to maintain access to its extended cancellation
+     * and origin-enlisting API.
+     * <p>
+     * This ensures that any blocking I/O performed inside those async callbacks
+     * can be forcefully unblocked if the parent promise is cancelled.
+     * </p>
+     *
+     * @param <T> the result type of the promise
+     * @param promise the original dependent promise to decorate
+     * @return the decorated, interruptible dependent promise
+     * @see #interruptibleDependentPromises()
+     */    
+    public static <T> DependentPromise<T> interruptibleDependentPromise(DependentPromise<T> promise) {
+        return new CustomizableDependentPromiseDecorator<>((DependentPromise<T>)promise, INTERRUPTIBLE_PROMISE_CUSTOMIZER);
     }
 }
