@@ -15,8 +15,6 @@
  */
 package net.tascalate.concurrent;
 
-import static net.tascalate.concurrent.AsyncInternals.selectSecond;
-
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -267,7 +265,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> {
     public static <T> Promise<T> waitFor(CompletionStage<T> stage, Executor executor, boolean dependentStage) {
         return asyncOn(executor)
                .dependent()
-               .thenCombine(stage, selectSecond(), enlistParamOrNone(dependentStage))
+               .thenCombine(stage, AsyncInternals.selectSecond(), enlistParamOrNone(dependentStage))
                .unwrap();
     }
 
@@ -295,7 +293,7 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> {
     public static Promise<Duration> delay(Duration duration, Executor executor) {
         return asyncOn(executor)
                .dependent()
-               .thenCombineAsync(AsyncInternals.delay(duration), selectSecond(), enlistParamOrNone(true))
+               .thenCombineAsync(AsyncInternals.delay(duration), AsyncInternals.selectSecond(), enlistParamOrNone(true))
                .unwrap();
     }
 
