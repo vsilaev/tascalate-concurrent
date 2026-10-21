@@ -1616,7 +1616,7 @@ The `net.tascalate.concurrent.locks` package provides asynchronous analogs of th
 
 Instead of the error-prone paired `lock()` / `unlock()` calls that must be matched manually, a successful acquisition yields a **token** — an object that owns the release responsibility:
 
-* `tryAcquire()` performs an immediate, non-waiting attempt and returns an `Optional<Token>` — populated on success, empty when the lock is held;
+* `tryAcquire()` performs an immediate, non-waiting attempt and returns an `Token` — populated on success, `null` when the lock is held;
 * `acquire()` returns a `Promise<Token>` that completes when the lock is granted (immediately if it is free, or later when preceding holders release it).
 
 Tokens implement `AutoCloseable`, so they integrate directly with the library's asynchronous try-with-resources combinators (Section 12). Releasing is guaranteed even if the protected action fails or is cancelled:
@@ -1663,7 +1663,7 @@ Promise<AsyncSemaphoreLock.Token> bulk = dbPermits.acquire(3); // wait for 3 per
 
 long free    = dbPermits.availablePermits();   // permits available right now
 int  waiting = dbPermits.getQueueLength();     // queued acquisition requests
-Optional<AsyncSemaphoreLock.Token> all = dbPermits.drainPermits(); // take whatever is free
+AsyncSemaphoreLock.Token all = dbPermits.drainPermits(); // take whatever is free
 ```
 ## 4. `AsyncSemaphore` — counting semaphore, JDK style
 
@@ -1980,4 +1980,3 @@ responsePromise.thenAccept(response -> process(response))
 # Acknowledgements
 
 Internal implementation details are greatly inspired [by the work](https://github.com/lukas-krecan/completion-stage) done by [Lukáš Křečan](https://github.com/lukas-krecan). The part of the polling / asynchronous retry functionality is adopted from the [async-retry](https://github.com/nurkiewicz/async-retry) library by [Tomasz Nurkiewicz](http://nurkiewicz.com/)
-

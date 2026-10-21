@@ -2,9 +2,9 @@ package net.tascalate.concurrent.locks;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
@@ -23,20 +23,20 @@ public class AsyncSemaphoreLockTest {
         AsyncSemaphoreLock sem = AsyncSemaphoreLock.create(2, false);
         assertEquals(2, sem.availablePermits());
 
-        Optional<AsyncSemaphoreLock.Token> t1 = sem.tryAcquire();
-        assertTrue(t1.isPresent());
-        assertEquals(1, t1.get().permits());
+        AsyncSemaphoreLock.Token t1 = sem.tryAcquire();
+        assertNotNull(t1);
+        assertEquals(1, t1.permits());
         assertEquals(1, sem.availablePermits());
 
-        Optional<AsyncSemaphoreLock.Token> t2 = sem.tryAcquire();
-        assertTrue(t2.isPresent());
+        AsyncSemaphoreLock.Token t2 = sem.tryAcquire();
+        assertNotNull(t2);
         assertEquals(0, sem.availablePermits());
 
-        assertFalse("No permits left", sem.tryAcquire().isPresent());
+        assertEquals("No permits left", sem.tryAcquire(), null);
 
-        t1.get().release();
+        t1.release();
         assertEquals(1, sem.availablePermits());
-        t2.get().release();
+        t2.release();
         assertEquals(2, sem.availablePermits());
     }
 
@@ -44,14 +44,14 @@ public class AsyncSemaphoreLockTest {
     public void tryAcquireMultiplePermits() {
         AsyncSemaphoreLock sem = AsyncSemaphoreLock.create(5, false);
 
-        Optional<AsyncSemaphoreLock.Token> t = sem.tryAcquire(3);
-        assertTrue(t.isPresent());
-        assertEquals(3, t.get().permits());
+        AsyncSemaphoreLock.Token t = sem.tryAcquire(3);
+        assertNotNull(t);
+        assertEquals(3, t.permits());
         assertEquals(2, sem.availablePermits());
 
-        assertFalse("Only 2 permits left — 3 must not be granted", sem.tryAcquire(3).isPresent());
+        assertEquals("Only 2 permits left — 3 must not be granted", sem.tryAcquire(3), null);
 
-        t.get().release();
+        t.release();
         assertEquals(5, sem.availablePermits());
     }
 
@@ -86,7 +86,7 @@ public class AsyncSemaphoreLockTest {
     @Test
     public void tokenReleaseIsIdempotent() {
         AsyncSemaphoreLock sem = AsyncSemaphoreLock.create(3, false);
-        AsyncSemaphoreLock.Token t = sem.tryAcquire(2).get();
+        AsyncSemaphoreLock.Token t = sem.tryAcquire(2);
 
         t.release();
         assertEquals(3, sem.availablePermits());
@@ -97,16 +97,16 @@ public class AsyncSemaphoreLockTest {
     @Test
     public void drainPermitsReturnsAllAvailablePermitsAsToken() {
         AsyncSemaphoreLock sem = AsyncSemaphoreLock.create(5, false);
-        AsyncSemaphoreLock.Token held = sem.tryAcquire(2).get();
+        AsyncSemaphoreLock.Token held = sem.tryAcquire(2);
 
-        Optional<AsyncSemaphoreLock.Token> drained = sem.drainPermits();
-        assertTrue(drained.isPresent());
-        assertEquals(3, drained.get().permits());
+        AsyncSemaphoreLock.Token drained = sem.drainPermits();
+        assertNotNull(drained);
+        assertEquals(3, drained.permits());
         assertEquals(0, sem.availablePermits());
 
-        assertFalse("Nothing left to drain", sem.drainPermits().isPresent());
+        assertEquals("Nothing left to drain", sem.drainPermits(), null);
 
-        drained.get().release();
+        drained.release();
         held.release();
         assertEquals(5, sem.availablePermits());
     }
@@ -115,13 +115,13 @@ public class AsyncSemaphoreLockTest {
     public void fairModePreventsBarging() {
         AsyncSemaphoreLock fair = AsyncSemaphoreLock.create(2, true);
 
-        AsyncSemaphoreLock.Token first = fair.tryAcquire().get();     // 1 left
+        AsyncSemaphoreLock.Token first = fair.tryAcquire();     // 1 left
         Promise<AsyncSemaphoreLock.Token> waiter = fair.acquire(2);   // needs 2 → queues
         assertFalse(waiter.isDone());
         assertEquals(1, fair.availablePermits());
 
         // The spare permit must NOT be granted ahead of the queued waiter
-        assertFalse(fair.tryAcquire().isPresent());
+        assertEquals(fair.tryAcquire(), null);
 
         first.release(); // 2 available → fulfils the waiter
         assertTrue(waiter.isDone());
@@ -136,16 +136,16 @@ public class AsyncSemaphoreLockTest {
     public void unfairModeAllowsBarging() {
         AsyncSemaphoreLock unfair = AsyncSemaphoreLock.create(2, false);
 
-        AsyncSemaphoreLock.Token first = unfair.tryAcquire().get();    // 1 left
+        AsyncSemaphoreLock.Token first = unfair.tryAcquire();    // 1 left
         Promise<AsyncSemaphoreLock.Token> waiter = unfair.acquire(2);  // needs 2 → queues
         assertFalse(waiter.isDone());
 
         // Unfair: barging ahead of the queued waiter is allowed
-        Optional<AsyncSemaphoreLock.Token> barged = unfair.tryAcquire();
-        assertTrue(barged.isPresent());
+        AsyncSemaphoreLock.Token barged = unfair.tryAcquire();
+        assertNotNull(barged);
         assertEquals(0, unfair.availablePermits());
 
-        barged.get().release(); // 1
+        barged.release(); // 1
         first.release();        // 2 → fulfils the waiter
         assertTrue(waiter.isDone());
 

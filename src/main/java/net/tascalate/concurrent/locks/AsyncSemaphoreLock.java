@@ -15,8 +15,6 @@
  */
 package net.tascalate.concurrent.locks;
 
-import java.util.Optional;
-
 import net.tascalate.concurrent.Promise;
 
 /**
@@ -67,17 +65,16 @@ public interface AsyncSemaphoreLock extends AbstractAsyncLock<AsyncSemaphoreLock
     /**
      * Immediately acquires and removes <b>all</b> permits currently available, if any.
      *
-     * @return an {@link Optional} holding a token with all drained permits, or an
-     *         empty {@code Optional} if no permits were available
+     * @return a token with all drained permits, or {@code null} if no permits were available
      */
-    public Optional<Token> drainPermits();
+    public Token drainPermits();
 
     /**
      * Attempts to immediately acquire a single permit without blocking.
      *
-     * @return an {@link Optional} token if a permit was acquired; empty otherwise
+     * @return an token if a permit was acquired; {@code null} otherwise
      */
-    default public Optional<Token> tryAcquire() {
+    default public Token tryAcquire() {
         return tryAcquire(1L);
     }
 
@@ -86,10 +83,10 @@ public interface AsyncSemaphoreLock extends AbstractAsyncLock<AsyncSemaphoreLock
      *
      * @param permits the number of permits to acquire; must be within
      *                {@code 1 .. totalPermits}
-     * @return an {@link Optional} token if all requested permits were acquired;
-     *         empty otherwise
+     * @return a token if all requested permits were acquired;
+     *         {@code null} otherwise
      */
-    public Optional<Token> tryAcquire(long permits);
+    public Token tryAcquire(long permits);
 
     /**
      * Acquires a single permit asynchronously.

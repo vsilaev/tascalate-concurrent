@@ -74,10 +74,10 @@ public interface AbstractAsyncLock<T extends AbstractAsyncLock.Token> {
     /**
      * Attempts to immediately acquire the lock, without blocking or waiting.
      *
-     * @return an {@link Optional} holding the {@link Token} if the lock was acquired;
-     *         an empty {@code Optional} if the lock is currently held
+     * @return an {@link Token} if the lock was acquired;
+     *         an {@code null} if the lock is currently held
      */
-    Optional<T> tryAcquire();
+    T tryAcquire();
 
     /**
      * Exclusively acquires this lock asynchronously.

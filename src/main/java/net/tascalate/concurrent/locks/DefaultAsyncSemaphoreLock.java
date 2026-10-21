@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent.locks;
 
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
@@ -64,24 +63,24 @@ public class DefaultAsyncSemaphoreLock extends AsyncSemaphoreBase<AsyncSemaphore
       * {@inheritDoc}
       * <p>
       * If any permits are available they are drained and wrapped into a token;
-      * otherwise an empty {@link Optional} is returned.
+      * otherwise a {@code null} is returned.
       * </p>
       */
      @Override
-     public Optional<Token> drainPermits() {
+     public Token drainPermits() {
          long acquired = drainPermitsInternal();
-         return acquired > 0 ? Optional.of(createPromisePayload(acquired)) : Optional.empty(); 
+         return acquired > 0 ? createPromisePayload(acquired) : null; 
      }
 
      /**
       * {@inheritDoc}
       */
      @Override
-     public Optional<Token> tryAcquire(long permitsCount) {
+     public Token tryAcquire(long permitsCount) {
          if (tryAcquireInternal(permitsCount)) {
-             return Optional.of(createPromisePayload(permitsCount));
+             return createPromisePayload(permitsCount);
          } else {
-             return Optional.empty();
+             return null;
          }
      }
 

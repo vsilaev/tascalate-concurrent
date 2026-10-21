@@ -60,13 +60,13 @@ public class DefaultAsyncLock implements AsyncLock {
      * </p>
      */
     @Override
-     public Optional<Token> tryAcquire() {
+     public Token tryAcquire() {
          Promise<Token> lock = acquire();
          if (lock.isDone()) {
-             return Optional.of(lock.join());
+             return lock.join();
          } else {
              waiters.remove(lock);
-             return Optional.empty();
+             return null;
          }
      }
 
