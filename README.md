@@ -1,3 +1,4 @@
+
 [![Maven Central](https://img.shields.io/maven-central/v/net.tascalate/net.tascalate.concurrent.svg)](https://search.maven.org/artifact/net.tascalate/net.tascalate.concurrent/0.9.13/jar) [![GitHub release](https://img.shields.io/github/release/vsilaev/tascalate-concurrent.svg)](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.9.13) [![license](https://img.shields.io/github/license/vsilaev/tascalate-concurrent.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 # tascalate-concurrent
 The library provides an implementation of the [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html) interface and related classes these are designed to support long-running blocking tasks (typically, I/O bound). This functionality augments the sole Java 8 built-in implementation, [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html), that is primarily supports computational tasks. Also, the library helps with numerous asynchronous programing challenges like handling timeouts, retry/poll functionality, orchestrating results of multiple concurrent computations and similar.
@@ -125,7 +126,7 @@ This is the foundational building block of the library. `CompletableTask` is the
 
 Unlike standard `CompletableFuture`, which is optimized for non-blocking, CPU-bound computations, `CompletableTask` wraps a `RunnableFuture` (specifically a `FutureTask`). This design ensures that the task runs on a dedicated thread from an `Executor`, making it fully responsive to cancellation and interruption.
 
-### 2.1. Submitting Blocking Tasks
+### 1. Submitting Blocking Tasks
 
 You can submit blocking work to an `Executor` using familiar entry points, similar to `CompletableFuture`:
 
@@ -153,7 +154,7 @@ Promise<byte[]> contentPromise = CompletableTask.submit(
     executorService
 ); 
 ```
-### 2.2. Executor Binding and Propagation
+### 2. Executor Binding and Propagation
 
 A unique feature of `CompletableTask` is **executor binding**. When you create a task, it becomes "bound" to the provided executor. Any subsequent asynchronous composition method (`thenApplyAsync`, `thenAcceptAsync`, etc.) will automatically use this bound executor, **unless** you explicitly override it.
 
@@ -176,7 +177,7 @@ Promise<String> robustChain = CompletableTask
     .thenApplyAsync(data -> transform(data), otherExecutor) // Explicitly uses otherExecutor
     .thenApplyAsync(data -> save(data)); // Reverts to myPrimaryExecutor (enforced!)
 ```
-### 2.3. True Cancellation and Interruption
+### 3. True Cancellation and Interruption
 
 Because `CompletableTask` is backed by a `FutureTask`, it supports **true cancellation**. If you cancel the returned `Promise` with `mayInterruptIfRunning = true`, the underlying thread executing the blocking code will be interrupted.
 ```java
@@ -196,7 +197,7 @@ if (wasCancelled) {
 ```
 > **Important Caveat:** Cancellation via interruption **only works if the underlying `Executor` supports it**. For example, `ThreadPoolExecutor` respects interruptions and will interrupt the worker thread. However, `ForkJoinPool` generally ignores interruptions for running tasks, meaning a cancelled `CompletableTask` running on a `ForkJoinPool` may continue executing until it naturally completes.
 
-### 2.4. Async vs. Non-Async Composition
+### 4. Async vs. Non-Async Composition
 
 You may notice the emphasis on `*Async` methods (e.g., `thenApplyAsync`) in the examples above. This is intentional:
 
@@ -206,46 +207,48 @@ You may notice the emphasis on `*Async` methods (e.g., `thenApplyAsync`) in the 
 **Guideline:** Use `*Async` composition methods when the function itself performs heavy I/O or blocking operations that you might want to cancel. Use non-async methods for lightweight, non-blocking CPU calculations (like simple mappings or filtering) where the overhead of executor queuing would outweigh the execution time.
 
 
-### 2.5. A Note on TaskExecutorService
+### 5. A Note on TaskExecutorService
 
 While `CompletableTask` is the standard way to wrap standard Java `Executor` instances, the Tascalate Concurrent library also provides a specialized `TaskExecutorService` interface. This interface natively returns `Promise`s from its `submit` methods, completely eliminating the need to manually wrap tasks with `CompletableTask`.
 
 We will cover this advanced executor integration, along with custom thread factories and completion services, in detail in **Chapter 16**.
 
+## 3. Dependent Promises
 
-## 3. DependentPromise
-As it mentioned above, once you cancel `Promise`, all `Promise`-s that depends on this promise are completed with [CompletionException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionException.html) wrapping [CancellationException](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CancellationException.html). This is a standard behavior, and [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) works just like this.
+As mentioned earlier, when you cancel a `Promise`, all `Promise`s that depend on it are completed exceptionally with a `CompletionException` wrapping a `CancellationException`. This is the standard behavior, and `CompletableFuture` works exactly the same way.
 
-However, when you cancel derived `Promise`, the original `Promise` is not cancelled: 
+However, when you cancel a derived `Promise`, the original `Promise` is **not** cancelled:
+
 ```java
 Promise<?> original = CompletableTask.supplyAsync(() -> someIoBoundMethod(), myExecutor);
-Promise<?> derivedA = original.thenRunAsync(() -> someMethodA() );
-Promise<?> derivedB = original.thenRunAsync(() -> someMethodB() );
+Promise<?> derivedA = original.thenRunAsync(() -> someMethodA());
+Promise<?> derivedB = original.thenRunAsync(() -> someMethodB());
 ...
 derivedB.cancel(true);
 ```
-So if you cancel `derivedB` above it's [Runnable](https://docs.oracle.com/javase/8/docs/api/java/lang/Runnable.html) method, wrapping `someMethod`, is interrupted. However the `original` promise is not cancelled and `someIoBoundMethod` keeps running. Also, `derivedA` is not cancelled, and such behavior is expected. However, sometimes we have a linear chain of the promises and have a requirement to cancel the whole chain from a tail to the head. Consider the following method:
+If you cancel `derivedB` above, its `Runnable` method wrapping `someMethodB` is interrupted. However, the `original` promise is not cancelled, and `someIoBoundMethod` keeps running. Additionally, `derivedA` is not cancelled, which is the expected behavior.
 
+Sometimes, however, we have a linear chain of promises and a requirement to cancel the entire chain from the tail back to the head. Consider the following method:
 ```java
 public Promise<DataStructure> loadData(String url) {
-   return CompletableTask.supplyAsync( () -> loadXml(url) ).thenApplyAsync( xml -> parseXml(xml) ); 
+   return CompletableTask.supplyAsync(() -> loadXml(url))
+                         .thenApplyAsync(xml -> parseXml(xml)); 
 }
 
 ...
 Promise<DataStructure> p = loadData("http://someserver.com/rest/ds");
 ...
 if (someCondition()) {
-  // Only second promise is canceled, parseXml.
+  // Only the second promise (parseXml) is canceled.
   p.cancel(true);
 }
 ```
-
-Clients of this method see only derived promise, and once they decide to cancel it, it is expected that any of `loadXml` and `parseXml` will be interrupted if not completed yet. To address this issue the library provides [DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) class:
+Clients of this method only see the derived promise. If they decide to cancel it, they expect that both `loadXml` and `parseXml` will be interrupted if not yet completed. To address this, the library provides the `DependentPromise` interface:
 ```java
 public Promise<DataStructure> loadData(String url) {
    return DependentPromise
-          .from(CompletableTask.supplyAsync( () -> loadXml(url) ))
-          .thenApplyAsync( xml -> parseXml(xml), true ); 
+          .from(CompletableTask.supplyAsync(() -> loadXml(url)))
+          .thenApplyAsync(xml -> parseXml(xml), true); 
 }
 
 ...
@@ -256,99 +259,97 @@ if (someCondition()) {
   p.cancel(true);
 }
 ```
-[DependentPromise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/DependentPromise.java) overloads methods like `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc with additional argument:
-- if method accepts no other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenApply` / `thenRun` / `thenAccept` etc, then it's a boolean flag `enlistOrigin` to specify whether or not the original `Promise` should be enlisted for the cancellation.
-- if method accepts other [CompletionStage](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletionStage.html), like `thenCombine` / `applyToEither` / `thenAcceptBoth` etc, then it's a set of [PromiseOrigin](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/PromiseOrigin.java) enum values, that specifies whether or not the original `Promise` and/or a `CompletionStage` supplied as argument should be enlisted for the cancellation along with the resulting promise, for example:
+`DependentPromise` overloads methods like `thenApply`, `thenRun`, `thenAccept`, and `thenCombine` with additional arguments:
 
+-   If the method accepts no other `CompletionStage` (e.g., `thenApply`, `thenRun`, `thenAccept`), it takes a boolean flag `enlistOrigin` to specify whether the original `Promise` should be enlisted for cancellation.
+-   If the method accepts another `CompletionStage` (e.g., `thenCombine`, `applyToEither`, `thenAcceptBoth`), it takes a `Set<Promise.Origin>` to specify whether the original `Promise` and/or the argument `CompletionStage` should be enlisted for cancellation along with the resulting promise. For example:
 ```java
-public Promise<DataStructure> loadData(String url) {
+public Promise<List<DataStructure>> loadData(String url) {
    return DependentPromise
-          .from(CompletableTask.supplyAsync( () -> loadXml(url + "/source1") ))
+          .from(CompletableTask.supplyAsync(() -> loadXml(url + "/source1")))
           .thenCombine( 
-              CompletableTask.supplyAsync( () -> loadXml(url + "/source2") ), 
+              CompletableTask.supplyAsync(() -> loadXml(url + "/source2")), 
               (xml1, xml2) -> Arrays.asList(xml1, xml2),
-              PromiseOrigin.ALL
-          )          .
-          .thenApplyAsync( xmls -> parseXmlsList(xmls), true ); 
+              Promise.Origin.ALL
+          )
+          .thenApplyAsync(xmls -> parseXmlsList(xmls), true); 
 }
 ```
-
-Please note, then in release 0.5.4 there is a new default method `dependent` in interface [Promise](https://github.com/vsilaev/tascalate-concurrent/blob/master/src/main/java/net/tascalate/concurrent/Promise.java) that serves the same purpose and allows to write chained calls:
-
+Please note that since release 0.5.4, the `Promise` interface includes a default `dependent()` method that serves the same purpose and allows for fluent chained calls:
 ```java
 public Promise<DataStructure> loadData(String url) {
    return CompletableTask
-          .supplyAsync( () -> loadXml(url) )
+          .supplyAsync(() -> loadXml(url))
           .dependent()
-          .thenApplyAsync( xml -> parseXml(xml), true ); 
+          .thenApplyAsync(xml -> parseXml(xml), true); 
 }
 ```
+**Attention:** Merely calling `dependent()` on a `Promise` is not enough to change the behavior of the default `thenApply`, `thenRun`, `thenAccept`, or `thenCombine` methods defined in `CompletionStage`. You must explicitly use the overloaded forms that take either a `boolean` or a `Set<Promise.Origin>` as the last parameter. This is an intentional design decision: the `Promise` returned in the example above can still be used by client code to create _independent_ promises (as per the `CompletionStage` API), so the library adheres to the principle of least surprise.
 
-Attention: just calling `dependent()` on the `Promise` is not enough to change the behavior of the "default" `thenApply` / `thenRun` / `thenAccept` / `thenCombine` etc methods defined in `CompletionStage` - you have to use overloaded form with either `boolean` or `Set<PromiseOrigin>` last parameter _explicitly_. This is the intentional design decision: just recall, that the `Promise` returned in the example above can be used by the client code to create _independent_ promises (as per `CompletionStage` API), so the library has to follow the rule of the least surprise.
+Below are two examples (wrong and right) to reiterate this point in Java code.
 
-Below are 2 examples (wrong and right) to re-iterate the statement above in Java code.
-
-Wrong code to cancel the whole chain:
+**Wrong code to cancel the whole chain:**
 ```java
-Promise<Xml> xml = CompletableTask.supplyAsync( () -> loadXml(url) )
+Promise<Xml> xml = CompletableTask.supplyAsync(() -> loadXml(url));
 Promise<Data> data = xml.dependent()
-                        .thenApplyAsync( xml -> parseXml(xml) );  // Not overloaded method - 
-                                                                  // no "true" as the last parameter
+                        .thenApplyAsync(x -> parseXml(x));  // Not the overloaded method - 
+                                                            // no "true" as the last parameter
 ...
-// This cancels only "data" promise, but will not cancel "xml" promise
+// This cancels only the "data" promise, but will NOT cancel the "xml" promise
 data.cancel(true);
 ```
-Right code to cancel the whole chain:
+**Right code to cancel the whole chain:**
 ```java
-Promise<Xml> xml = CompletableTask.supplyAsync( () -> loadXml(url) )
+Promise<Xml> xml = CompletableTask.supplyAsync(() -> loadXml(url));
 Promise<Data> data = xml.dependent()
-                        .thenApplyAsync( xml -> parseXml(xml), true );  // Overloaded method - 
-                                                                        // "true" as last parameter means 
-                                                                        // enlist "origin" promise 
-                                                                        // for cancellation
+                        .thenApplyAsync(x -> parseXml(x), true);  // Overloaded method - 
+                                                                  // "true" as the last parameter means 
+                                                                  // enlist the "origin" promise 
+                                                                  // for cancellation
 ...
-// This cancels both "data" promise AND the "xml" promise (if it's not completed yet)
+// This cancels both the "data" promise AND the "xml" promise (if it's not completed yet)
 data.cancel(true);
 ```
+So far, so good. Following the `CompletionStage` API contract is undeniably important. But what if you need to create a local chain of 10 or 30 stages? It becomes tedious and error-prone to explicitly pass additional parameters to every overloaded method. "Error-prone" means exactly this: it is all too easy to forget to type `true` as the last parameter, inadvertently breaking the cancellation chain.
 
-So far so good. And following `CompletionStage` API contract is good, no doubt. But what if you have to create locally a chain of 10 stages? 30 stages? It's both pretty boring and error-prone to put additional parameters to enforce overloaded method(s) usage. And error-prone means just this -- it's pretty easy to forget to type "true" as the latest parameter and break the cancellation chain. Tascalate Concurrent provides an option to handle this edge case: use overloaded form of `dependent()` method - `dependent(Set<PromiseOrigin>)`. Here is an example from the real-life issue raised in the real-life project:
+Tascalate Concurrent provides an elegant solution for this edge case: use the overloaded `dependent(Set<Promise.Origin>)` method. Here is an example adapted from a real-world project:
 ```java
 Promise<?> myPromise = 
-CompletableTask.supplyAsync(() -> candidate, pool)
-               .dependent(PromiseOrigin.ALL) //Key point - alter the behavior of CompletionStage API methds
-               .thenApplyAsync(CheckIp::doWork)
-               .thenApplyAsync(CheckType::doWork)
-               .thenApplyAsync(CheckExclusion::doWork)
-               .thenApplyAsync(AssignEntity::doWork)
-               .thenCombineAsync(collectedStatsPromise, this:combineWithStats) // <-- pay attention here
-               .thenApplyAsync(DecideWmi::doWork)
-               .thenApplyAsync(ObtainWmiConnection::doWork)
-               .thenApplyAsync(ObtainRegistryWmiConnection::doWork)
-               .thenApplyAsync(RunCompliance::doWork)
-               .thenApplyAsync(DecideComplianceResult::doWork)
-               .thenApplyAsync(CreateAlert::doWork)
-               .thenApplyAsync(ApplyFailureManager::doWork)
-               .thenApplyAsync(ApplyDisconnectManager::doWork)
-               .thenApplyAsync(EnforceCompliance::doWork)
-               .exceptionally(ExceptionHandlerService::handle);
+    CompletableTask.supplyAsync(() -> candidate, pool)
+                   .dependent(Promise.Origin.ALL) // Key point: alters the behavior of CompletionStage API methods
+                   .thenApplyAsync(CheckIp::doWork)
+                   .thenApplyAsync(CheckType::doWork)
+                   .thenApplyAsync(CheckExclusion::doWork)
+                   .thenApplyAsync(AssignEntity::doWork)
+                   .thenCombineAsync(collectedStatsPromise, this::combineWithStats) // <-- pay attention here
+                   .thenApplyAsync(DecideWmi::doWork)
+                   .thenApplyAsync(ObtainWmiConnection::doWork)
+                   .thenApplyAsync(ObtainRegistryWmiConnection::doWork)
+                   .thenApplyAsync(RunCompliance::doWork)
+                   .thenApplyAsync(DecideComplianceResult::doWork)
+                   .thenApplyAsync(CreateAlert::doWork)
+                   .thenApplyAsync(ApplyFailureManager::doWork)
+                   .thenApplyAsync(ApplyDisconnectManager::doWork)
+                   .thenApplyAsync(EnforceCompliance::doWork)
+                   .exceptionally(ExceptionHandlerService::handle);
 ```
-Unlike the conservative form of the `dependent()` decorator, the overloaded `dependent(PromiseOrigin.ALL)` will enlist ALL the promises mentioned by composition methods as _dependent_ and will cancel them when `myPromise` is cancelled. Even the `collectedStatsPromise` that is passed from outside! Everything enlisted will form a single block of cancellation. By the way, if you don't need to cancel `collectedStatsPromise` above use `dependent(PromiseOrigin.THIS_ONLY)` decorator - it doesn't enlist "side-passed" promises.
+Unlike the conservative form of the `dependent()` decorator, the overloaded `dependent(Promise.Origin.ALL)` will enlist ALL promises referenced by the composition methods as _dependent_ and will cancel them when `myPromise` is cancelled—even the `collectedStatsPromise` passed from the outside! Everything enlisted forms a single cancellation block. By the way, if you do not need to cancel `collectedStatsPromise`, you can use the `dependent(Promise.Origin.THIS_ONLY)` decorator, which enlists only the originating promises and ignores "side-passed" arguments.
 
-Well, but what about obeying `CompletionStage` contract? Is it still safe to return `myPromise` to clients that are unaware of its overwritten behavior? It's not. You should revert the effect of the `dependent(PromiseOrigin.ALL)` decorator before passing `myPromise` outside:
+But what about obeying the `CompletionStage` contract? Is it still safe to return `myPromise` to clients who are unaware of its modified behavior? No, it is not. You should revert the effect of the `dependent(Promise.Origin.ALL)` decorator before passing `myPromise` outside:
 ```java
-public Promise<?> forkWmiProcessingChain(Promise<Stats collectedStatsPromise) {
-  Promise<?> myPromise = 
-  CompletableTask.supplyAsync(() -> candidate, pool)
-                 .dependent(PromiseOrigin.ALL) 
-                 .thenApplyAsync(CheckIp::doWork)
-                 .thenApplyAsync(CheckType::doWork)
-                 ...
-                 .exceptionally(ExceptionHandlerService::handle);
-  return myPromise.unwrap(); // or myPromise.raw() in this case               
+public Promise<?> forkWmiProcessingChain(Promise<Stats> collectedStatsPromise) {
+    Promise<?> myPromise = 
+        CompletableTask.supplyAsync(() -> candidate, pool)
+                       .dependent(Promise.Origin.ALL) 
+                       .thenApplyAsync(CheckIp::doWork)
+                       .thenApplyAsync(CheckType::doWork)
+                       // ...
+                       .exceptionally(ExceptionHandlerService::handle);
+                       
+    return myPromise.unwrap(); // or myPromise.raw() in this case               
 }
 ```
-
-The final operator in the function above - `unwrap()` removes the latest decorator applied, the `dependent(...)`. Looking ahead, I should mention that `raw()` will remove _all_ the decorators applied. Yes, there are several possible - and the `dependent(...)` is just one of them. In the next chapters we discuss `defaultAsyncOn` decorator and later you will see custom decorators (the ones not directly bound to the `Promise` API as methods).
+The final operation in the function above—`unwrap()`—removes the most recently applied decorator (in this case, `dependent(...)`). Looking ahead, it is worth mentioning that `raw()` will remove _all_ applied decorators. There are several possible decorators, and `dependent(...)` is just one of them. In the next chapters, we will discuss the `defaultAsyncOn` decorator, and later you will see how to apply custom decorators (which are not directly bound to the `Promise` API as methods).
 
 ## 4. Wait! Wait! It's not cancellable!!!
 One of the most common complains in the issue tracker of Tascalate Concurrent project is a variation of the report "code is not cancelled when requested". The symptoms are typical: `Promise` is cancelled, any dependent `Promise`-s are completed exceptionally (as expected) but threads keep running till the end of the code submitted to an executor. So the primary promise of the library is broken: execution is not interrupted.
@@ -540,160 +541,172 @@ Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorS
 This pattern ensures that your blocking, interruptible work is correctly isolated on a dedicated thread pool and remains fully responsive to `Promise.cancel(true)`.
 
 ## 6. Timeouts
-Any robust application requires certain level of functionality, that handles situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) the library fills the gap in this functionality with timeout-related stuff.
 
-An application developer now has the following options to control execution time of the `Promise` (declared in `Promise` interface itself):
+Any robust application requires a certain level of functionality to handle situations when things go wrong. While the ability to cancel a hung operation has existed in the library since day one, it is obviously not enough on its own. Cancellation defines *what* to do in the face of a problem, but the responsibility of *when* to do it was previously left entirely to application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4), the library fills this gap with comprehensive timeout-related features.
+
+Application developers now have the following options to control the execution time of a `Promise` (declared directly in the `Promise` interface):
 ```java
 <T> Promise<T> orTimeout(long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> orTimeout(Duration duration[, boolean cancelOnTimeout = true])
 ```
-These methods creates a new `Promise` that is either settled successfully/exceptionally when original promise is completed within a timeout given; or it is settled exceptionally with a [TimeoutException](https://docs.oracle.com/javase/8/docs/api/index.html?java/util/concurrent/TimeoutException.html) when time expired. In any case, handling code is executed on the default asynchronous [Executor](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Executor.html) of the original `Promise`.
+These methods create a new `Promise` that is settled successfully or exceptionally when the original promise completes within the given timeout. If the time expires first, the new promise is settled exceptionally with a `TimeoutException`. In all cases, the timeout handling code is executed on the default asynchronous `Executor` of the original `Promise`.
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), myExecutor )
-    .orTimeout( Duration.ofSeconds(3) );
+    .supplyAsync(() -> someLongRunningIoBoundMethod(), myExecutor)
+    .orTimeout(Duration.ofSeconds(3));
     
 Promise<?> nextPromiseSync = callPromise.whenComplete((v, e) -> processResultSync(v, e));
-Promise<?> nextPromiseAsync = callPromise.whenCompleteAsync((v,e) -> processResultAsync(v, e));
+Promise<?> nextPromiseAsync = callPromise.whenCompleteAsync((v, e) -> processResultAsync(v, e));
 ```
-In the example above `callPromise` will be settled within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or exceptionally with a `TimeoutException`.
+In the example above, `callPromise` will be settled within 3 seconds either as a result of the `someLongRunningIoBoundMethod` execution, or exceptionally with a `TimeoutException`.
 
-It's worth to mention, that _both_ `processResultSync` and `processResultAsync` will be executed with `myExecutor`, if timeout is triggered - this rule is true for all timeout-related methods.
+It is worth mentioning that _both_  `processResultSync` and `processResultAsync` will be executed using `myExecutor` if the timeout is triggered. This rule applies to all timeout-related methods in the library.
 
-The optional `cancelOnTimeout` parameter defines whether or not to cancel the original `Promise` when time is expired; it is implicitly true when omitted. So in example above `the someLongRunningIoBoundMehtod` will be interrupted if it takes more than 3 seconds to complete. Pay attention: any `Promise` is cancellable on timeout, even wrappers created via `Promises.from(stage)`, but only `CompletableTask` is interruptible!
+The optional `cancelOnTimeout` parameter defines whether the original `Promise` should be cancelled when time expires; it defaults to `true` when omitted. Therefore, in the example above, `someLongRunningIoBoundMethod` will be interrupted if it takes more than 3 seconds to complete.
 
-Cancelling original promise on timeout is a desired behavior in most cases but not always. In reality, "Warn-first-Cancel-next"  scenarios are not rare, where "warn" may be logging, sending notification emails, showing messages to user on UI etc. The library provides an option to set several non-cancelling timeouts like in the example below:
+> **Important:** Any `Promise` can be cancelled on timeout, including wrappers created via `Promises.from(stage)`. However, only tasks submitted via `CompletableTask` are actually _interruptible_ at the thread level.
+
+Cancelling the original promise on timeout is the desired behavior in most cases, but not always. In reality, "Warn-first, Cancel-next" scenarios are common, where "warn" might involve logging, sending notification emails, or showing messages to the user on a UI. The library allows you to set several non-cancelling timeouts, as shown below:
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> resultPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor );
+    .supplyAsync(() -> someLongRunningIoBoundMethod(), myExecutor);
 
-// Show UI message to user to let him/her know that everything is under control
+// 1. Show a UI message to let the user know the operation is still under control
 Promise<?> t1 = resultPromise
-    .orTimeout( Duration.ofSeconds(2), false )
-    .exceptionally( e -> {
-      if (e instanceof TimeoutException) {
-        UI.showMessage("The operation takes longer than expected, please wait...");
-      }
-      return null;
-    }, false); 
+    .orTimeout(Duration.ofSeconds(2), false)
+    .exceptionally(e -> {
+        if (e instanceof TimeoutException) {
+            UI.showMessage("The operation takes longer than expected, please wait...");
+        }
+        return null;
+    }); 
 
-// Show UI confirmation to user to let him/her cancel operation explicitly
+// 2. Show a UI confirmation to let the user cancel the operation explicitly
 Promise<?> t2 = resultPromise
-    .orTimeout( Duration.ofSeconds(5), false )
-    .exceptionally( e -> {
-      if (e instanceof TimeoutException) {
-        UI.clearMessages();
-        UI.showConfirmation("Service does not respond. Do you whant to cancel (Y/N)?");
-      }
-      return null;
-    }, false); 
+    .orTimeout(Duration.ofSeconds(5), false)
+    .exceptionally(e -> {
+        if (e instanceof TimeoutException) {
+            UI.clearMessages();
+            UI.showConfirmation("Service is not responding. Do you want to cancel (Y/N)?");
+        }
+        return null;
+    }); 
 
-// Cancel in 10 seconds
-resultPromise.orTimeout( Duration.ofSeconds(10), true );
+// 3. Hard cancel in 10 seconds
+resultPromise.orTimeout(Duration.ofSeconds(10), true);
 ```
-Please note that the timeout is started from the call to the `orTimeout` method. Hence, if you have a chain of unresolved promises ending with the `orTimeout` call then the whole chain should be completed within the time given:
+Please note that the timeout starts from the exact moment the `orTimeout` method is called. Hence, if you have a chain of unresolved promises ending with an `orTimeout` call, the _entire chain_ must complete within the given time:
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> parallelPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningDbCall(), executor );
+    .supplyAsync(() -> someLongRunningDbCall(), myExecutor);
+
 Promise<List<String>> resultPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .thenApplyAsync( v -> converterMethod(v) )
+    .supplyAsync(() -> someLongRunningIoBoundMethod(), myExecutor)
+    .thenApplyAsync(v -> converterMethod(v))
     .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
-    .orTimeout( Duration.ofSeconds(5) );
+    .orTimeout(Duration.ofSeconds(5)); // Applies to the WHOLE chain above
 ```
-In the latest example `resultPromise` will be resolved successfully if and only if all of `someLongRunningIoBoundMehtod`, `converterMethod` and even `someLongRunningDbCall` are completed within 5 seconds. If it's necessary to restrict execution time of the single step, please use standard `CompletionStage.thenCompose` method. Say, that in the previous example we have to restrict execution time of the `converterMethod` only. Then the modified chain will look like:
+In this latest example, `resultPromise` will be resolved successfully if and only if `someLongRunningIoBoundMethod`, `converterMethod`, _and_  `someLongRunningDbCall` all complete within 5 seconds.
+
+If it is necessary to restrict the execution time of a _single step_ instead of the whole chain, you can use the standard `CompletionStage.thenCompose` method. For instance, if we only want to restrict `converterMethod`:
 ```java
 Promise<List<String>> resultPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    // Restict only execution time of converterMethod
+    .supplyAsync(() -> someLongRunningIoBoundMethod(), myExecutor)
+    // Restrict ONLY the execution time of converterMethod
     // -- start of changes
-    .thenCompose( v -> 
-        CompletableTask.completed(v, executor)
+    .thenCompose(v -> 
+        CompletableTask.completed(v, myExecutor)
                        .thenApplyAsync(vv -> converterMethod(vv))
-                       .orTimeout( Duration.ofSeconds(5) )
+                       .orTimeout(Duration.ofSeconds(5))
     )
     // -- end of changes
-    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v))
-    ;
+    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v));
 ```
-
-Moreover, in the _original_ example only the call to the `thenCombineAsync` will be cancelled on timeout (the last in the chain), to cancel the whole chain please use the functionality of the `DependentPromise` interface (will be discussed later):
+Moreover, in the original example, only the final `thenCombineAsync` stage would be cancelled on timeout. To cancel the _entire chain_ on timeout, you should use the functionality of the `DependentPromise` interface (discussed in detail in Section 3):
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> parallelPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningDbCall(), executor );
-Promise<List<String>> resultPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .dependent()
-    // enlist promise of someLongRunningIoBoundMehtod for cancellation
-    .thenApplyAsync( v -> converterMethod(), true )  
-    // enlist result of thenApplyAsync and parallelPromise for cancellation
-    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v), PromiseOrigin.ALL)
-    .orTimeout( Duration.ofSeconds(5) ); // now timeout will cancel the whole chain
-```
+    .supplyAsync(() -> someLongRunningDbCall(), myExecutor);
 
-Another useful timeout-related methods declared in `Promise` interface are:
+Promise<List<String>> resultPromise = CompletableTask
+    .supplyAsync(() -> someLongRunningIoBoundMethod(), myExecutor)
+    .dependent()
+    // Enlist the promise of someLongRunningIoBoundMethod for cancellation
+    .thenApplyAsync(v -> converterMethod(v), true)  
+    // Enlist the result of thenApplyAsync AND parallelPromise for cancellation
+    .thenCombineAsync(parallelPromise, (u, v) -> Arrays.asList(u, v), Promise.Origin.ALL)
+    .orTimeout(Duration.ofSeconds(5)); // Now the timeout will cancel the whole chain
+```
+### Fallback Values on Timeout (`onTimeout`)
+
+Another useful family of timeout-related methods declared in the `Promise` interface provides fallback values instead of exceptions:
 ```java
 <T> Promise<T> onTimeout(T value, long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
 <T> Promise<T> onTimeout(T value, Duration duration[, boolean cancelOnTimeout = true])
-<T> Promise<T> onTimeout(Supplier<? extends T>, long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
-<T> Promise<T> onTimeout(Supplier<? extends T>, Duration duration[, boolean cancelOnTimeout = true])
+<T> Promise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit[, boolean cancelOnTimeout = true])
+<T> Promise<T> onTimeout(Supplier<? extends T> supplier, Duration duration[, boolean cancelOnTimeout = true])
 ```
-The `onTimeout` family of methods are similar in all regards to the `orTimeout` methods with the single obvious difference - instead of completing resulting `Promise` exceptionally with the `TimeoutException` when time is expired, they are settled successfully with the alternative `value` supplied (either directly or via [Supplier](https://docs.oracle.com/javase/8/docs/api/java/util/function/Supplier.html)):
+The `onTimeout` methods are similar in all regards to `orTimeout`, with one obvious difference: instead of completing the resulting `Promise` exceptionally with a `TimeoutException` when time expires, they settle it _successfully_ with the alternative `value` supplied (either directly or via a `Supplier`):
 ```java
 Executor myExecutor = ...; // Get an executor
 Promise<String> callPromise = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .onTimeout( "Timed-out!", Duration.ofSeconds(3) );
+    .supplyAsync(() -> someLongRunningIoBoundMethod(), myExecutor)
+    .onTimeout("Timed-out! Using default cache.", Duration.ofSeconds(3));
 ```
-The example shows, that `callPromise` will be settled within 3 seconds either successfully/exceptionally as a result of the `someLongRunningIoBoundMehtod` execution, or with a default value `"Timed-out!"` when time exceeded.
+In this example, `callPromise` will be settled within 3 seconds either as a result of the method execution, or successfully with the default string `"Timed-out! Using default cache."` if the time is exceeded.
 
-It's important to mention the crucial difference between `Promise.orTimeot / onTimeout` and `CompletableFuture.orTimeout / completeOnTimeout` in Java 9+. In Tascalate Concurrent both operations return a _new_ `Promise`, that is may be canceled individually, without cancelling the original `Promise`. Moreover, the original `Promise` will not be completed with `TimeoutException` when time expired but rather with the `CancellationException` (in the case of `orTimeout([duration], true)` or `orTimeout([duration])`). The behavior of `CompletableFuture` in Java 9+ is radically different: timeout-related operations are just "side-effects", and the returned value is the original `CompletableFuture` itself. So the call to `completableFuture.orTimeout(100, TimeUnit.MILLIS).cancel()` will cancel the `completableFuture` itself, and there is no way to revert the timeout once it's set. Correspondingly, when time expired the original `completableFuture` will be completed exceptionally with `TimeoutException`.
+> **Crucial difference from Java 9+ `CompletableFuture`:** In Tascalate Concurrent, both `orTimeout` and `onTimeout` return a _new_  `Promise` that can be cancelled individually, without cancelling the original `Promise`. Furthermore, if the original promise is cancelled due to a timeout, it completes with a `CancellationException`, not a `TimeoutException`.
+> 
+> By contrast, Java 9+ `CompletableFuture` timeout operations are mere "side effects" that mutate and return the original `CompletableFuture` itself. Calling `completableFuture.orTimeout(100, TimeUnit.MILLIS).cancel()` cancels the `completableFuture` itself, and there is no way to revert the timeout once set. Correspondingly, when time expires, the original `completableFuture` is completed exceptionally with a `TimeoutException`.
+
+### Introducing Delays (`delay`)
 
 Finally, the `Promise` interface provides an option to insert delays into the call chain:
 ```java
 <T> Promise<T> delay(long timeout, TimeUnit unit[, boolean delayOnError = true])
 <T> Promise<T> delay(Duration duration[, boolean delayOnError = true])
 ```
-The delay is started only after the original `Promise` is completed either successfully or exceptionally (unlike `orTimeout` / `onTimeout` methods where timeout is started immediately). The resulting delay `Promise` is resolved after the timeout specified with the same result as the original `Promise`. The latest methods' argument - `delayOnError` - specifies whether or not we should delay if original Promise is resolved exceptionally, by default this argument is `true`. If `false`, then delay `Promise` is completed immediately after the failed original `Promise`. 
+The delay starts _only after_ the original `Promise` is completed (either successfully or exceptionally), unlike `orTimeout`/`onTimeout` where the timer starts immediately. The resulting delayed `Promise` is resolved after the specified timeout with the exact same result as the original `Promise`.
+
+The `delayOnError` argument specifies whether the delay should be applied if the original `Promise` resolves exceptionally. By default, this is `true`. If set to `false`, the delayed `Promise` completes immediately upon the failure of the original `Promise`, bypassing the wait.
 ```java
 Executor myExecutor = ...; // Get an executor
+
+// Always delay by 1 second before converting, giving the CPU a moment to calm down
 Promise<String> callPromise1 = CompletableTask
-    .supplyAsync( () -> someLongRunningIoBoundMehtod(), executor )
-    .delay( Duration.ofSeconds(1) ) // Give a second for CPU to calm down :)
+    .supplyAsync(() -> someLongRunningIoBoundMethod(), myExecutor)
+    .delay(Duration.ofSeconds(1)) 
     .thenApply(v -> convertValue(v));
     
+// Delay by 1 second ONLY on success; fail immediately on error
 Promise<String> callPromise2 = CompletableTask
-    .supplyAsync( () -> aletrnativeLongRunningIoBoundMehtod(), executor )
-    .delay( Duration.ofSeconds(1), false ) // Give a second for CPU to calm down ONLY on success :)
+    .supplyAsync(() -> alternativeLongRunningIoBoundMethod(), myExecutor)
+    .delay(Duration.ofSeconds(1), false) 
     .thenApply(v -> convertValue(v));
 ```
-Like with other timeout-related methods, `convertValue` is invoked on the default asynchronous `Executor` of the original `Promise`.  
+Like other timeout-related methods, `convertValue` is invoked on the default asynchronous `Executor` of the original `Promise`.
 
-You may notice, that delay may be introduced only in the middle of the chain, but what to do if you'd like to back-off the whole chain execution? Just start with a resolved promise!
+You may notice that a delay is typically introduced in the middle of a chain. But what if you want to back off the execution of the _entire_ chain from the start? Simply begin with a resolved promise:
 ```java
-// Option 1
-// Interruptible tasks chain on the executor supplied
-CompletableTask.asyncOn(executor)
-    .delay( Duration.ofSeconds(5) )
-    .thenApplyAsync(ignore -> produceValue());
+// Option 1: Interruptible tasks chain on the supplied executor
+CompletableTask.asyncOn(myExecutor)
+               .delay(Duration.ofSeconds(5))
+               .thenApplyAsync(ignore -> produceValue());
 
-// Option2
-// Computational tasks on ForkJoinPool.commonPool()
+// Option 2: Computational tasks on ForkJoinPool.commonPool()
 Promises.from(CompletableFuture.completedFuture(""))
-    .delay( Duration.ofSeconds(5) )
-    .thenApplyAsync(ignore -> produceValue());
+        .delay(Duration.ofSeconds(5))
+        .thenApplyAsync(ignore -> produceValue());
 ```
-As long as back-off execution is not a very rare case, the library provides the following convenient shortcuts in the `CompletableTask` class:
+Since back-off execution is a common requirement, the library also provides convenient static shortcuts in the `CompletableTask` class:
 ```java
 static Promise<Duration> delay(long timeout, TimeUnit unit, Executor executor);
 static Promise<Duration> delay(Duration duration, Executor executor);
 ```
-Notice, that in Java 9+ a different approach is chosen to implement delays - there is no corresponding operation defined for the `CompletableFuture` object and you should use delayed `Executor`. Please read documentation on the [CompletableFuture.delayedExecutor](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#delayedExecutor-long-java.util.concurrent.TimeUnit-java.util.concurrent.Executor-) method for details.
-
+_(Note: In Java 9+, a different approach is chosen for delays. There is no corresponding operation defined directly on the `CompletableFuture` object; instead, you must use a delayed executor. Please refer to the documentation for [`CompletableFuture.delayedExecutor`](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#delayedExecutor-long-java.util.concurrent.TimeUnit-java.util.concurrent.Executor-) for details.)_
 
 ## 7. Combining multiple CompletionStages
 
