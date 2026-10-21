@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,20 +23,39 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import net.tascalate.concurrent.Promise;
 
-public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>> 
-    extends AsynchronousSocketChannel 
-    implements AsyncByteChannel {
-    
+/**
+ * A base class for wrapping standard {@link AsynchronousSocketChannel} instances to 
+ * provide a {@link Promise}-based API.
+ * <p>
+ * It delegates operations to the underlying channel while adapting callback-based 
+ * methods to return {@code Promise}s, facilitating fluent composition of network 
+ * I/O operations such as connecting, reading, and writing.
+ * </p>
+ *
+ * @param <C> the concrete subtype of this channel, used for fluent method chaining
+ * @author vsilaev
+ * @see AsynchronousSocketChannel
+ * @see Promise
+ */
+public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
+        extends AsynchronousSocketChannel
+        implements AsyncByteChannel {
+
+    /** The underlying delegated asynchronous socket channel. */
     private final AsynchronousSocketChannel delegate;
-    
+
+    /**
+     * Creates a new wrapper around the given delegate channel.
+     *
+     * @param delegate the underlying {@link AsynchronousSocketChannel} to delegate to
+     */
     protected AbstractAsyncSocketChannel(AsynchronousSocketChannel delegate) {
         super(delegate.provider());
         this.delegate = delegate;
     }
-    
+
     @Override
     public boolean isOpen() {
         return delegate.isOpen();
@@ -57,6 +76,13 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
         return delegate.supportedOptions();
     }
 
+    /**
+     * Binds the channel's socket to a local address.
+     *
+     * @param local the local address to bind the socket, or {@code null} to bind to an automatic local address
+     * @return this channel, for fluent chaining
+     * @throws IOException if an I/O error occurs
+     */
     @Override
     public C bind(SocketAddress local) throws IOException {
         delegate.bind(local);
@@ -69,12 +95,24 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
         return self();
     }
 
+    /**
+     * Shuts down the connection for reading.
+     *
+     * @return this channel, for fluent chaining
+     * @throws IOException if an I/O error occurs
+     */
     @Override
     public C shutdownInput() throws IOException {
         delegate.shutdownInput();
         return self();
     }
 
+    /**
+     * Shuts down the connection for writing.
+     *
+     * @return this channel, for fluent chaining
+     * @throws IOException if an I/O error occurs
+     */
     @Override
     public C shutdownOutput() throws IOException {
         delegate.shutdownOutput();
@@ -87,10 +125,17 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
     }
 
     @Override
-    public <A> void connect(SocketAddress remote, A attachment, CompletionHandler<Void, ? super A> handler) {
+    public <A> void connect(SocketAddress remote, A attachment, 
+                            CompletionHandler<Void, ? super A> handler) {
         delegate.connect(remote, attachment, handler);
     }
 
+    /**
+     * Connects this channel's socket to a remote address.
+     *
+     * @param remote the remote address to connect to
+     * @return a promise that completes when the connection is established
+     */
     @Override
     public Promise<Void> connect(SocketAddress remote) {
         AsyncResult<Void> asyncResult = new AsyncResult<>();
@@ -98,6 +143,13 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
         return asyncResult;
     }
 
+    /**
+     * Reads a sequence of bytes from this channel into the given buffer.
+     *
+     * @param dst the buffer into which bytes are to be transferred
+     * @return a promise that completes with the number of bytes read, or a negative 
+     *         value if the connection has been closed by the remote peer
+     */
     @Override
     public Promise<Integer> read(ByteBuffer dst) {
         AsyncResult<Integer> asyncResult = new AsyncResult<>();
@@ -112,11 +164,17 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
     }
 
     @Override
-    public <A> void read(ByteBuffer[] dsts, int offset, int length, long timeout, TimeUnit unit, A attachment,
-                         CompletionHandler<Long, ? super A> handler) {
+    public <A> void read(ByteBuffer[] dsts, int offset, int length, long timeout, TimeUnit unit, 
+                         A attachment, CompletionHandler<Long, ? super A> handler) {
         delegate.read(dsts, offset, length, timeout, unit, attachment, handler);
     }
 
+    /**
+     * Writes a sequence of bytes to this channel from the given buffer.
+     *
+     * @param src the buffer from which bytes are to be retrieved
+     * @return a promise that completes with the number of bytes written
+     */
     @Override
     public Promise<Integer> write(ByteBuffer src) {
         AsyncResult<Integer> asyncResult = new AsyncResult<>();
@@ -131,8 +189,8 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
     }
 
     @Override
-    public <A> void write(ByteBuffer[] srcs, int offset, int length, long timeout, TimeUnit unit, A attachment,
-                          CompletionHandler<Long, ? super A> handler) {
+    public <A> void write(ByteBuffer[] srcs, int offset, int length, long timeout, TimeUnit unit, 
+                          A attachment, CompletionHandler<Long, ? super A> handler) {
         delegate.write(srcs, offset, length, timeout, unit, attachment, handler);
     }
 
@@ -140,9 +198,12 @@ public class AbstractAsyncSocketChannel<C extends AbstractAsyncSocketChannel<C>>
     public SocketAddress getLocalAddress() throws IOException {
         return delegate.getLocalAddress();
     }
-    
+
+    /**
+     * Returns this channel instance cast to its concrete subtype for fluent chaining.
+     */
     @SuppressWarnings("unchecked")
     private C self() {
-        return (C)this;
+        return (C) this;
     }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,25 @@ import java.util.function.Supplier;
 
 import net.tascalate.concurrent.decorators.PromiseCustomizer;
 
-public class InterruptiblePromiseCustomizer implements PromiseCustomizer {
-
+/**
+ * A {@link PromiseCustomizer} that automatically wraps composition callbacks 
+ * (e.g., {@code thenApply}, {@code thenAccept}, {@code handle}) with the 
+ * {@link BlockingIO#interruptible} logic.
+ *
+ * <p>
+ * When a {@link net.tascalate.concurrent.Promise} is decorated using 
+ * {@link BlockingIO#interruptiblePromises()}, this customizer ensures that 
+ * any blocking I/O performed inside those async callbacks is executed within 
+ * an interruptible context. If the parent {@code Promise} is cancelled, the 
+ * thread executing the callback will be interrupted, and any registered 
+ * resources will be forcefully closed to unblock the operation.
+ * </p>
+ *
+ * @author vsilaev
+ * @see BlockingIO#interruptiblePromises()
+ * @see PromiseCustomizer
+ */
+final class InterruptiblePromiseCustomizer implements PromiseCustomizer {
     @Override
     public Runnable wrapArgument(Runnable original, boolean async) {
         return BlockingIO.interruptible(original);
@@ -60,5 +77,4 @@ public class InterruptiblePromiseCustomizer implements PromiseCustomizer {
     public <U, V> BiConsumer<U, V> wrapArgument(BiConsumer<U, V> original, boolean async) {
         return BlockingIO.interruptible(original);
     }
-    
 }
