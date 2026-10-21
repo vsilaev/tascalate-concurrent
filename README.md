@@ -463,62 +463,81 @@ BlockingIO.register(conn::disconnect);
 
 Unfortunately, it's necessary to put this statement straight at the end: if the blocking API is hidden behind third-party library code (like Spring RestTemplate) then you are out of luck - Tascalate Concurrent will not support true interruptions in this scenario. 
 
-## 5. Overriding default asynchronous executor
-One of the pitfalls of the `CompletableFuture` implementation is how it works with default asynchronous executor. Consider the following example:
+
+## 5. Overriding the Default Asynchronous Executor
+
+One of the well-known pitfalls of the standard `CompletableFuture` API is how it handles the default asynchronous executor. Consider the following example:
+
 ```java
 CompletionStage<String> p1 = CompletableFuture.supplyAsync(this::produceValue, executorInitial);
-CompletionStage<String> p2 = p1.thenApplyAsync(this::transformValueA);
+CompletionStage<String> p2 = p1.thenApplyAsync(this::transformValueA); // Uses ForkJoinPool.commonPool()!
 CompletionStage<String> p3 = p2.thenApplyAsync(this::transformValueB, executorNext);
-CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
+CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC); // Uses ForkJoinPool.commonPool()!
 ```
-The call to `produceValue` will be executed on the `executorInitial` - it is passed explicitly. However, the call to `transformValueA` will be excuted on... `ForkJoinPool.commonPool()`! Hmmmm... Probably this makes sense, but how to force using alternative executor by default? No way! Probably this is possible with deeper calls? The answer is "NO" again! The invocation to `transformValueB` ran on explicitly supplied `executorNext`. But next call, `transformValueC` will be executed on... you guess it... `ForkJoinPool.commonPool()`!
+The initial call to `produceValue` runs on `executorInitial`. However, because `transformValueA` does not specify an executor, it silently falls back to `ForkJoinPool.commonPool()`. Even worse, after explicitly providing `executorNext` for `transformValueB`, the subsequent `transformValueC`  _also_ falls back to the common pool.
 
-So, once you use `CompletableFuture` with JEE environment you must pass explicit instance of [ManagedExecutorService](https://docs.oracle.com/javaee/7/api/javax/enterprise/concurrent/ManagedExecutorService.html) to each and every method call. Not very convenient! To be fair, with Java 9+ API you can redefine this behavior via sub-classing `CompletableFuture` and overriding two methods: [defaultExecutor](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#defaultExecutor--) and [newIncompleteFuture](https://docs.oracle.com/javase/9/docs/api/java/util/concurrent/CompletableFuture.html#newIncompleteFuture--). Plus, you will have to define your own "entry points" instead of the standard `CompletableFuture.runAsync` and `CompletableFuture.supplyAsync`. 
+To fix this in standard Java, you are forced to pass an explicit `Executor` to every single `*Async` method. While Java 9+ introduced `defaultExecutor()` and `newIncompleteFuture()` to allow subclassing `CompletableFuture` to change this behavior, it requires significant boilerplate and custom entry-point methods.
 
-With `CompletableTask` the situation is just the opposite. Let us rewrite the example above:
+### The `CompletableTask` Advantage
+
+As discussed in **Chapter 2**, `CompletableTask` was designed specifically to solve this and other blocking-task pitfalls. With `CompletableTask`, the behavior is much more intuitive and predictable:
 ```java
-CompletionStage<String> p1 = CompletableTask.supplyAsync(this::produceValue, executorInitial);
-CompletionStage<String> p2 = p1.thenApplyAsync(this::transformValueA);
-CompletionStage<String> p3 = p2.thenApplyAsync(this::transformValueB, executorNext);
-CompletionStage<String> p4 = p3.thenApplyAsync(this::transformValueC);
+Promise<String> p1 = CompletableTask.supplyAsync(this::produceValue, executorInitial);
+Promise<String> p2 = p1.thenApplyAsync(this::transformValueA);          // Uses executorInitial
+Promise<String> p3 = p2.thenApplyAsync(this::transformValueB, executorNext);
+Promise<String> p4 = p3.thenApplyAsync(this::transformValueC);          // Uses executorNext
 ```
-The call to `produceValue` will be executed on the `executorInitial`, obviously. But now, the call to `transformValueA` will be executed also on `executorInitial`! What's about deeper calls? The invocation to `transformValueB` ran on explicitly supplied `executorNext`. And next call, `transformValueC` will be executed on... check your intuition... `executorNext`. The logic behinds this is the following: the latest explicitly specified `Executor` is what will be used for all nested asynchronous composition methods without an explicit `Executor` parameter.
+Here, the rule is simple: **the latest explicitly specified `Executor` becomes the new default** for all subsequent nested asynchronous composition methods that do not provide their own executor.
 
-Obviously, it's rarely the case when one size fits all. Since release [0.6.6](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.6.6) there are two new options to specify default asynchronous executor:
-1. `CompletableTask` has an overloaded method:
+### Fine-Grained Executor Control
+
+Since "one size fits all" is rarely true in complex applications, Tascalate Concurrent (since release 0.6.6) provides two additional mechanisms to precisely control executor propagation:
+
+**1. Enforced Default Executor at the Root**  
+`CompletableTask` provides an overloaded `asyncOn` method:
 ```java
 public static Promise<Void> asyncOn(Executor executor, boolean enforceDefaultAsync)
 ```
-When `enforceDefaultAsync` is `true` then all nested asynchronous composition methods without explicit `Executor` parameter will use the provided executor, even if previous composition methods use alternative `Executor`. This is somewhat similar to `CompletableFuture` but with the ability to explicitly set the default asynchronous executor initially.
+When `enforceDefaultAsync` is `true`, the provided executor is "pinned" as the default for the entire chain. Even if an intermediate step explicitly uses a different executor, subsequent steps without an explicit executor will revert to this pinned default. This mimics the Java 9+ `CompletableFuture` subclassing behavior, but without the boilerplate.
 
-2. `Promise` interface has the following operation:
+**2. Mid-Chain Executor Redefinition**  
+The `Promise` interface provides the `defaultAsyncOn` decorator:
 ```java
 Promise<T> defaultAsyncOn(Executor executor)
 ```
-The returned decorator will use the specified executor for all nested asynchronous composition methods without explicit `Executor` parameter. So, at any point, you are able to switch to the desired default asynchronous executor and keep using it for all nested composition call.
+This allows you to switch the default executor at _any point_ in the chain. All subsequent nested asynchronous composition methods (without an explicit executor) will use this newly defined default.
 
-To summarize, with Tascalate Concurrent you have the following options to control what is the default asynchronous executor:
-1. The latest explicit `Executor` passed to `*Async` method is used for derived `Promise`-s - the default option.
-2. Single default `Executor` passed to the root `CompletableTask.asyncOn(Executor executor, true)` call is propagated through the whole chain. This is the only variant supported with `CompletableFuture` in Java 9+, though, with custom coding.
-3. Redefine `Executor` with `defaultAsyncOn(Executor executor)` for all derived `Promise`-s.
-Having the best of three(!) worlds, the only responsibility of the library user is to use these options consistently! 
+### Summary of Executor Propagation Rules
 
-The last thing that should be mentioned is a typical task when you would like to start interruptible blocking method after completion of the standard `CompletableFuture`. The following utility method is defined in the `CompletableTask`:
+With Tascalate Concurrent, you have three powerful, composable options to control asynchronous execution:
+
+1.  **Latest Explicit Executor (Default):** The most recently explicitly passed `Executor` to an `*Async` method is inherited by all derived `Promise`s.
+2.  **Pinned Root Executor:** A single default `Executor` passed to `CompletableTask.asyncOn(executor, true)` is propagated through the whole chain, overriding intermediate defaults.
+3.  **Mid-Chain Redefinition:** You can redefine the default `Executor` at any point using `defaultAsyncOn(executor)` for all subsequent derived `Promise`s.
+
+Having the best of all three worlds, the only responsibility of the library user is to apply these options consistently.
+
+### Bridging Standard `CompletableFuture` to Interruptible Tasks
+
+A common scenario is needing to start an interruptible, blocking operation _after_ a standard, non-interruptible `CompletableFuture` completes. For this, `CompletableTask` provides a dedicated utility method:
 ```java
 public static <T> Promise<T> waitFor(CompletionStage<T> stage, Executor executor)
 ```
-Roughly, this is a shortcut for the following:
+This is essentially a robust shortcut for `CompletableTask.asyncOn(executor).thenCombine(stage, (u, v) -> v)`, but optimized specifically for this bridging pattern.
+
+**Typical Usage:**
 ```java
-CompletableTask.asyncOn(executor).thenCombine(stage, (u, v) -> v);
-```
-A typical usage of this method is:
-```java
-TaskExecutorService executorService = TaskExecutors.newFixedThreadPool(3);
-CompletableFuture<String> replyUrlPromise = sendRequestAsync();
+ExecutorService executorService = Executors.newFixedThreadPool(3);
+CompletableFuture<String> replyUrlPromise = sendRequestAsync(); // Standard, non-interruptible
+
+// Bridge to an interruptible Promise chain
 Promise<byte[]> dataPromise = CompletableTask.waitFor(replyUrlPromise, executorService)
     .thenApplyAsync(url -> loadDataInterruptibly(url));
+
+// If dataPromise is cancelled later, loadDataInterruptibly() will be properly interrupted 
+// if it has not yet completed.
 ```
-The `dataPromise` returned may be cancelled later and `loadDataInterruptibly` will be interrupted if not completed by that time.
+This pattern ensures that your blocking, interruptible work is correctly isolated on a dedicated thread pool and remains fully responsive to `Promise.cancel(true)`.
 
 ## 6. Timeouts
 Any robust application requires certain level of functionality, that handles situations when things go wrong. An ability to cancel a hanged operation existed in the library from the day one, but, obviously, it is not enough. Cancellation per se defines "what" to do in face of the problem, but the responsibility "when" to do was left to an application code. Starting from release [0.5.4](https://github.com/vsilaev/tascalate-concurrent/releases/tag/0.5.4) the library fills the gap in this functionality with timeout-related stuff.
