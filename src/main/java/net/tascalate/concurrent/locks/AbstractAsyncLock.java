@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent.locks;
 
-import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 
@@ -29,7 +28,7 @@ import net.tascalate.concurrent.Promises;
  * <h2>Acquisition never blocks</h2>
  * <ul>
  *   <li>{@link #tryAcquire()} attempts an <b>immediate</b> acquisition and returns an
- *       {@link Optional} {@link Token}: populated on success, empty when the lock is
+ *       {@link Token}: populated on success, or {@code null} when the lock is
  *       currently held. It never waits.</li>
  *   <li>{@link #acquire()} returns a {@link Promise} of a {@link Token} that completes
  *       once the lock is exclusively acquired &mdash; immediately if the lock is free,
