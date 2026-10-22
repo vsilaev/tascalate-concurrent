@@ -5,7 +5,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.CompletableFuture;
@@ -40,7 +39,7 @@ public class SelectTest {
         ).join();
 
         assertEquals(0, result.index());
-        assertEquals("ready", result.value());
+        assertEquals("ready", result.payload().orElse(null));
         assertFalse(result.match() instanceof Select.Send);
     }
 
@@ -55,7 +54,7 @@ public class SelectTest {
             Select.receive(ch2)
         ).join();
 
-        assertEquals("from-ch2", result.value());
+        assertEquals("from-ch2", result.payload().orElse(null));
         assertEquals(1, result.index());
     }
 
@@ -72,7 +71,7 @@ public class SelectTest {
         ch.send("arrived").join();
 
         Select.Result<String> result = future.join();
-        assertEquals("arrived", result.value());
+        assertEquals("arrived", result.payload().orElse(null));
     }
 
     // Basic Send Select
@@ -116,7 +115,7 @@ public class SelectTest {
             Select.otherwise()
         ).join();
 
-        assertNull(result.value());
+        assertTrue(result instanceof Select.Default.Result);
         assertEquals(1, result.index());
     }
 
@@ -130,7 +129,7 @@ public class SelectTest {
             Select.otherwise()
         ).join();
 
-        assertEquals("data", result.value());
+        assertEquals("data", result.payload().orElse(null));
         assertEquals(0, result.index());
     }
 
@@ -148,7 +147,7 @@ public class SelectTest {
             Select.receive(ch2)
         ).join();
 
-        assertEquals("active", result.value());
+        assertEquals("active", result.payload().orElse(null));
         assertEquals(2, result.index());
     }
 
@@ -224,8 +223,8 @@ public class SelectTest {
 
             Select.Result<Integer> result = selectFuture.get(5, TimeUnit.SECONDS);
             assertNotNull(result);
-            assertNotNull(result.value());
-            assertTrue(result.value().equals(1) || result.value().equals(2));
+            assertNotNull(result.payload().orElse(null));
+            assertTrue(result.payload().orElse(0).equals(1) || result.payload().orElse(0).equals(2));
         }
         pool.shutdown();
     }
@@ -244,7 +243,7 @@ public class SelectTest {
         // ch1 completes first
         ch1.send("winner").join();
         Select.Result<String> result = selectFuture.join();
-        assertEquals("winner", result.value());
+        assertEquals("winner", result.payload().orElse(null));
 
         // ch2 should still be usable (its waiter was cancelled, not consumed)
         ch2.send("after-select").join();
@@ -268,7 +267,7 @@ public class SelectTest {
             ).join();
 
             // One value is consumed, the other must remain
-            int consumed = (Integer) result.value();
+            int consumed = (Integer) result.payload().orElse(null);
             int remaining = (consumed == 1) ? 2 : 1;
             Channel<Integer> remainingCh = (consumed == 1) ? ch2 : ch1;
 
@@ -314,7 +313,7 @@ public class SelectTest {
         );
 
         Select.Result<String> result = promise.join();
-        assertEquals("typed", result.value());
+        assertEquals("typed", result.payload().orElse(null));
     }
 
     // NilChannel in Select
@@ -330,7 +329,7 @@ public class SelectTest {
             Select.receive(real)
         ).join();
 
-        assertEquals("real", result.value());
+        assertEquals("real", result.payload().orElse(null));
         assertEquals(1, result.index());
     }
 
@@ -350,9 +349,9 @@ public class SelectTest {
 
     @Test
     public void selectResultEquality() {
-        Select.Result<String> a = new Select.Result<>(0, Select.receive(Channel.nil()), "v");
-        Select.Result<String> b = new Select.Result<>(0, Select.receive(Channel.nil()), "v");
-        Select.Result<String> c = new Select.Result<>(1, Select.send(Channel.nil(), "v"), "v");
+        Select.Result<String> a = new Select.Receive.Result<>(0, "v", Select.receive(Channel.nil()));
+        Select.Result<String> b = new Select.Receive.Result<>(0, "v", Select.receive(Channel.nil()));
+        Select.Result<String> c = new Select.Send.Result<>(1, "v", Select.send(Channel.nil(), "v"));
 
         assertEquals(a, b);
         assertNotEquals(a, c);
@@ -361,7 +360,7 @@ public class SelectTest {
 
     @Test
     public void selectResultToString() {
-        Select.Result<String> r = new Select.Result<>(0, Select.receive(Channel.nil()), "hello");
+        Select.Result<String> r = new Select.Receive.Result<>(0, "hello", Select.receive(Channel.nil()));
         String s = r.toString();
         assertTrue(s.contains("index=0"));
         assertTrue(s.contains("hello"));
@@ -411,12 +410,14 @@ public class SelectTest {
                 try {
                     while (receivedCount.get() < TOTAL_ITEMS) {
                         Select.Result<Integer> res = Channel.select(cases).join();
-                        Integer val = (Integer) res.value();
-                        if (val != null) {
-                            if (!received.add(val)) {
-                                throw new AssertionError("Duplicate item received: " + val);
+                        if (res instanceof Select.ValueResult) {
+                            Integer val = (Integer)((Select.ValueResult<?>)res).value();
+                            if (val != null) {
+                                if (!received.add(val)) {
+                                    throw new AssertionError("Duplicate item received: " + val);
+                                }
+                                receivedCount.incrementAndGet();
                             }
-                            receivedCount.incrementAndGet();
                         }
                     }
                 } catch (Exception e) {

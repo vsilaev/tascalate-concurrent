@@ -382,7 +382,16 @@ final class SelectCall<T> {
      * @param value      the value, or {@code null}
      * @return a new {@link Select.Result}
      */
-    private static <T> Select.Result<T> selectResult(int idx, Select.Op<T> selectCase, T value) {
-        return new Select.Result<>(idx, selectCase, value);
+    private static <T> Select.Result<T> selectResult(int idx, Select.Op<T> op, T value) {
+        if (op instanceof Select.Send) {
+            return new Select.Send.Result<>(idx, value, (Select.Send<T>) op);
+        } else if (op instanceof Select.Receive) {
+            return new Select.Receive.Result<>(idx, value, (Select.Receive<T>) op);
+        } else if (op instanceof Select.Default) {
+            return new Select.Default.Result<>(idx, (Select.Default<T>) op);
+        } else {
+            // Unreachable: Op is sealed / Disabled never wins.
+            throw new IllegalArgumentException("Unsupported Select.Op type: " + op.getClass().getName());
+        }
     }
 }
