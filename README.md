@@ -1976,6 +1976,453 @@ Promise<HttpResponse> responsePromise = taskExecutor.submit(() -> httpClient.sen
 responsePromise.thenAccept(response -> process(response))
                .exceptionally(ex -> handleError(ex));
 ```
+# 18. Go-Inspired Asynchronous Channels
+
+Tascalate Concurrent provides a comprehensive implementation of Go-style asynchronous channels for Java, built directly on top of the library's `Promise` API. Channels are thread-safe, FIFO conduits for values exchanged between concurrent tasks, implementing the core ideas of Communicating Sequential Processes (CSP)&nbsp;<a href="https://en.wikipedia.org/wiki/Communicating_sequential_processes" target="_blank">https://en.wikipedia.org/wiki/Communicating_sequential_processes</a> as popularized by the Go programming language&nbsp;<a href="https://go.dev/tour/concurrency/2" target="_blank">https://go.dev/tour/concurrency/2</a>.
+
+Here and after, unless specified explicitly, all channel operations are non-blocking at the call site: they return a `Promise` that completes when the operation is accepted, rather than blocking the calling thread. This design allows channels to integrate seamlessly with the library's `DependentPromise` cancellation propagation, timeout support, and `Promises` combinators.
+
+The channel package is available in the `net.tascalate.concurrent.channel` namespace and requires no additional dependencies beyond the core library. On Java 17+ (via Multi-Release JAR), the `Select` ADT uses `sealed` interfaces and `record` types, enabling exhaustive pattern-matching `switch` statements in Java 21+.
+
+## Creating Channels
+
+Channels are created through static factory methods on the `Channel` interface. Two structural variants exist:
+
+**Rendezvous channels** (capacity 0) -- every send waits for a matching receive and vice versa. Values are handed over directly with no buffering. This corresponds to Go's default unbuffered channel.
+
+**Buffered channels** (capacity > 0) -- sends complete immediately while the buffer has space; receives complete immediately while the buffer holds data. Blocking (i.e., a pending `Promise`) occurs only at the buffer boundaries. 
+```java
+import net.tascalate.concurrent.channels.Channel;
+import net.tascalate.concurrent.channels.ChannelBase.CloseMode;
+
+// Rendezvous (unbuffered) channel
+Channel<String> rendezvous = Channel.rendezvous();
+
+// Buffered channel with capacity 16
+Channel<Integer> buffered = Channel.buffered(16);
+
+// Buffered channel with pre-allocated backing array (avoids resizing)
+Channel<Integer> preallocated = Channel.buffered(1024, 256);
+
+// Fair variants (FIFO waiter ordering, prevents starvation)
+Channel<String> fairRendezvous = Channel.rendezvous(true);
+Channel<Integer> fairBuffered  = Channel.buffered(16, true);
+
+// Nil channel -- never completes any operation (Go's nil channel)
+Channel<Object> nil = Channel.nil();
+```
+The `initialCapacity` parameter on `buffered(...)` is a sizing hint for the underlying `ArrayDeque` storage. It does not change the channel's logical capacity but can reduce or eliminate internal array resizing when the expected working set size is known in advance.
+
+The **nil channel** mirrors Go's `nil` channel semantics: sends and receives return promises that stay pending forever. It is primarily useful as a placeholder for dynamically disabling cases in a select loop.
+
+## Basic Send and Receive
+
+All send and receive operations return a `Promise` that completes when the transfer is accepted:
+```java
+import net.tascalate.concurrent.Promise;
+import net.tascalate.concurrent.channels.Channel;
+
+Channel<String> ch = Channel.buffered(4);
+
+// Send -- completes when buffered or handed to a receiver
+Promise<String> sent = ch.send("hello");
+sent.thenAccept(v -> System.out.println("Delivered: " + v));
+
+// Receive -- completes when a value is available
+Promise<String> received = ch.receive();
+received.thenAccept(v -> System.out.println("Got: " + v));
+
+// Timed send -- fails with TimeoutException if not accepted within 5s
+ch.send("urgent", Duration.ofSeconds(5))
+  .thenAccept(v -> System.out.println("Sent in time"))
+  .exceptionally(ex -> {
+      System.err.println("Timed out: " + ex);
+      return null;
+   });
+
+// Non-blocking variants (for select Phase 1 or polling)
+Try<String> tryResult = ch.tryReceive(); // null if not ready
+Try<String> trySent   = ch.trySend("quick"); // null if full
+```
+The timed variants (`send(value, Duration)` and `receive(Duration)`) automatically cancel the underlying operation when the deadline elapses, removing any registered waiter from the channel's internal queue via `DependentPromise` cancellation propagation.
+
+## Channel Lifecycle and Close Modes
+
+Channels are closed through the `close(CloseMode)` method, which is idempotent. Two modes govern the behavior of pending and future operations:
+
+**`CloseMode.DRAIN`** (Go semantics) -- waiting senders fail, waiting receivers complete with `null`, and buffered items can still be consumed. This is the graceful shutdown option.
+
+**`CloseMode.FAIL_ALL`** (Java/Reactor semantics) -- all waiting senders and receivers fail exceptionally, and the buffer is cleared. This is the hard-stop option, also used by the default `AutoCloseable.close()` for try-with-resources.
+
+```java
+Channel<Integer> ch = Channel.buffered(4);
+ch.send(1).join();
+ch.send(2).join();
+
+// Graceful: consumers can still drain buffered items
+ch.close(CloseMode.DRAIN);
+
+// After DRAIN close:
+//   ch.receive()  -> completes with 1, then 2, then null (EOF)
+//   ch.send(99)   -> fails with IllegalStateException
+//   ch.tryReceive() -> Try.success(1), Try.success(2), Try.success(null)
+
+// Hard stop: everything fails immediately
+ch.close(CloseMode.FAIL_ALL);
+```
+The `isExhausted()` method on `ReceiveChannel` is the authoritative end-of-stream check. Unlike inspecting the value returned by `receive()`, it cannot be confused with a legitimate `null` element sent through the channel.
+
+**Performance and Usage Note:** If your channel is strictly used for **non-null values**, a simple `null` check on the received value is entirely sufficient to detect EOF. Furthermore, because `isExhausted()` requires acquiring the channel's internal lock, it is significantly more performant to check for `null` first and only invoke `isExhausted()` when a `null` is actually encountered. This avoids lock contention on every single receive operation:
+```java
+String value = ch.receive().join();
+
+if (value == null) {
+    // Only check the channel state if we actually got a null
+    if (ch.isExhausted()) {
+        System.out.println("End of stream reached");
+        break;
+    } else {
+        System.out.println("Received a legitimate null value");
+    }
+} else {
+    process(value);
+}
+```
+
+## Directional Views
+
+The channel type hierarchy provides directional views that restrict what a caller can do, mirroring Go's `chan<- T` (send-only) and `<-chan T` (receive-only) types:
+
+-   **`SendChannel<T>`** -- write-only view. Pass to producers to prevent accidental receiving.
+-   **`ReceiveChannel<T>`** -- read-only view. Pass to consumers to prevent accidental sending.
+-   **`SelectableSendChannel<T>`** / **`SelectableReceiveChannel<T>`** -- extend the directional views with select participation capabilities.
+-   **`Channel<T>`** -- full bidirectional channel, extends both selectable views.
+```java
+void producer(SendChannel<Integer> out) {
+    // Can only send; compiler prevents out.receive()
+    out.send(42).join();
+}
+
+void consumer(ReceiveChannel<Integer> in) {
+    // Can only receive; compiler prevents in.send(...)
+    in.receive().thenAccept(System.out::println);
+}
+```
+## Iterating Over Channels: `forEach`
+
+The `forEach` method on `ReceiveChannel` asynchronously consumes elements until the channel is closed and drained, or until a condition returns `false`. It mirrors Go's `for v := range ch` loop:
+```java
+Channel<Integer> ch = Channel.buffered(8);
+// ... producer sends items and closes ...
+
+// Consume all elements until EOF
+ch.forEach(value -> {
+    System.out.println("Processing: " + value);
+}).thenAccept(done -> {
+    System.out.println("Channel fully drained");
+});
+
+// Consume with a takeWhile-style condition
+ch.forEach(
+    value -> System.out.println("Got: " + value),
+    value -> value < 100  // stop when value >= 100
+).join();
+```
+The condition is evaluated **before** the action. If it returns `false`, the loop terminates immediately and the action is NOT executed for that element, matching `Stream.takeWhile` semantics.
+
+Internally, `forEach` employs a synchronous fast-path: when buffered data is immediately available, the underlying `Promises.loop` executes iterations without yielding to the event loop, maximizing throughput. When the buffer is empty and a wait is required, control yields asynchronously.
+
+**Pre-check guards for bounded consumption.** When the termination condition depends on the number of items received (rather than the value itself), `forEach` supports a `ReceiveGuard` mechanism. Because `ReceiveGuard` extends `Predicate<T>`, it actually supports a two-phase evaluation:
+
+-   **Pre-check (`mayReceive()`)**: Evaluated **before** calling `receive()`. If it returns `false`, the loop terminates immediately without pulling an element from the channel buffer, preventing the "read-ahead" consumption of an extra element.
+-   **Post-check (`test(T)`)**: Evaluated **after** the element is received, exactly like a standard `Predicate`. This allows you to elegantly combine count-based limits with value-based conditions (e.g., stopping at a maximum count _or_ upon receiving a specific poison-pill value).
+```java
+import net.tascalate.concurrent.channels.ReceiveGuard;
+
+List<Integer> result = new ArrayList<>();
+int maxItems = 10;
+
+ReceiveGuard<Integer> guard = new ReceiveGuard<Integer>() {
+    @Override
+    boolean mayReceive() {
+        // Pre-check: stop BEFORE consuming the 11th item
+        return result.size() < maxItems; 
+    }
+    
+    @Override
+    public boolean test(Integer value) {
+        // Post-check: also stop early if we receive a poison pill
+        return value != -1; 
+    }
+};
+
+ch.forEach(result::add, guard).join();
+// result contains at most maxItems elements, and will never contain -1.
+// If -1 is in the channel, it remains unconsumed.
+```
+
+## Bulk Operations: `sendAll` and `receiveAll`
+
+**`sendAll`** asynchronously sends all elements from an `Iterable` to the channel and returns the count of successfully sent items:
+```java
+Channel<Integer> ch = Channel.buffered(64);
+List<Integer> items = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+
+Promise<Integer> sentCount = ch.sendAll(items);
+sentCount.thenAccept(n -> System.out.println("Sent " + n + " items"));
+```
+The method uses the same synchronous fast-path as `forEach`: elements are sent in a tight loop as long as the channel accepts them immediately. When the buffer fills (or a rendezvous wait is required), control yields to the event loop. If the channel is closed mid-stream, the returned promise fails exceptionally.
+
+**`receiveAll`** asynchronously receives elements into a `List` until the channel is exhausted or a maximum item count is reached:
+```java
+Channel<String> ch = Channel.buffered(16);
+// ... producer sends items and closes with DRAIN ...
+
+// Receive everything
+Promise<List<String>> all = ch.receiveAll();
+
+// Receive at most 5 items (remaining items stay in the channel)
+Promise<List<String>> first5 = ch.receiveAll(5);
+
+List<String> items = all.join();
+System.out.println("Received: " + items);
+```
+The `receiveAll(maxItems)` variant uses `ReceiveGuard` internally to ensure the `maxItems + 1` element is NOT consumed from the buffer, avoiding the read-ahead bug inherent in value-based predicates.
+
+## Select: Multiplexing Over Channels
+
+The `select` statement is the Java analogue of Go's `select`. It multiplexes across multiple send and receive operations, completing with whichever case becomes ready first. Evaluation proceeds in two phases:
+
+1.  **Phase 1 (non-blocking):** all cases are tried in random order via `trySend` / `tryReceive`. If any case is immediately ready, the select resolves with that case's result. If a `Default` case is present and no case is ready, the default wins.
+2.  **Phase 2 (blocking):** if no case is ready and no default exists, waiters are registered on every active case. The returned promise completes when the first case becomes ready, and all losing cases are cancelled.
+
+Cases are built with factory methods on the `Select` class or the fluent methods on selectable channels:
+```java
+import net.tascalate.concurrent.channels.Channel;
+import net.tascalate.concurrent.channels.Select;
+
+Channel<String>  ch1 = Channel.buffered(4);
+Channel<Integer> ch2 = Channel.buffered(4);
+Channel<Integer> ch3 = Channel.rendezvous();
+
+Promise<Select.Result<Object>> result = Channel.select(
+    Select.receive(ch1),          // receive from ch1
+    ch2.sending(42),              // send 42 to ch2 (fluent)
+    Select.receive(ch3),          // receive from ch3
+    Select.otherwise()            // default: resolve immediately if nothing ready
+);
+```
+## Select Results and Pattern Matching (Java 17+)
+
+On Java 17+, the `Select` hierarchy is a strict Algebraic Data Type built from `sealed` interfaces and `record` types. The result type `Select.Result<T>` is sealed, permitting `ValueResult` (for `Send.Result` and `Receive.Result`) and `Default.Result`. This enables exhaustive pattern-matching `switch` in Java 21+:
+```java
+Select.Result<Object> result = Channel.select(
+    ch1.receiving(),
+    ch2.sending(42),
+    Select.otherwise()
+).join();
+
+// Java 21+ -- exhaustive, no default branch needed
+switch (result) {
+    case Select.Send.Result(var idx, var val, _) ->
+        System.out.printf("Case %d: sent %s%n", idx, val);
+
+    case Select.Receive.Result(var idx, var val, _) ->
+        System.out.printf("Case %d: received %s%n", idx, val);
+
+    case Select.Default.Result(var idx, _) ->
+        System.out.printf("Case %d: default fired%n", idx);
+}
+```
+The compiler guarantees exhaustiveness because `Select.Op` is sealed. If a new operation type is added in the future, all existing switches will fail to compile, forcing callers to handle the new case.
+
+The intermediate `ValueResult` interface distinguishes results that carry a payload from those that do not, enabling safe polymorphic access:
+```java
+Select.Result<Object> result = Channel.select(cases).join();
+
+if (result instanceof Select.ValueResult<?> vr) {
+    System.out.println("Payload: " + vr.value());
+}
+```
+## Select Results (Pre-Java 17)
+
+On JDK versions prior to 17, the `Select` types are plain classes and interfaces. Pattern matching is unavailable, so results are inspected via `instanceof` checks on the **Result hierarchy** followed by explicit casts, or via the cast-free `payload()` method:
+```java
+Select.Result<Object> result = Channel.select(cases).join();
+
+// Option 1: instanceof on specific Result subclasses + explicit cast
+if (result instanceof Select.Send.Result) {
+    Select.Send.Result<Object> sendResult = (Select.Send.Result<Object>) result;
+    System.out.println("Sent: " + sendResult.value());
+} else if (result instanceof Select.Receive.Result) {
+    Select.Receive.Result<Object> recvResult = (Select.Receive.Result<Object>) result;
+    System.out.println("Received: " + recvResult.value());
+} else if (result instanceof Select.Default.Result) {
+    System.out.println("Default fired");
+}
+
+// Option 2: instanceof on the ValueResult interface + explicit cast
+// (Useful when you don't care whether it was a Send or Receive, just that it has a payload)
+if (result instanceof Select.ValueResult) {
+    Select.ValueResult<Object> valueResult = (Select.ValueResult<Object>) result;
+    System.out.println("Payload: " + valueResult.value());
+} else {
+    System.out.println("Default fired (no payload)");
+}
+
+// Option 3: payload() -- completely cast-free
+Optional<Object> payload = result.payload();
+if (payload != null) {
+    // Send or Receive case (payload is a non-null Optional)
+    System.out.println("Value: " + payload.orElse(null));
+} else {
+    // Default case (payload() returns literal null)
+    System.out.println("Default fired");
+}
+```
+The `payload()` method returns a non-null `Optional` for payload-bearing operations (`Send` and `Receive`) and `null` for operations without a payload (`Default`). This distinction lets callers differentiate "no payload concept" from "payload is null" without downcasting.
+
+
+## Disabled Cases: Dynamic Select Loops
+
+The `Select.Disabled` case represents a permanently inactive case that never matches in Phase 1 and never registers in Phase 2. It is the Java equivalent of Go's nil-channel idiom, allowing cases to be dynamically removed from a select loop without altering the array structure or shifting indices:
+```java
+Channel<Integer> ch1 = Channel.buffered(4);
+Channel<Integer> ch2 = Channel.buffered(4);
+
+// 1. Define an immutable state record to hold loop variables
+record SelectState(boolean ch1Active, boolean running) {}
+
+// 2. Execute the asynchronous loop
+Promises.loop(
+    new SelectState(true, true),   // Initial state: ch1 is active, loop is running
+    SelectState::running,          // Condition: keep looping while 'running' is true
+    state -> {
+        // Build the select cases based on the current state
+        @SuppressWarnings("unchecked")
+        Select.Op<Integer>[] cases = new Select.Op[] {
+            state.ch1Active() ? Select.receive(ch1) : Select.disabled(),
+            Select.receive(ch2)
+        };
+
+        // Execute select and map the result to the NEXT state
+        return Channel.select(cases).thenApply(result -> {
+            if (result.index() == 0) {
+                // Received from ch1; disable it for future iterations, keep looping
+                return new SelectState(false, true);
+            } else {
+                // Received from ch2; terminate the loop
+                return new SelectState(state.ch1Active(), false);
+            }
+        });
+    }
+).thenAccept(finalState -> {
+    System.out.println("Loop terminated gracefully.");
+}).join(); // Only block at the very end if you need to wait for the whole process to finish
+```
+Below is a Go version of the code:
+```go
+package main
+
+import "fmt"
+
+func main() {
+	// Create two buffered channels, mirroring Channel.buffered(4)
+	ch1 := make(chan int, 4)
+	ch2 := make(chan int, 4)
+
+	// Seed some data
+	ch1 <- 42
+	ch2 <- 99
+
+	// In Go, setting a channel variable to nil disables it in a select statement.
+	// This is the exact equivalent of our Java Select.disabled() case.
+	activeCh1 := ch1 
+
+	for {
+		select {
+		case v := <-activeCh1:
+			fmt.Printf("Received %d from ch1. Disabling ch1.\n", v)
+			// Disable ch1 for all future iterations by setting it to nil
+			activeCh1 = nil 
+
+		case v := <-ch2:
+			fmt.Printf("Received %d from ch2. Exiting loop.\n", v)
+			return // Break out of the loop entirely
+		}
+	}
+}
+```
+Here is how to achieve the exact same behavior in Java. By swapping the active channel for `Channel.nil()` inside an asynchronous `Promises.loop`, we elegantly disable the case without mutating shared state:
+```java
+Channel<Integer> ch2 = Channel.buffered(4);
+
+// Mutable state: the channel variable itself, exactly like Go
+record LoopState(Channel<Integer> ch1, boolean running) {}
+
+Promises.loop(
+    new LoopState(Channel.<Integer>buffered(4), true),
+    LoopState::running,
+    state -> Channel.select(
+        Select.receive(state.ch1()),   // ch1, or Channel.nil() once disabled
+        Select.receive(ch2)
+    ).thenApply(result ->
+        result.index() == 0
+            ? new LoopState(Channel.nil(), true)   // ch1 = nil
+            : new LoopState(state.ch1(), false)    // break
+    )
+).join();
+```
+
+## Helper Methods on Selectable Channels
+
+The `SelectableSendChannel` and `SelectableReceiveChannel` interfaces provide fluent factory methods for building select cases directly from a channel reference:
+```java
+// Equivalent to Select.send(ch, value)
+Select.Send<String> sendCase = ch.sending("hello");
+
+// Equivalent to Select.receive(ch)
+Select.Receive<String> recvCase = ch.receiving();
+```
+These are purely syntactic sugar and produce the same objects as the static factories on `Select`. They are provided for readability in select-heavy code.
+
+
+## Summary of the Channel Type Hierarchy
+```
+ChannelBase (lifecycle, close modes, size, capacity)
+  |
+  +-- SendChannel<T> (send, trySend, sendAll)
+  |     +-- SelectableSendChannel<T> (+ select participation, sending())
+  |
+  +-- ReceiveChannel<T> (receive, tryReceive, forEach, receiveAll, isExhausted)
+  |     +-- SelectableReceiveChannel<T> (+ select participation, receiving())
+  |
+  +-- Channel<T> extends SelectableSendChannel<T>, SelectableReceiveChannel<T>
+        (full bidirectional: nil(), rendezvous(), buffered(), select())
+```
+The implementation class `BufferedChannel<T>` handles both rendezvous (capacity 0) and buffered (capacity > 0) modes through a unified internal design guarded by a single `ReentrantLock`. A `NilChannel<T>` singleton provides the never-completing nil channel.
+
+## Go to Java Idiom Mapping
+
+| Go Idiom | Tascalate Concurrent Equivalent | Notes |
+| :--- | :--- | :--- |
+| `make(chan T)` | `Channel.<T>rendezvous()` | Unbuffered, strict synchronization. |
+| `make(chan T, N)` | `Channel.<T>buffered(N)` | Buffered up to `N` elements. |
+| `var ch chan T` (nil channel) | `Channel.<T>nil()` | Blocks forever; useful for disabling select cases. |
+| `chan<- T` (send-only) | `SendChannel<T>` | Compiler-enforced write-only view. |
+| `<-chan T` (receive-only) | `ReceiveChannel<T>` | Compiler-enforced read-only view. |
+| `ch <- v` | `ch.send(v)` | Returns a `Promise<T>` that completes on acceptance. |
+| `v := <-ch` | `ch.receive()` | Returns a `Promise<T>` that completes with the value. |
+| `v, ok := <-ch` (non-blocking) | `ch.tryReceive()` | Returns a `Try<T>` (or `null` if not ready). |
+| `close(ch)` | `ch.close(CloseMode.DRAIN)` | Go semantics: drains buffer, fails pending senders. |
+| N/A (hard stop) | `ch.close(CloseMode.FAIL_ALL)` | Java/Reactor semantics: fails all waiters immediately. |
+| `for v := range ch { ... }` | `ch.forEach(v -> ...)` | Asynchronous loop until channel is exhausted. |
+| `len(ch)` | `ch.size()` | Current number of buffered elements. |
+| `cap(ch)` | `ch.capacity()` | Maximum buffer capacity (0 for rendezvous). |
+| `select { ... }` | `Channel.select(...)` | Multiplexes across multiple channel operations. |
+| `default:` in select | `Select.otherwise()` | Non-blocking fallback if no case is ready. |
+| Disabling a case (`ch = nil`) | `Select.disabled()` | Dynamically removes a case from the select loop. |
+| `case <-time.After(d):` | `ch.receive(Duration)` | Built-in timeout support; auto-cancels the underlying waiter. |
 
 # Acknowledgements
 

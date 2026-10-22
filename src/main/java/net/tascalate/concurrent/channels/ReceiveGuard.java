@@ -50,13 +50,12 @@ import java.util.function.Predicate;
  *
  * <h2>Usage examples</h2>
  *
- * Pre-check only (bounded consumption):
+ * <p><b>Pre-check only (bounded consumption):</b></p>
  * <pre>{@code
  * List<Integer> result = new ArrayList<>();
  * int maxItems = 10;
  *
  * ReceiveGuard<Integer> guard = new ReceiveGuard<Integer>() {
- *     @Override
  *     boolean mayReceive() {
  *         return result.size() < maxItems;
  *     }
@@ -67,18 +66,16 @@ import java.util.function.Predicate;
  * // The (maxItems+1)th element remains in the channel.
  * }</pre>
  *
- * Pre-check combined with post-check:
+ * <p><b>Pre-check combined with post-check:</b></p>
  * <pre>{@code
  * List<Integer> result = new ArrayList<>();
  * int maxItems = 10;
  *
  * ReceiveGuard<Integer> guard = new ReceiveGuard<Integer>() {
- *     @Override
  *     boolean mayReceive() {
  *         return result.size() < maxItems;
  *     }
  *
- *     @Override
  *     public boolean test(Integer value) {
  *         return value != -1; // also stop on poison pill
  *     }
