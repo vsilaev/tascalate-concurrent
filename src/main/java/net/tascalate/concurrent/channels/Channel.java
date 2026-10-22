@@ -156,23 +156,34 @@ public interface Channel<T> extends SelectableSendChannel<T>, SelectableReceiveC
     public static <T> Channel<T> buffered(int capacity) {
         return buffered(capacity, false);
     }
-
+    
     /**
-     * Creates a non-fair buffered channel with the given capacity and an
-     * explicit element type witness.
+     * Creates a non-fair buffered channel with the given capacity and
+     * initial buffer allocation.
+     * <p>
+     * The {@code initialCapacity} is a sizing hint for the underlying
+     * buffer storage. It does not change the channel's logical capacity
+     * (the maximum number of elements that can be buffered), but it can
+     * reduce or eliminate internal array resizing when the expected
+     * working set size is known in advance.
+     * <p>
+     * Equivalent to calling {@link #buffered(int, int, boolean)} with
+     * {@code fair = false}.
      *
-     * @param <T>         the element type
-     * @param elementType a class literal used only as a type witness;
-     *                    may be {@code null}
-     * @param capacity    the maximum number of buffered elements; must be at
-     *                    least 1
+     * @param <T>             the element type
+     * @param capacity        the maximum number of buffered elements; must be
+     *                        at least 1
+     * @param initialCapacity the initial allocation size for the buffer;
+     *                        must be within {@code 0..capacity}. A value of
+     *                        {@code 0} uses the default initial allocation.
      * @return a new buffered channel
-     * @throws IllegalArgumentException if {@code capacity} is less than 1
-     */
-    public static <T> Channel<T> buffered(Class<T> elementType, int capacity) {
-        return buffered(capacity, false);
+     * @throws IllegalArgumentException if {@code capacity} is less than 1 or
+     *                                  {@code initialCapacity} is out of range
+     */    
+    public static <T> Channel<T> buffered(int capacity, int initialCapacity) {
+        return buffered(capacity, initialCapacity, false);
     }
-
+    
     /**
      * Creates a buffered channel with the given capacity and fairness policy.
      * <p>
@@ -192,10 +203,78 @@ public interface Channel<T> extends SelectableSendChannel<T>, SelectableReceiveC
      * @throws IllegalArgumentException if {@code capacity} is less than 1
      */
     public static <T> Channel<T> buffered(int capacity, boolean fair) {
+        return buffered(capacity, 0, fair);
+    }
+    
+    /**
+     * Creates a buffered channel with the given capacity, initial buffer
+     * allocation, and fairness policy.
+     * <p>
+     * The {@code initialCapacity} is a sizing hint for the underlying
+     * buffer storage. It does not change the channel's logical capacity
+     * (the maximum number of elements that can be buffered), but it can
+     * reduce or eliminate internal array resizing when the expected
+     * working set size is known in advance.
+     * <p>
+     * Note that a capacity of 0 is not valid here; use {@link #rendezvous()}
+     * for unbuffered channels.
+     *
+     * @param <T>             the element type
+     * @param capacity        the maximum number of buffered elements; must be
+     *                        at least 1
+     * @param initialCapacity the initial allocation size for the buffer;
+     *                        must be within {@code 0..capacity}. A value of
+     *                        {@code 0} uses the default initial allocation.
+     * @param fair            {@code true} for FIFO ordering of waiters,
+     *                        {@code false} to allow barging
+     * @return a new buffered channel
+     * @throws IllegalArgumentException if {@code capacity} is less than 1 or
+     *                                  {@code initialCapacity} is out of range
+     */
+    public static <T> Channel<T> buffered(int capacity, int initialCapacity, boolean fair) {
         if (capacity < 1) {
             throw new IllegalArgumentException("Capacity must be > 0 for buffered channel");
         }
         return new BufferedChannel<>(capacity, fair);
+    }
+
+    /**
+     * Creates a non-fair buffered channel with the given capacity and an
+     * explicit element type witness.
+     *
+     * @param <T>         the element type
+     * @param elementType a class literal used only as a type witness;
+     *                    may be {@code null}
+     * @param capacity    the maximum number of buffered elements; must be at
+     *                    least 1
+     * @return a new buffered channel
+     * @throws IllegalArgumentException if {@code capacity} is less than 1
+     */
+    public static <T> Channel<T> buffered(Class<T> elementType, int capacity) {
+        return buffered(capacity, false);
+    }
+    
+    /**
+     * Creates a non-fair buffered channel with the given capacity and
+     * initial buffer allocation, with an explicit element type witness.
+     * <p>
+     * Equivalent to calling
+     * {@link #buffered(Class, int, int, boolean)} with {@code fair = false}.
+     *
+     * @param <T>             the element type
+     * @param elementType     a class literal used only as a type witness;
+     *                        may be {@code null}
+     * @param capacity        the maximum number of buffered elements; must be
+     *                        at least 1
+     * @param initialCapacity the initial allocation size for the buffer;
+     *                        must be within {@code 0..capacity}. A value of
+     *                        {@code 0} uses the default initial allocation.
+     * @return a new buffered channel
+     * @throws IllegalArgumentException if {@code capacity} is less than 1 or
+     *                                  {@code initialCapacity} is out of range
+     */
+    public static <T> Channel<T> buffered(Class<T> elementType, int capacity, int initialCapacity) {
+        return buffered(capacity, initialCapacity, false);
     }
 
     /**
@@ -213,6 +292,36 @@ public interface Channel<T> extends SelectableSendChannel<T>, SelectableReceiveC
      */
     public static <T> Channel<T> buffered(Class<T> elementType, int capacity, boolean fair) {
         return buffered(capacity, fair);
+    }
+    
+    /**
+     * Creates a buffered channel with the given capacity, initial buffer
+     * allocation, fairness policy, and an explicit element type witness.
+     * <p>
+     * The {@code initialCapacity} is a sizing hint for the underlying
+     * buffer storage. It does not change the channel's logical capacity
+     * (the maximum number of elements that can be buffered), but it can
+     * reduce or eliminate internal array resizing when the expected
+     * working set size is known in advance.
+     * <p>
+     * Note that a capacity of 0 is not valid here; use {@link #rendezvous()}
+     * for unbuffered channels.
+     *
+     * @param <T>             the element type
+     * @param elementType     a class literal used only as a type witness;
+     *                        may be {@code null}
+     * @param capacity        the maximum number of buffered elements; must be
+     *                        at least 1
+     * @param initialCapacity the initial allocation size for the buffer;
+     *                        must be within {@code 0..capacity}. A value of
+     *                        {@code 0} uses the default initial allocation.
+     * @param fair            {@code true} for FIFO ordering of waiters
+     * @return a new buffered channel
+     * @throws IllegalArgumentException if {@code capacity} is less than 1 or
+     *                                  {@code initialCapacity} is out of range
+     */
+    public static <T> Channel<T> buffered(Class<T> elementType, int capacity, int initialCapacity, boolean fair) {
+        return buffered(capacity, initialCapacity, fair);
     }
 
     /**

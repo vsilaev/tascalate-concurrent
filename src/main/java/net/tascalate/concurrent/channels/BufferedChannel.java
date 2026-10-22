@@ -83,7 +83,8 @@ public class BufferedChannel<T> implements Channel<T> {
      * {@code Queue<T>} so that null values can be stored via the
      * {@link #NULL_SENTINEL} sentinel, since {@link ArrayDeque} does not
      * permit null elements. This avoids per-element {@code Optional}
-     * allocation.
+     * allocation. The backing array may be pre-allocated via the
+     * {@code initialCapacity} constructor parameter.
      */
     private final Queue<Object> buffer;
 
@@ -107,21 +108,24 @@ public class BufferedChannel<T> implements Channel<T> {
 
     /**
      * Creates a non-fair buffered channel with the given capacity.
+     * <p>
+     * Equivalent to calling
+     * {@link #BufferedChannel(int, int, boolean)} with
+     * {@code initialCapacity = 0} and {@code fair = false}.
      *
      * @param capacity the buffer capacity; 0 for a rendezvous channel
      * @throws IllegalArgumentException if {@code capacity} is negative
      */
     public BufferedChannel(int capacity) {
-        this(capacity, false);
+        this(capacity, 0, false);
     }
 
     /**
-     * Creates a buffered channel with the given capacity and fairness
-     * policy.
+     * Creates a buffered channel with the given capacity and fairness policy.
      * <p>
-     * A fair channel grants access to waiting senders and receivers in
-     * FIFO order, preventing starvation at the cost of throughput. A
-     * non-fair channel allows barging and is faster under contention.
+     * Equivalent to calling
+     * {@link #BufferedChannel(int, int, boolean)} with
+     * {@code initialCapacity = 0}.
      *
      * @param capacity the buffer capacity; 0 for a rendezvous channel
      * @param fair     {@code true} for FIFO ordering of waiters,
@@ -129,11 +133,63 @@ public class BufferedChannel<T> implements Channel<T> {
      * @throws IllegalArgumentException if {@code capacity} is negative
      */
     public BufferedChannel(int capacity, boolean fair) {
+        this(capacity, 0, fair);
+    }
+    
+    /**
+     * Creates a non-fair buffered channel with the given capacity and
+     * initial buffer allocation.
+     * <p>
+     * Equivalent to calling
+     * {@link #BufferedChannel(int, int, boolean)} with {@code fair = false}.
+     *
+     * @param capacity        the buffer capacity; 0 for a rendezvous channel
+     * @param initialCapacity the initial allocation size for the buffer;
+     *                        must be within {@code 0..capacity}
+     * @throws IllegalArgumentException if {@code capacity} is negative or
+     *                                  {@code initialCapacity} is out of range
+     */
+    public BufferedChannel(int capacity, int initialCapacity) {
+        this(capacity, initialCapacity, false);
+    }
+
+    /**
+     * Creates a buffered channel with the given capacity, initial buffer
+     * allocation, and fairness policy.
+     * <p>
+     * The {@code initialCapacity} is a sizing hint for the underlying
+     * {@link ArrayDeque} buffer. When {@code initialCapacity} is 0, the
+     * deque uses its default initial allocation. When non-zero, the deque
+     * is pre-allocated to hold at least that many elements, avoiding early
+     * resizing for workloads expected to buffer up to that many items.
+     * <p>
+     * The {@code initialCapacity} does not change the channel's logical
+     * capacity. The channel still accepts up to {@code capacity} elements;
+     * {@code initialCapacity} only affects the initial size of the backing
+     * array.
+     * <p>
+     * A fair channel grants access to waiting senders and receivers in FIFO
+     * order, preventing starvation at the cost of throughput. A non-fair
+     * channel allows barging and is faster under contention.
+     *
+     * @param capacity        the buffer capacity; 0 for a rendezvous channel
+     * @param initialCapacity the initial allocation size for the buffer;
+     *                        must be within {@code 0..capacity}. A value of
+     *                        {@code 0} uses the default initial allocation.
+     * @param fair            {@code true} for FIFO ordering of waiters,
+     *                        {@code false} to allow barging
+     * @throws IllegalArgumentException if {@code capacity} is negative or
+     *                                  {@code initialCapacity} is out of range
+     */
+    public BufferedChannel(int capacity, int initialCapacity, boolean fair) {
         if (capacity < 0) {
             throw new IllegalArgumentException("Capacity must be >= 0");
         }
+        if (initialCapacity < 0 || initialCapacity > capacity) {
+            throw new IllegalArgumentException("Initial capacity must be within 0..capacity");
+        }
         this.capacity = capacity;
-        this.buffer = capacity == 0 ? new ArrayDeque<>(1) :  new ArrayDeque<>(capacity); 
+        this.buffer = initialCapacity == 0 ? new ArrayDeque<>() : new ArrayDeque<>(initialCapacity);
         this.lock = new ReentrantLock(fair);
     }
 
