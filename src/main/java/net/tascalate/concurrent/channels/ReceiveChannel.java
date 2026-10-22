@@ -169,8 +169,8 @@ public interface ReceiveChannel<T> extends ChannelBase {
         
         // Detect if the condition requires a pre-fetch guard to prevent read-ahead consumption.
         @SuppressWarnings("unchecked")
-        ReceivePreCheck<T> preCheck = continueCondition instanceof ReceivePreCheck ?
-                                      (ReceivePreCheck<T>)continueCondition : null;
+        ReceiveGuard<T> preCheck = continueCondition instanceof ReceiveGuard ?
+                                      (ReceiveGuard<T>)continueCondition : null;
         
         return Promises.loop(
             Boolean.TRUE,
@@ -247,7 +247,7 @@ public interface ReceiveChannel<T> extends ChannelBase {
      * <p>
      * If {@code maxItems <= 0}, receives all elements until the channel is closed and drained.
      * <p>
-     * This method uses a {@link ReceivePreCheck} internally to ensure that the 
+     * This method uses a {@link ReceiveGuard} internally to ensure that the 
      * {@code maxItems + 1}th element is NOT consumed from the channel buffer, avoiding 
      * the "read-ahead" consumption bug inherent in standard stream predicates.
      *
@@ -260,7 +260,7 @@ public interface ReceiveChannel<T> extends ChannelBase {
         
         Predicate<T> condition = (maxItems <= 0) 
             ? $ -> true 
-            : new ReceivePreCheck<T>() {
+            : new ReceiveGuard<T>() {
                 @Override
                 boolean mayReceive() {
                     // Stop pulling from the channel once we hit the limit
