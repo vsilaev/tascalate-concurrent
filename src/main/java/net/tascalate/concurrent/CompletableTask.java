@@ -233,9 +233,13 @@ public class CompletableTask<T> extends AbstractCompletableTask<T> {
      * @return the new {@link Promise}
      */
     public static <U> Promise<U> submit(Callable<U> call, Executor executor) {
-        CompletableTask<U> result = new CompletableTask<>(executor, call);
-        executor.execute(result.task);
-        return result;
+        if (executor instanceof TaskExecutorService) {
+            return ((TaskExecutorService)executor).submit(call);
+        } else {
+            CompletableTask<U> result = new CompletableTask<>(executor, call);
+            executor.execute(result.task);
+            return result;
+        }
     }
 
     /**
