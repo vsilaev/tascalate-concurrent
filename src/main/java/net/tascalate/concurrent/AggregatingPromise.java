@@ -26,46 +26,53 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 /**
- * Base implementation for aggregation combinators such as
+ * Base implementation for promise aggregation combinators such as
  * {@link Promises#all}, {@link Promises#any}, and {@link Promises#atLeast}.
  * <p>
- * An {@code AggregatingPromise} combines several source
- * {@link CompletionStage} instances into a single {@link Promise} producing a
- * {@link List} of aggregated results. The concrete aggregation semantics are
- * defined by three parameters:
+ * This class combines a set of source promises into a single promise that
+ * produces a list of aggregated results. The aggregation semantics are
+ * controlled by three parameters supplied at construction:
  * </p>
  * <ul>
- *   <li>{@code minResultsCount} — the number of successful results required
- *       for the aggregated promise to complete successfully;</li>
- *   <li>{@code maxErrorsCount} — the number of errors tolerated before the
- *       aggregated promise completes exceptionally;</li>
- *   <li>{@code cancelRemaining} — whether source promises that are still
- *       pending at the aggregation decision point should be cancelled.</li>
+ *   <li><b>{@code minResultsCount}</b> - the number of successful source
+ *       completions required for the aggregated promise to succeed;</li>
+ *   <li><b>{@code maxErrorsCount}</b> - the number of source failures
+ *       tolerated before the aggregated promise fails;</li>
+ *   <li><b>{@code cancelRemaining}</b> - whether source promises that are
+ *       still pending at the moment of the final decision should be cancelled.</li>
  * </ul>
  *
  * <h2>Completion protocol</h2>
  * <p>
- * Each source promise is assigned an index. Completion transitions for each
- * index are tracked in an {@link AtomicIntegerArray} named {@code completions}.
- * This guarantees that every source promise contributes at most once, even if
- * its completion callback is invoked concurrently or redundantly.
+ * Each source promise is assigned a unique index. A per-index completion
+ * tracker guarantees that every source contributes at most once, regardless
+ * of how many times its completion callback fires. As sources complete, the
+ * aggregator accumulates successful results and failures, and monitors two
+ * terminal conditions:
  * </p>
+ * <ol>
+ *   <li>The required number of successful results has been reached;</li>
+ *   <li>The maximum tolerated number of errors has been exceeded.</li>
+ * </ol>
  * <p>
- * The aggregation state is protected by a single {@code done} flag. The first
- * thread that observes either the required number of successful results or the
- * maximum tolerated number of errors atomically marks the aggregator as done,
- * optionally cancels remaining promises, and completes the resulting promise.
+ * The first thread to observe either condition atomically marks the
+ * aggregation as done, prevents further state changes, optionally cancels
+ * the remaining pending sources, and completes the aggregated promise.
  * </p>
  *
- * <h2>JDK 1.8 optimizations</h2>
+ * <h2>Result collection strategy</h2>
  * <p>
- * The counters are implemented as {@code volatile int} fields accessed through
- * static {@link AtomicIntegerFieldUpdater} instances. This avoids allocating
- * separate {@link java.util.concurrent.atomic.AtomicInteger} and
- * {@link java.util.concurrent.atomic.AtomicBoolean} objects for every
- * aggregation, which matters because aggregator instances are created by
- * public combinators and may be numerous.
+ * The concrete way results are stored and collected is delegated to
+ * subclasses through two abstract methods:
  * </p>
+ * <ul>
+ *   <li>{@link #applyResult(int, Object)} - invoked when a source completes
+ *       successfully; subclasses decide whether to store, transform, or
+ *       discard the value;</li>
+ *   <li>{@link #collectResults(int, java.util.concurrent.atomic.AtomicIntegerArray)}
+ *       - invoked when the aggregation succeeds; subclasses build the final
+ *       list to be exposed to the caller.</li>
+ * </ul>
  *
  * @param <T> the result type of each aggregated source promise
  * @param <R> the element type of the resulting aggregated list

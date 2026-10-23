@@ -32,10 +32,10 @@ import java.lang.invoke.VarHandle;
  * <p>
  * Two factory methods are provided:
  * <ul>
- * <li>{@link #createFirstWins()} returns a coordinator that allows
- *   exactly one channel to win. Used by {@link SelectCall}.</li>
- * <li>{@link #anyWins()} returns a coordinator that always grants the
- *   claim. Used for direct, non-select send and receive calls.</li>
+ *   <li>{@link #createFirstWins()} returns a coordinator that allows
+ *       exactly one channel to win. Used by {@link SelectCall}.</li>
+ *   <li>{@link #anyWins()} returns a coordinator that always grants the
+ *       claim. Used for direct, non-select send and receive calls.</li>
  * </ul>
  * <p>
  * The constructor is package-private. Use the factory methods to obtain
@@ -100,8 +100,7 @@ public abstract class SelectCoordinator {
         
         static {
             try {
-                WINNER = MethodHandles.lookup()
-                    .findVarHandle(FirstWins.class, "winner", Channel.class);
+                WINNER = MethodHandles.lookup().findVarHandle(FirstWins.class, "winner", Channel.class);
             } catch (ReflectiveOperationException e) {
                 throw new ExceptionInInitializerError(e);
             }
