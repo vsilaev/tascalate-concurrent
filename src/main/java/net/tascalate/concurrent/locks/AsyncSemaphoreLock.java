@@ -43,10 +43,10 @@ import net.tascalate.concurrent.Promise;
  * {@link Token#permits()}; releasing the token returns exactly that many permits.
  * </p>
  *
- * @see AbstractAsyncLock
  * @see AsyncLock
+ * @see AsyncExclusiveLock
  */
-public interface AsyncSemaphoreLock extends AbstractAsyncLock<AsyncSemaphoreLock.Token> {
+public interface AsyncSemaphoreLock extends AsyncLock<AsyncSemaphoreLock.Token> {
 
     /**
      * Returns the number of permits currently available for acquisition.
@@ -116,7 +116,7 @@ public interface AsyncSemaphoreLock extends AbstractAsyncLock<AsyncSemaphoreLock
      * acquired. Once the protected action is completed, the permits are returned
      * by calling {@link #release()} (or {@link #close()}).
      */
-    interface Token extends AsyncLock.Token {
+    interface Token extends AsyncExclusiveLock.Token {
 
         /**
          * Returns the number of permits held by this token; the same number of

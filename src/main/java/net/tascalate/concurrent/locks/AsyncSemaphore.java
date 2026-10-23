@@ -37,7 +37,7 @@ import net.tascalate.concurrent.Promises;
  *   <li><b>{@link AsyncSemaphoreLock}</b> (token-based) — an acquisition yields an
  *       {@link AsyncSemaphoreLock.Token} that owns the release. Tokens are
  *       {@link AutoCloseable}, so they compose naturally with
- *       {@link Promises#tryCompose} and {@link AbstractAsyncLock#guard guard(...)}.</li>
+ *       {@link Promises#tryCompose} and {@link AsyncLock#guard guard(...)}.</li>
  *   <li><b>{@link AsyncSemaphore}</b> (this interface, permit-based) — closer to the
  *       JDK semantics; the caller is responsible for calling {@link #release(long)}
  *       with the same number of permits it acquired.</li>
@@ -51,7 +51,7 @@ import net.tascalate.concurrent.Promises;
  * <p>Instances are created via {@link #create(long, boolean)}.</p>
  *
  * @see AsyncSemaphoreLock
- * @see AbstractAsyncLock
+ * @see AsyncLock
  */
 public interface AsyncSemaphore {
 

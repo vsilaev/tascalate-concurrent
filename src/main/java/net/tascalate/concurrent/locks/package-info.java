@@ -35,11 +35,11 @@
  * <p>
  * Instead of paired {@code lock()} / {@code unlock()} calls that must be matched
  * manually, a successful acquisition yields a <em>token</em>
- * ({@link net.tascalate.concurrent.locks.AbstractAsyncLock.Token}) that owns the
+ * ({@link net.tascalate.concurrent.locks.AsyncLock.Token}) that owns the
  * release responsibility. Tokens are {@link AutoCloseable}, so they compose with
  * the library's asynchronous try-with-resources combinators
  * ({@link net.tascalate.concurrent.Promises#tryCompose}) and with the
- * {@link net.tascalate.concurrent.locks.AbstractAsyncLock#guard guard(...)} shortcut,
+ * {@link net.tascalate.concurrent.locks.AsyncLock#guard guard(...)} shortcut,
  * which guarantees release even when the protected action fails or is cancelled:
  * </p>
  *
@@ -58,7 +58,7 @@
  * <caption>Synchronizers and their JDK analogs</caption>
  * <tr><th>This package</th><th>JDK analog</th><th>Acquisition yields</th></tr>
  * <tr>
- *   <td>{@link net.tascalate.concurrent.locks.AsyncLock}</td>
+ *   <td>{@link net.tascalate.concurrent.locks.AsyncExclusiveLock}</td>
  *   <td>{@link java.util.concurrent.locks.Lock}</td>
  *   <td>{@code Promise<Token>} &mdash; exclusive ownership</td>
  * </tr>
@@ -126,7 +126,7 @@
  * Semaphores support an optional <em>fair</em> mode (factory flag): in fair mode
  * permits are granted strictly in arrival order and barging is prevented; in unfair
  * mode new requests may acquire permits ahead of queued waiters.
- * {@link net.tascalate.concurrent.locks.AsyncLock} always serves waiters in FIFO order.
+ * {@link net.tascalate.concurrent.locks.AsyncExclusiveLock} always serves waiters in FIFO order.
  * </p>
  * <p>
  * Pending acquisitions are fully cancellable: cancelling an acquisition promise removes
@@ -146,8 +146,8 @@
  * </p>
  *
  * @author vsilaev
- * @see net.tascalate.concurrent.locks.AbstractAsyncLock
  * @see net.tascalate.concurrent.locks.AsyncLock
+ * @see net.tascalate.concurrent.locks.AsyncExclusiveLock
  * @see net.tascalate.concurrent.locks.AsyncSemaphoreLock
  * @see net.tascalate.concurrent.locks.AsyncSemaphore
  * @see net.tascalate.concurrent.locks.AsyncCountDownLatch

@@ -20,41 +20,41 @@ import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.Promises;
 
 /**
- * Tests for {@link AsyncLock} / {@link DefaultAsyncLock}: mutual exclusion,
+ * Tests for {@link AsyncExclusiveLock} / {@link DefaultAsyncExclusiveLock}: mutual exclusion,
  * FIFO waiter ordering, idempotent release, cancellation, and {@code guard(...)}.
  */
 public class AsyncLockTest {
 
     @Test
     public void tryAcquireSucceedsWhenFreeAndFailsWhenHeld() {
-        AsyncLock lock = AsyncLock.create();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
 
-        AsyncLock.Token first = lock.tryAcquire();
+        AsyncExclusiveLock.Token first = lock.tryAcquire();
         assertNotNull(first);
         assertEquals("Lock is held — tryAcquire must fail", lock.tryAcquire(), null);
 
         first.release();
-        AsyncLock.Token again = lock.tryAcquire();
+        AsyncExclusiveLock.Token again = lock.tryAcquire();
         assertNotNull(again);
         again.release();
     }
 
     @Test
     public void acquireCompletesImmediatelyWhenFree() {
-        AsyncLock lock = AsyncLock.create();
-        Promise<AsyncLock.Token> p = lock.acquire();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
+        Promise<AsyncExclusiveLock.Token> p = lock.acquire();
         assertTrue(p.isDone());
         p.join().release();
     }
 
     @Test
     public void acquireWaitsUntilReleaseAndServesWaitersInFifoOrder() {
-        AsyncLock lock = AsyncLock.create();
-        AsyncLock.Token first = lock.tryAcquire();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
+        AsyncExclusiveLock.Token first = lock.tryAcquire();
 
         List<String> order = new ArrayList<>();
-        Promise<AsyncLock.Token> second = lock.acquire().thenApply(t -> { order.add("second"); return t; });
-        Promise<AsyncLock.Token> third  = lock.acquire().thenApply(t -> { order.add("third");  return t; });
+        Promise<AsyncExclusiveLock.Token> second = lock.acquire().thenApply(t -> { order.add("second"); return t; });
+        Promise<AsyncExclusiveLock.Token> third  = lock.acquire().thenApply(t -> { order.add("third");  return t; });
 
         assertFalse(second.isDone());
         assertFalse(third.isDone());
@@ -74,8 +74,8 @@ public class AsyncLockTest {
 
     @Test
     public void doubleReleaseIsANoOp() {
-        AsyncLock lock = AsyncLock.create();
-        AsyncLock.Token token = lock.tryAcquire();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
+        AsyncExclusiveLock.Token token = lock.tryAcquire();
 
         token.release();
         token.release(); // second release must not corrupt state or free an extra slot
@@ -85,8 +85,8 @@ public class AsyncLockTest {
 
     @Test
     public void tokenCloseReleasesViaAutoCloseable() {
-        AsyncLock lock = AsyncLock.create();
-        AsyncLock.Token token = lock.tryAcquire();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
+        AsyncExclusiveLock.Token token = lock.tryAcquire();
 
         token.close();
 
@@ -95,10 +95,10 @@ public class AsyncLockTest {
 
     @Test
     public void cancelledAcquisitionIsRemovedFromQueue() {
-        AsyncLock lock = AsyncLock.create();
-        AsyncLock.Token first = lock.tryAcquire();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
+        AsyncExclusiveLock.Token first = lock.tryAcquire();
 
-        Promise<AsyncLock.Token> waiter = lock.acquire();
+        Promise<AsyncExclusiveLock.Token> waiter = lock.acquire();
         assertFalse(waiter.isDone());
 
         waiter.cancel(true);
@@ -106,14 +106,14 @@ public class AsyncLockTest {
 
         first.release();
         // The cancelled waiter must not consume the lock — it is free again
-        AsyncLock.Token next = lock.tryAcquire();
+        AsyncExclusiveLock.Token next = lock.tryAcquire();
         assertNotNull(next);
         next.release();
     }
 
     @Test
     public void explicitTokenHandlingWithTryCompose() throws Exception {
-        AsyncLock lock = AsyncLock.create();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
 
         Promise<String> result = Promises.tryCompose(
             lock.acquire(),
@@ -126,7 +126,7 @@ public class AsyncLockTest {
 
     @Test
     public void guardHoldsTheLockDuringActionAndReleasesAfterSuccess() throws Exception {
-        AsyncLock lock = AsyncLock.create();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
         AtomicBoolean lockHeldDuringAction = new AtomicBoolean(false);
 
         Promise<String> result = lock.guard(() -> {
@@ -141,7 +141,7 @@ public class AsyncLockTest {
 
     @Test
     public void guardReleasesTheLockAfterFailure() {
-        AsyncLock lock = AsyncLock.create();
+        AsyncExclusiveLock lock = AsyncExclusiveLock.create();
         RuntimeException boom = new RuntimeException("boom");
 
         Promise<String> result = lock.guard(() -> Promises.failure(boom));

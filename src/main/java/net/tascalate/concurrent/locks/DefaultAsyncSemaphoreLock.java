@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  * {@link Token#release()} is called. Tokens are therefore self-contained and safe to
  * use with the asynchronous try-with-resources combinators
  * ({@link net.tascalate.concurrent.Promises#tryCompose},
- * {@link AbstractAsyncLock#guard}).
+ * {@link AsyncLock#guard}).
  * </p>
  * <p>
  * Both token release and waiter release are guarded by idempotent release-once flags

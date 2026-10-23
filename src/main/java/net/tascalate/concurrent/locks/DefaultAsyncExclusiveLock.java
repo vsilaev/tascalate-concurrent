@@ -24,7 +24,7 @@ import net.tascalate.concurrent.CompletableFutureWrapper;
 import net.tascalate.concurrent.Promise;
 
 /**
- * The default {@link AsyncLock} implementation based on a FIFO waiter queue.
+ * The default {@link AsyncExclusiveLock} implementation based on a FIFO waiter queue.
  * <p>
  * Each {@link #acquire()} call enqueues a {@link LockPromise} at the tail of a
  * {@link ConcurrentLinkedQueue}. The promise at the head of the queue is completed
@@ -38,12 +38,12 @@ import net.tascalate.concurrent.Promise;
  * releasing a token more than once has no effect.
  * </p>
  * <p>
- * Create instances with {@link AsyncLock#create()}.
+ * Create instances with {@link AsyncExclusiveLock#create()}.
  * </p>
  *
- * @see AsyncLock
+ * @see AsyncExclusiveLock
  */
-public class DefaultAsyncLock implements AsyncLock {
+public class DefaultAsyncExclusiveLock implements AsyncExclusiveLock {
     /** CAS-based updater for the per-promise release flag {@link LockPromise#released}. */
     private static final AtomicIntegerFieldUpdater<LockPromise> RELEASED =
         AtomicIntegerFieldUpdater.newUpdater(LockPromise.class, "released");
@@ -120,7 +120,7 @@ public class DefaultAsyncLock implements AsyncLock {
 
          /**
           * Release-once guard: {@code 0} = not released, {@code 1} = released.
-          * Accessed exclusively via {@link DefaultAsyncLock#RELEASED}.
+          * Accessed exclusively via {@link DefaultAsyncExclusiveLock#RELEASED}.
           */
          @SuppressWarnings("unused")
          volatile int released = 0;
