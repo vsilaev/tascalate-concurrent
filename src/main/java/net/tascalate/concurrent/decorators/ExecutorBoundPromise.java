@@ -62,7 +62,25 @@ import net.tascalate.concurrent.Promise;
  *  .thenComposeAsync(fn2)     // runs on myExecutor
  *  .whenCompleteAsync(action); // runs on myExecutor
  * }</pre>
+  * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise  <-- YOU ARE HERE (Binds *Async methods to a default executor)
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> the type of the successfully resolved promise value
  * @author vsilaev
  * @see ExecutorBoundCompletionStage

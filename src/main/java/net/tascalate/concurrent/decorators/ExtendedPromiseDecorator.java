@@ -79,7 +79,25 @@ import net.tascalate.concurrent.Promise;
  *       arguments.</li>
  *   <li>{@link #wrapResult(CompletionStage)} — transform result stages.</li>
  * </ul>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator  <-- YOU ARE HERE (Provides wrapArgument extension points)
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> the type of the successfully resolved promise value
  * @author vsilaev
  * @see ExtendedDependentPromiseDecorator

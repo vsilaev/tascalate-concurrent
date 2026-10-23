@@ -41,7 +41,25 @@ import net.tascalate.concurrent.core.Decorator;
  * cancellation propagation, which need to target the actual underlying execution rather 
  * than the decorator wrappers.
  * </p>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator  <-- YOU ARE HERE (Adds Promise return types + α-operator)
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> a type of the successfully resolved promise value
  * @param <D> a type of the concrete {@link CompletionStage} subclass being decorated
  * @author vsilaev

@@ -61,7 +61,25 @@ import net.tascalate.concurrent.Promise;
  * decorator pattern. Subclasses override only the methods relevant to their
  * use case; the default implementations return arguments unchanged.
  * </p>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator  <-- YOU ARE HERE
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> the type of the successfully resolved promise value
  * @author vsilaev
  * @see ExtendedPromiseDecorator

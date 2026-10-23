@@ -40,7 +40,25 @@ import net.tascalate.concurrent.core.CompletionStageAPI;
  * delegate returns itself (e.g., in a no-op scenario), it returns the current decorator 
  * instance instead of creating a new wrapper.
  * </p>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator  <-- YOU ARE HERE (Bridges CompletionStage composition)
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage (package-private)
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> a type of the successfully resolved promise value
  * @param <D> a type of the concrete {@link CompletionStage} subclass being decorated
  * @author vsilaev

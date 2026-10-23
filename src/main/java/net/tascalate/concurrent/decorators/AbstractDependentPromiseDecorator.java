@@ -41,18 +41,6 @@ import net.tascalate.concurrent.Promise;
  * (timeouts, delays, composition with enlistment options, etc.) to the
  * underlying delegate, wrapping the results to maintain the decoration chain.
  * </p>
- *
- * <h2>Role in the Decorator Hierarchy</h2>
- * <pre>
- * AbstractCompletionStageDecorator
- *     └── AbstractPromiseLikeDecorator
- *             └── AbstractFutureDecorator
- *                     └── AbstractPromiseDecorator
- *                             └── AbstractDependentPromiseDecorator  ← you are here
- *                                     ├── ExecutorBoundDependentPromise
- *                                     └── ExtendedDependentPromiseDecorator
- * </pre>
- *
  * <h2>Subclass Responsibilities</h2>
  * <p>
  * Subclasses must implement {@link #wrapNew(CompletionStage)} to define how
@@ -60,7 +48,25 @@ import net.tascalate.concurrent.Promise;
  * is overridden to cast results to {@link DependentPromise}, ensuring that the
  * dependent API is preserved throughout the chain.
  * </p>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator  <-- YOU ARE HERE (Preserves DependentPromise API)
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> the type of the successfully resolved promise value
  * @author vsilaev
  * @see AbstractPromiseDecorator

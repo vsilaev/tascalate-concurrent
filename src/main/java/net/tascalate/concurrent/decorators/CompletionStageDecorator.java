@@ -25,7 +25,25 @@ import java.util.concurrent.CompletionStage;
  * only specific methods, or for simple type adaptation where a raw 
  * {@link CompletionStage} needs to be treated uniformly within a decorator chain.
  * </p>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator
+ *     ├── CompletionStageDecorator  <-- YOU ARE HERE (Generic concrete wrapper)
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> a type of the successfully resolved promise value
  * @author vsilaev
  * @see AbstractCompletionStageDecorator

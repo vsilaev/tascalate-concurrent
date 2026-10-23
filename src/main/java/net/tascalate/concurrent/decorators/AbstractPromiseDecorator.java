@@ -43,7 +43,25 @@ import net.tascalate.concurrent.Promise;
  * adding context propagation, executor binding, or custom cancellation logic) while 
  * relying on this class to handle the boilerplate of delegating the remaining API.
  * </p>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
+ * AbstractCompletionStageDecorator
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     ├── CompletableFutureDecorator
+ *                     └── BlockingCompletionStageDecorator
  *
+ * AbstractPromiseDecorator  <-- YOU ARE HERE (Adds Promise lifecycle, timeouts, filters)
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre>
  * @param <T> a type of the successfully resolved promise value
  * @param <D> a type of the concrete {@link Promise} subclass being decorated
  * @author vsilaev

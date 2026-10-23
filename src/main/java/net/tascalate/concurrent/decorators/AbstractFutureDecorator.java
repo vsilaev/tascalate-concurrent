@@ -44,14 +44,25 @@ import net.tascalate.concurrent.core.CompletionStageAPI;
  * {@link CompletionStage} to {@link Promise}) and the concrete decorators that
  * need blocking access:
  * </p>
- * <pre>
+ * <h2>Class Hierarchy</h2>
+ * <pre>{@code
  * AbstractCompletionStageDecorator
- *     └── AbstractPromiseLikeDecorator  (adds Promise return types + α-operator)
- *             └── AbstractFutureDecorator  (adds Future blocking API)
+ *     ├── CompletionStageDecorator
+ *     │       └── ExecutorBoundCompletionStage
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator  <-- YOU ARE HERE (Adds Future blocking API)
  *                     ├── CompletableFutureDecorator
- *                     │       └── ExecutorBoundPromise
  *                     └── BlockingCompletionStageDecorator
- * </pre>
+ *
+ * AbstractPromiseDecorator
+ *     ├── ExecutorBoundPromise
+ *     ├── ExtendedPromiseDecorator
+ *     │       └── CustomizablePromiseDecorator
+ *     └── AbstractDependentPromiseDecorator
+ *             ├── ExecutorBoundDependentPromise
+ *             └── ExtendedDependentPromiseDecorator
+ *                     └── CustomizableDependentPromiseDecorator
+ * }</pre> 
  *
  * @param <T> the type of the successfully resolved promise value
  * @param <D> the type of the concrete {@link CompletionStage} + {@link Future}

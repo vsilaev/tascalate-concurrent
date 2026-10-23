@@ -1825,8 +1825,149 @@ If you need to create custom channel wrappers or adapt third-party asynchronous 
 
 These classes handle the delegation to the underlying JDK channel and the boilerplate of bridging `CompletionHandler` to `Promise` (via the internal `AsyncResult` bridge), allowing you to focus purely on your custom channel logic while preserving the fluent Promise API.
 
-# 15. Decorators for CompletionStage / CompletableFuture / Promise
-TBD
+
+# 15. Decorators for `CompletionStage` / `CompletableFuture` / `Promise`
+
+The Tascalate Concurrent library heavily utilizes the **Decorator pattern** to add advanced, cross-cutting behaviors to asynchronous pipelines without altering the core `Promise` or `CompletionStage` implementations. This ensures that features like executor binding, context propagation, and interruptible I/O compose seamlessly with the standard fluent API.
+
+All decorators in the `net.tascalate.concurrent.decorators` package implement the `Promise` interface (or `CompletionStage`). They delegate the actual computation to an underlying "delegate" while intercepting and transforming the arguments or results of composition methods.
+
+## 1. Decorator Hierarchy Overview
+
+The decorator architecture is organized into a layered hierarchy, progressing from basic `CompletionStage` wrapping up to fully-featured `Promise` and `DependentPromise` decorators. Understanding this hierarchy clarifies which decorator provides which capabilities:
+```
+AbstractCompletionStageDecorator       <-- Bridges standard CompletionStage composition
+    ├── CompletionStageDecorator       <-- Generic concrete wrapper
+    │       └── ExecutorBoundCompletionStage (Package-private executor binder)
+    └── AbstractPromiseLikeDecorator   <-- Adds Promise return types + α-operator (origin tracing)
+            └── AbstractFutureDecorator  <-- Adds Future blocking API (get, cancel, isDone)
+                    ├── CompletableFutureDecorator
+                    └── BlockingCompletionStageDecorator
+
+AbstractPromiseDecorator               <-- Adds Promise lifecycle, timeouts, and filters
+    ├── ExecutorBoundPromise           <-- Binds *Async methods to a default executor
+    ├── ExtendedPromiseDecorator       <-- Provides wrapArgument(...) extension points
+    │       └── CustomizablePromiseDecorator (Driven by a PromiseCustomizer)
+    └── AbstractDependentPromiseDecorator <-- Preserves DependentPromise API (cancellation propagation)
+            ├── ExecutorBoundDependentPromise
+            └── ExtendedDependentPromiseDecorator
+                    └── CustomizableDependentPromiseDecorator
+```
+**Key Layers Explained:**
+
+1.  **`AbstractCompletionStageDecorator`**: The foundation. It intercepts all standard `CompletionStage` composition methods and wraps their results to maintain the decorator chain. the `Promise` contract.
+2.  **`AbstractFutureDecorator`**: Adds blocking capabilities (`get()`, `isDone()`, `cancel()`) for delegates that also implement `java.util.concurrent.Future`.
+3.  **`AbstractPromiseDecorator`**: The workhorse for standard `Promise` features, delegating timeouts, delays, and filtering while preserving the wrapper chain.
+4.  **`Extended*Decorator` & `Customizable*Decorator`**: The most flexible layer. They expose `wrapArgument(...)` hooks, allowing you to inject custom logic (like context relay or I/O interruption) into every callback of the chain.
+
+## 2. `DependentPromise`: Cancellation Propagation as a Decorator
+
+As discussed in earlier sections, the standard `CompletionStage` API does not propagate cancellation upstream. The `DependentPromise` interface (implemented by `ConfigurableDependentPromise`) is fundamentally a decorator.
+
+When you call `promise.dependent()`, it wraps the original promise, intercepting composition methods (like `thenApply` or `thenCombine`) to optionally register the upstream stages as cancellation targets. If the resulting chain is cancelled, the decorator ensures those registered origins are cancelled as well, preventing resource leaks.
+
+## 3. Executor Binding (`asyncOn`)
+
+A common pitfall in standard Java is that `*Async` methods without an explicit `Executor` argument silently fall back to `ForkJoinPool.commonPool()`, which is rarely desirable in enterprise applications.
+
+The `ExecutorBoundPromise` and `ExecutorBoundDependentPromise` decorators solve this "executor leakage" problem. When you call `promise.defaultAsyncOn(myExecutor)` (or use `CompletableTask.asyncOn(myExecutor)`), the returned promise is wrapped in an executor-bound decorator.
+
+-   Every subsequent `*Async` call (e.g., `thenApplyAsync`, `whenCompleteAsync`) that omits the executor parameter is automatically redirected to use `myExecutor`.
+-   The decorator ensures this binding is preserved down the entire composition chain.
+```java
+Promise<String> p = CompletableTask.asyncOn(myExecutor)
+    .thenApplyAsync(this::step1)      // Runs on myExecutor
+    .thenComposeAsync(this::step2)    // Runs on myExecutor
+    .whenCompleteAsync(this::step3);  // Runs on myExecutor
+```
+## 4. Context Propagation with `ContextRelay`
+
+In modern applications, contextual data (like trace IDs, security principals, or tenant IDs) must flow across asynchronous thread boundaries. The `ContextRelay` class achieves this by returning a `CustomizablePromiseDecorator`.
+
+When you apply a relay to a promise chain, the decorator intercepts every callback (e.g., `Function`, `Consumer`, `Runnable`) passed to composition methods. It wraps each callback so that, just before execution on the worker thread, the captured `ContextVar` snapshot is applied, and it is cleared immediately after.
+```java
+ContextVar<String> TRACE_ID = ContextVar.newInstance("trace-id");
+
+Promise<String> result = originalPromise
+    .as(TRACE_ID.relay().contextualPromises()) // Wraps all subsequent callbacks
+    .thenApplyAsync(id -> processWithTrace(id)) // TRACE_ID is automatically restored here
+    .thenAcceptAsync(res -> logResult(res));    // And here
+```
+## 5. Interruptible Blocking I/O (`BlockingIO`)
+
+As detailed in the _"Wait! Why isn't my task cancelling?"_ section, standard blocking I/O ignores thread interruptions. The `BlockingIO` utility provides a `PromiseCustomizer` (`InterruptiblePromiseCustomizer`) that can be applied to an entire promise chain.
+
+When you use `BlockingIO.interruptiblePromises()`, it returns a decorator that wraps every callback in the chain with the `BlockingIO` interruption context. If `Promise.cancel(true)` is called, the decorator ensures that any registered `AutoCloseable` resources (like `InputStream`s or `Socket`s) are forcefully closed, unblocking the I/O operation and allowing the cancellation to propagate cleanly.
+```java
+Promise<byte[]> data = fetchUrlAsync(url)
+    .as(BlockingIO.interruptiblePromises()) // Makes the whole chain interruptible
+    .thenApplyAsync(bytes -> parse(bytes))
+    .thenAcceptAsync(result -> store(result));
+
+// Later: data.cancel(true) will forcefully close any registered streams in the chain
+```
+### 15.6. Building Your Own Decorators
+
+The decorator architecture is highly extensible. You can create custom decorators by implementing the `PromiseCustomizer` interface and applying it via `ExtendedPromiseDecorator` or `CustomizablePromiseDecorator`.
+
+For example, to add execution time logging to every functional step in a chain:
+```java
+public class LoggingCustomizer implements PromiseCustomizer {
+    @Override
+    public <U, R> Function<U, R> wrapArgument(Function<U, R> original, boolean async, boolean isCompose) {
+        return input -> {
+            long start = System.nanoTime();
+            try {
+                return original.apply(input);
+            } finally {
+                System.out.println("Async step took " + (System.nanoTime() - start) + " ns");
+            }
+        };
+    }
+}
+
+// Apply to a promise chain using the as() method
+Promise<T> loggedPromise = originalPromise.as(p -> 
+    new CustomizablePromiseDecorator<>(p, new LoggingCustomizer())
+);
+```
+By leveraging these decorators, Tascalate Concurrent allows you to compose complex, production-ready asynchronous workflows with clean, declarative code, while keeping cross-cutting concerns neatly separated from your core business logic. To strip away these layers when needed, simply call `.unwrap()` (removes one layer) or `.raw()` (removes all layers) on the `Promise`.
+
+## 6. Fluent Decorators via Extension Methods
+While the `Promise.as(Function)` method provides a powerful way to apply decorators, chaining multiple decorators can sometimes feel verbose and disrupt the natural flow of the code:
+```java
+Promise<Data> result = fetchData()
+.as(BlockingIO::interruptiblePromise)
+.as(p -> TRACE_ID.relay().contextualPromise(p))
+.as(p -> Promises.tryComposeEx(p,  this::processResource));
+```
+To make the API feel more natural and fluent, the Tascalate Concurrent library provides the `PromiseOperations` class. This class is specifically designed to be used with **Lombok's `@ExtensionMethod`** (or similar compiler plugins that support extension methods).
+
+By registering `PromiseOperations` as an extension method provider, all its static methods become available as instance methods on any `Promise` or `DependentPromise`. This allows you to chain decorators seamlessly, as if they were native methods of the `Promise` interface:
+```java
+@ExtensionMethod({PromiseOperations.class})
+public class MyService {
+    
+    public Promise<Data> fetchData() {
+        return fetchRawData()
+            .interruptible()                      // Applies BlockingIO decorator
+            .contextual(TRACE_ID.relay())         // Applies ContextRelay decorator (static capture)
+            .tryComposeEx(resource -> process(resource)); // Async try-with-resources
+    }
+}
+```
+### Available Extension Operations
+
+The `PromiseOperations` class provides extension methods for several common scenarios:
+
+-   **Context Propagation:**  `.contextual(relay)` and `.dynamicContextual(relay)` apply a `ContextRelay` to the promise chain, ensuring thread-local or scoped variables flow across asynchronous boundaries.
+-   **Interruptible I/O:**  `.interruptible()` wraps the promise with the `BlockingIO` decorator, making legacy blocking operations responsive to `Promise.cancel(true)`.
+-   **Asynchronous Try-With-Resources:**  `.tryApply(fn)`, `.tryCompose(fn)`, and their `Ex` (async close) variants automatically enlist the resource promise for cancellation, preventing resource leaks if the pipeline is aborted.
+-   **Chunked Processing:**  `.chunkedItems(batchSize, spawner, collector)` and `.chunkedStream(...)` apply bounded-concurrency processing to a promise yielding an `Iterable` or `Stream`.
+-   **Type Conversions:**  `.asStream()`, `.asOptional()`, `.asTry()`, `.lift()`, and `.drop()` allow seamless conversion between `Promise` and standard Java container types or monadic structures.
+-   **Debugging:**  `.peek(consumer)` allows you to inspect or log the promise itself in the middle of a chain without altering its state or type.
+
+Using `PromiseOperations` with Lombok not only reduces boilerplate but also makes the intent of your asynchronous pipelines immediately clear to anyone reading the code, providing a highly expressive, domain-specific language for reactive programming.
 
 # 16. Promise-Aware Executors and Thread Builders
 
