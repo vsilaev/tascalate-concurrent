@@ -2564,6 +2564,349 @@ The implementation class `BufferedChannel<T>` handles both rendezvous (capacity 
 | Disabling a case (`ch = nil`) | `Select.disabled()` | Dynamically removes a case from the select loop. |
 | `case <-time.After(d):` | `ch.receive(Duration)` | Built-in timeout support; auto-cancels the underlying waiter. |
 
+# 17. Structured Concurrency and Combinators with `TaskScope` (Java 21+)
+
+The introduction of **Structured Concurrency** in the JDK (formalized in **JEP 525**, following a long history of incubation and preview phases starting with JEP 428 and JEP 453) has revolutionized how we manage concurrent task lifecycles. However, the standard JDK implementation relies on rigid, imperative "joiners" (like `StructuredTaskScope.Joiner.allSuccessfulOrThrow()` or `StructuredTaskScope.Joiner.awaitAllSuccessfulOrThrow`). While useful for simple scenarios, these joiners become cumbersome when you need complex aggregation logic (e.g., "wait for the first 3 successes, ignore failures, and cancel the rest").
+
+The Tascalate Concurrent `TaskScope` provides a superior, **declarative alternative**. Instead of forcing you into predefined joiner strategies, it exposes completed tasks as a standard Java `Stream`.
+
+## The Core Concept: Lazy Streams and State Predicates
+
+Because `TaskScope.completions()` returns a lazy `Stream<Promise<Object>>` that yields tasks exactly as they finish, you can use standard stream operations to implement _any_ combinator logic.
+
+Furthermore, because the `Promise.State` enum constants (`SUCCESS`, `FAILED`, `CANCELLED`, `RUNNING`) implement `java.util.function.Predicate<Promise<?>>`, you can use them directly in `.filter()` for highly expressive, readable code:
+```java
+// Highly expressive filtering using Promise.State predicates
+scope.completions()
+     .filter(Promise.State.SUCCESS) // Skips FAILED or CANCELLED promises
+     .map(Promise::join)            // Safe to join: we already filtered for SUCCESS
+     .limit(3)                      // Short-circuits: stops consuming the stream after 3 items
+     .toList();
+```
+When a short-circuiting operation like `limit()` is satisfied, the stream pipeline stops consuming. When the `try-with-resources` block exits, `TaskScope.close()` is automatically invoked, which **cancels all remaining uncompleted tasks**, giving you automatic, leak-free cancellation for free.
+
+## Constructing a `TaskScope`
+
+`TaskScope` provides a fluent `Builder` to eliminate confusing constructor parameter combinations and to make executor ownership and context propagation explicit.
+
+### 1. Default Configuration (Virtual Threads)
+The simplest way to create a scope is to use the default builder. It automatically provisions a virtual-thread-per-task executor, which it **owns** and will shut down when the scope closes.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    // Tasks forked here will run on virtual threads
+}
+```
+### 2. Custom Thread Factory (Owned)
+
+You can provide a custom `ThreadFactory` (e.g., to set thread names, priorities, or daemon status). When a thread factory is provided, the scope **owns** the resulting executor and will shut it down upon closing.
+```java
+ThreadFactory factory = Thread.ofPlatform().name("worker-", 0).factory();
+try (TaskScope scope = TaskScope.builder()
+        .name("DataAggregationScope") // Optional: useful for debugging/logging
+        .threadFactory(factory)
+        .build()) {
+    // ...
+}
+```
+### 3. External Executor (Unowned)
+
+If you want to run tasks on an existing, shared thread pool, you can pass an `ExecutorService`. By default, the scope does **not** own this executor and will **not** shut it down when the scope closes. This is the safest default for shared resources.
+```java
+ExecutorService sharedPool = Executors.newFixedThreadPool(10);
+try (TaskScope scope = TaskScope.builder()
+        .executor(sharedPool) // Unowned by default
+        .build()) {
+    // ...
+}
+// sharedPool remains active after the scope closes
+```
+### 4. External Executor (Owned)
+
+If you dynamically create an executor specifically for this scope and want the scope to manage its lifecycle, you can explicitly declare ownership.
+```java
+try (TaskScope scope = TaskScope.builder()
+        .executor(Executors.newCachedThreadPool(), true) // true = owned
+        .build()) {
+    // The cached thread pool will be shut down when the scope closes
+}
+```
+### 5. Context Propagation
+
+In modern applications, contextual data (like trace IDs, security principals, or tenant IDs) must flow across asynchronous boundaries. You can attach a `ContextRelay` to the scope. Every task forked within this scope will automatically have the context snapshot applied before execution and cleared afterward.
+```java
+ContextRelay<Object> traceRelay = TRACE_ID.relay();
+try  (TaskScope scope = TaskScope.builder()
+                                 .executor(sharedPool)
+                                 // Automatically propagates context to forked tasks
+                                 .contextualizer(traceRelay)
+                                 .build())  {
+    // ...
+}
+```
+### Next Steps: Implementing Combinators
+
+With the scope constructed and tasks forked, the real power lies in how you consume the `completions()` stream. The following subsections demonstrate how to replicate and exceed the capabilities of standard combinators (`all`, `any`, `atLeast`) using this elegant, stream-based approach, complete with robust exception handling.
+
+## The Magic of Short-Circuiting & `try-with-resources`
+
+The key to this pattern is that **short-circuiting stream operations** (like `findFirst()` or `limit()`) stop consuming the stream as soon as their condition is met. When the `try-with-resources` block exits, `TaskScope.close()` is automatically called, which **cancels all remaining uncompleted tasks** in the scope. This gives you automatic, leak-free cancellation for free.
+## 1. `any`: First Success Wins
+
+**Goal:** Query multiple redundant services and return the first one that succeeds. Ignore failures.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    // Fork M tasks dynamically
+    for (String url : redundantUrls) {
+        scope.fork(() -> fetchFromUrl(url));
+    }
+    
+    // Emulates Promises.any: get the first successful result
+    Optional<Object> result = scope.completions()
+        .filter(Promise.State.SUCCESS) // Skips FAILED or CANCELLED promises
+        .map(Promise::join)            // Safe to join, already filtered for SUCCESS
+        .findFirst();                  // Short-circuits the stream immediately
+        
+    // try-with-resources automatically cancels remaining uncompleted tasks here
+}
+```
+## 2. `all`: Wait for All, Fail-Fast
+
+**Goal:** Execute M independent tasks. If any task fails, abort immediately and cancel the rest.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    for (Item item : items) {
+        scope.fork(() -> processItem(item));
+    }
+    
+    // Emulates Promises.all (with cancelRemaining=true)
+    // If any task fails, join() throws CompletionException, aborting the stream.
+    // The exception propagates, and try-with-resources cancels the remaining tasks.
+    List<Object> results = scope.completions()
+        .map(Promise::join) 
+        .toList(); // JDK 16+ Stream API
+}
+```
+_Note: If you want a **tolerant**  `all` that simply ignores failures and collects whatever succeeds, you just add the filter: `.filter(Promise.State.SUCCESS).map(Promise::join).toList()`._
+
+## 3. `atLeast(N)`: Quorum / N out of M
+**Goal:** You need at least `N` successful responses from a cluster of `M` nodes. Tolerate failures, but stop as soon as the quorum is reached.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    for (Node node : clusterNodes) {
+        scope.fork(() -> getHeartbeat(node));
+    }
+    
+    int requiredQuorum = 5;
+    
+    // Emulates Promises.atLeast(N)
+    List<Object> quorumResults = scope.completions()
+        .filter(Promise.State.SUCCESS)
+        .map(Promise::join)
+        .limit(requiredQuorum) // Short-circuits after N successes!
+        .toList();
+        
+    if (quorumResults.size() < requiredQuorum) {
+        throw new IllegalStateException("Failed to reach quorum of " + requiredQuorum);
+    }
+}
+```
+## 4. Advanced Control Flow with `takeWhile` and Running State
+
+Sometimes you need to stop processing based on an accumulated state rather than a fixed count. Because the stream is lazy, you can use `takeWhile` combined with a thread-safe accumulator (like `AtomicInteger`) to halt execution the moment a threshold is met.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    // Fork tasks that return Integer values
+    for (int i = 1; i <= 20; i++) {
+        int taskId = i;
+        scope.fork(() -> {
+            Thread.sleep(50); // Simulate variable work time
+            return taskId; 
+        });
+    }
+    
+    // Single thread access, int[] runningSum = {0} will work as well
+    AtomicInteger runningSum = new AtomicInteger(0);
+    int targetSum = 50;
+    
+    // Collect results until the running sum reaches or exceeds the target
+    List<Integer> results = scope.completions()
+        .map(p -> (Integer) p.join())
+        .takeWhile(v -> {
+            int newSum = runningSum.addAndGet(v);
+            System.out.println("Collected " + v + ", running sum: " + newSum);
+            // Note: takeWhile stops *before* including the element that makes the predicate false.
+            // If you want to include the element that crosses the threshold, adjust the logic 
+            // or collect it separately. Here, we stop as soon as sum >= 50.
+            return newSum < targetSum; 
+        })
+        .toList();
+        
+    System.out.println("Stopped early. Final collected results: " + results);
+} // Remaining tasks are instantly cancelled here
+```
+
+## Exception Handling and the Stream API
+
+When using `Promise::join` inside a stream, it is crucial to understand that **if a promise completes exceptionally, `join()` will throw a `CompletionException`** wrapping the original cause.
+
+The Stream API gives you elegant ways to handle this, depending on whether you want to **tolerate** failures or **fail-fast**.
+
+### Scenario A: Tolerating Exceptions (Ignore Failures)
+
+If you want to collect the first `N` successful results and simply ignore any tasks that fail, filter them out _before_ calling `join()`.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    // Fork 10 tasks dynamically
+    for (int i = 0; i < 10; i++) {
+        int taskId = i;
+        scope.fork(() -> {
+            if (taskId % 3 == 0) throw new RuntimeException("Simulated failure for task " + taskId);
+            return "Result-" + taskId;
+        });
+    }
+    
+    // Collect up to 4 successes, ignoring failures
+    List<String> results = scope.completions()
+        .filter(Promise.State.SUCCESS) // Skips FAILED or CANCELLED promises
+        .map(Promise::join)            // Safe to join: we already filtered for SUCCESS
+        .limit(4)                      // Short-circuits: stops consuming the stream after 4 items
+        .toList();                     // JDK 16+ Stream API
+        
+    System.out.println("Collected " + results.size() + " successful results.");
+} // try-with-resources automatically cancels any remaining running tasks here
+```
+### Scenario B: Fail-Fast on First Exception
+
+If _any_ task failure should immediately abort the entire operation and propagate the error, map to `join()` directly. The first exception encountered will throw a `CompletionException`, breaking the stream and triggering the `try-with-resources` cleanup.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    for (int i = 0; i < 10; i++) {
+        scope.fork(() -> fetchDataFromShard(i));
+    }
+    
+    // If ANY task fails, join() throws CompletionException, aborting the stream
+    List<Data> results = scope.completions()
+        .map(Promise::join) 
+        .limit(10)
+        .toList();
+        
+} catch (CompletionException ex) {
+    // Unwrap to find the actual business exception
+    Throwable cause = ex.getCause();
+    System.err.println("Aggregation failed due to: " + cause.getMessage());
+    // The scope is automatically closed and remaining tasks cancelled here
+}
+```
+### Scenario C: Advanced Partitioning (Collect Both Successes and Failures)
+
+Sometimes you need to inspect both outcomes without throwing. You can collect the raw `Promise` objects and partition them.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    for (String url : urls) {
+        scope.fork(() -> pingService(url));
+    }
+    
+    // Grab the first 5 completions of ANY state
+    List<Promise<Object>> firstFive = scope.completions()
+        .limit(5)
+        .toList();
+        
+    // Safely separate successes from failures
+    List<String> successes = firstFive.stream()
+        .filter(Promise.State.SUCCESS)
+        .map(Promise::join)
+        .map(Object::toString)
+        .toList();
+        
+    List<Throwable> errors = firstFive.stream()
+        .filter(Promise.State.FAILED)
+        .map(Promise::exceptionNow) // Extracts the exception without throwing
+        .toList();
+        
+    System.out.println("Successes: " + successes.size() + ", Errors: " + errors.size());
+}
+```
+
+## Reusability via `reset()`
+
+Unlike standard `StructuredTaskScope`, which is strictly single-use, a `TaskScope` can be reset and reused within the same thread for multiple independent batches of work. Calling `scope.reset()` cancels any lingering tasks, clears the internal tracking, and drains the completion queue, returning the scope to its initial state.
+```java
+try (TaskScope scope = TaskScope.builder().name("ReusableScope").build()) {
+    
+    // Batch A
+    scope.fork(() -> processBatchA1());
+    scope.fork(() -> processBatchA2());
+    scope.fork(() -> processBatchA3());
+    scope.completions()
+         .filter(Promise.State.SUCCESS)
+         .map(Promise::join)
+         .findAny()
+         .orElse(null);
+    
+    // Reset the scope for the next independent batch
+    // This will cancel any pending forks
+    scope.reset(); 
+    
+    // Batch B
+    scope.fork(() -> processBatchB1());
+    scope.fork(() -> processBatchB2());
+    scope.fork(() -> processBatchB3());
+    scope.completions().map(Promise::join).toList();
+    
+} // Final cleanup and executor shutdown (if owned)
+```
+## Timeouts and Cancellation Guarantees
+
+Unlike the standard JDK `StructuredTaskScope`, the Tascalate Concurrent `TaskScope`  **does not provide built-in scope-level timeout support**.
+
+This is an intentional design decision. Introducing a scope-level timeout would inherently require a background timer thread to monitor execution and trigger cancellations. This would break the strict guarantee that `TaskScope.close()` and `TaskScope.reset()` are purely **single-thread operations** executed exclusively by the scope's owner thread. Preserving this single-threaded guarantee is critical for predictable resource management, avoiding hidden concurrency bugs, and ensuring that cleanup happens exactly when the developer expects it.
+
+However, you can still easily enforce timeouts on **individual forked tasks**. Because `scope.fork()` returns a standard `Promise`, you can simply chain the `.orTimeout()` method directly to the returned promise.
+```java
+try (TaskScope scope = TaskScope.builder().build()) {
+    // Fork a task and apply a per-task timeout
+    Promise<String> timedTask = scope.fork(() -> slowNetworkCall())
+                                     .orTimeout(Duration.ofSeconds(5), true); // true = cancel underlying task on timeout
+                                     
+    // Collect successful results, naturally ignoring tasks that timed out
+    List<String> results = scope.completions()
+        .filter(Promise.State.SUCCESS) // Timed-out tasks will be CANCELLED, so they are filtered out here
+        .map(Promise::join)
+        .toList();
+}
+```
+When the specified duration expires, the specific task is interrupted and its promise completes with a `CancellationException`. The `TaskScope` handles this gracefully: the cancelled promise will still appear in the `completions()` stream, but it will be naturally filtered out if you are only collecting `Promise.State.SUCCESS` results.
+
+This approach gives you fine-grained, per-task timeout control without compromising the scope's robust, single-threaded lifecycle guarantees.
+
+Alternatively, you may implement something like `Global Batch Timeout` - you can simply fork a "timeout" task alongside your work tasks and use the Stream API's `takeWhile` to stop processing the moment the timeout task completes.
+```java
+try (TaskScope scope = TaskScope.builder().build()) { // Defaults to virtual threads
+    
+    // 1. Fork a "timeout" task first
+    Promise<Object> timeoutPromise = scope.fork(() -> {
+        Thread.sleep(Duration.ofSeconds(5)); 
+        return "TIMEOUT";
+    });
+    
+    // 2. Fork the actual work tasks
+    for (int i = 0; i < 100; i++) {
+        scope.fork(() -> doHeavyWork(i));
+    }
+    
+    // 3. Process completions until the timeout task finishes
+    List<Object> results = scope.completions()
+        .takeWhile(p -> p != timeoutPromise) // Short-circuits the exact moment timeoutPromise completes
+        .filter(Promise.State.SUCCESS)       // Tolerates individual work failures
+        .map(Promise::join)
+        .toList();
+        
+} // try-with-resources automatically cancels all remaining uncompleted work tasks here
+```
+This pattern requires the timeout task to occupy a thread while it sleeps. If you were using a fixed platform thread pool, this would waste a valuable thread. However, because `TaskScope` defaults to `Executors.newVirtualThreadPerTaskExecutor()`, the sleeping timeout task is unmounted from the carrier thread, making it virtually "free" in terms of OS resource consumption.
+
+_Note: If you are using a custom platform thread pool via the builder (e.g., `.executor(myFixedPool)`), you must ensure the pool has at least one extra thread available to run the timeout task concurrently with the work tasks, otherwise the timeout task will starve and never trigger._
+
 # Acknowledgements
 
 Internal implementation details are greatly inspired [by the work](https://github.com/lukas-krecan/completion-stage) done by [Lukáš Křečan](https://github.com/lukas-krecan). The part of the polling / asynchronous retry functionality is adopted from the [async-retry](https://github.com/nurkiewicz/async-retry) library by [Tomasz Nurkiewicz](http://nurkiewicz.com/)

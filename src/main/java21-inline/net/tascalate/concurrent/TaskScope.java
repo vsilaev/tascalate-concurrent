@@ -37,89 +37,131 @@ import net.tascalate.concurrent.var.ContextRelay;
 
 public class TaskScope implements AutoCloseable {
     private static final AtomicLong SCOPE_ID = new AtomicLong(0);
-    
+
     private final String name;
-    private final ExecutorService executorService;
+    private final ExecutorService executorService; // Null if not owned
     private final TaskCompletionService<Object> completionService;
     private final ContextRelay<Object> contextualizer;
-    
     private final Set<Promise<?>> allFutures = new HashSet<>();
     private final Thread owner = Thread.currentThread();
-    
-    public TaskScope() {
-        this((ContextRelay<Object>)null);
+
+    // =========================================================================
+    // Builder Pattern to replace combinatorial constructors
+    // =========================================================================
+
+    /**
+     * Starts building a new {@link TaskScope}.
+     *
+     * @return a new builder instance
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Fluent builder for {@link TaskScope}, avoiding confusing parameter combinations.
+     */
+    public static class Builder {
+        private String name = nextGeneratedName();
+        private ExecutorService executorService;
+        private ThreadFactory threadFactory;
+        private boolean ownExecutor = false;
+        private ContextRelay<Object> contextualizer;
+
+        /**
+         * Sets the name of the task scope, useful for debugging and logging.
+         *
+         * @param name the scope name
+         * @return this builder
+         */
+        public Builder name(String name) {
+            this.name = Objects.requireNonNull(name, "name may not be null");
+            return this;
+        }
+
+        /**
+         * Sets the {@link ExecutorService} to be used for executing tasks.
+         * <p>
+         * By default, the scope will <b>not</b> own this executor and will not 
+         * shut it down when {@link TaskScope#close()} is called.
+         * </p>
+         *
+         * @param executorService the executor service
+         * @return this builder
+         */
+        public Builder executor(ExecutorService executorService) {
+            this.executorService = Objects.requireNonNull(executorService, "executorService may not be null");
+            this.ownExecutor = false;
+            return this;
+        }
+
+        /**
+         * Sets the {@link ExecutorService} and explicitly specifies ownership.
+         *
+         * @param executorService the executor service
+         * @param ownExecutor     if {@code true}, the scope will shut down this 
+         *                        executor when {@link TaskScope#close()} is called
+         * @return this builder
+         */
+        public Builder executor(ExecutorService executorService, boolean ownExecutor) {
+            this.executorService = Objects.requireNonNull(executorService, "executorService may not be null");
+            this.ownExecutor = ownExecutor;
+            return this;
+        }
+
+        /**
+         * Sets the {@link ThreadFactory} to create a new thread-per-task executor.
+         * <p>
+         * When a thread factory is provided, the scope <b>will</b> own the resulting 
+         * executor and will shut it down when {@link TaskScope#close()} is called.
+         * </p>
+         *
+         * @param threadFactory the thread factory
+         * @return this builder
+         */
+        public Builder threadFactory(ThreadFactory threadFactory) {
+            this.threadFactory = Objects.requireNonNull(threadFactory, "threadFactory may not be null");
+            this.ownExecutor = true;
+            return this;
+        }
+
+        /**
+         * Sets the {@link ContextRelay} to propagate context variables to forked tasks.
+         *
+         * @param contextualizer the context relay
+         * @return this builder
+         */
+        public Builder contextualizer(ContextRelay<Object> contextualizer) {
+            this.contextualizer = contextualizer;
+            return this;
+        }
+
+        /**
+         * Builds and returns a new {@link TaskScope} instance.
+         *
+         * @return the configured task scope
+         */
+        public TaskScope build() {
+            ExecutorService actualExecutor;
+            boolean actualOwnExecutor;
+
+            if (executorService != null) {
+                actualExecutor = executorService;
+                actualOwnExecutor = ownExecutor;
+            } else if (threadFactory != null) {
+                actualExecutor = Executors.newThreadPerTaskExecutor(threadFactory);
+                actualOwnExecutor = true;
+            } else {
+                // Default to virtual threads if nothing is specified (Java 21+)
+                actualExecutor = Executors.newVirtualThreadPerTaskExecutor();
+                actualOwnExecutor = true;
+            }
+
+            return new TaskScope(name, actualExecutor, actualOwnExecutor, contextualizer);
+        }
     }
     
-    public TaskScope(ContextRelay<Object> contextualizer) {
-        this(nextGeneratedName(), contextualizer);
-    }
-    
-    public TaskScope(String name) {
-        this(name, Executors.newVirtualThreadPerTaskExecutor(), true, null);
-    }
-    
-    public TaskScope(String name, ContextRelay<Object> contextualizer) {
-        this(name, Executors.newVirtualThreadPerTaskExecutor(), true, contextualizer);
-    }
-    
-    public TaskScope(ThreadFactory threadFactory) {
-        this(threadFactory, (ContextRelay<Object>)null);
-    }
-    
-    public TaskScope(ThreadFactory threadFactory, ContextRelay<Object> contextualizer) {
-        this(nextGeneratedName(), threadFactory, contextualizer);
-    }
-    
-    public TaskScope(String name, ThreadFactory threadFactory) {
-        this(name, threadFactory, (ContextRelay<Object>)null);
-    }
-    
-    public TaskScope(String name, 
-                     ThreadFactory threadFactory, 
-                     ContextRelay<Object> contextualizer) {
-        this(name, Executors.newThreadPerTaskExecutor(threadFactory), true, contextualizer);
-    }
-    
-    public TaskScope(ExecutorService executorService) {
-        this(executorService, (ContextRelay<Object>)null);
-    }
-    
-    public TaskScope(ExecutorService executorService, 
-                     ContextRelay<Object> contextualizer) {
-        this(executorService, false, contextualizer);
-    }
-    
-    
-    public TaskScope(ExecutorService executorService, boolean ownExecutor) {
-        this(executorService, ownExecutor, (ContextRelay<Object>)null);
-    }
-    
-    public TaskScope(ExecutorService executorService, 
-                     boolean ownExecutor, 
-                     ContextRelay<Object> contextualizer) {
-        this(nextGeneratedName(), executorService, ownExecutor, contextualizer);
-    }
-    
-    
-    public TaskScope(String name, ExecutorService executorService) {
-        this(name, executorService, null);
-    }
-    
-    public TaskScope(String name, 
-                     ExecutorService executorService, 
-                     ContextRelay<Object> contextualizer) {
-        this(name, executorService, false, contextualizer);
-    }
-    
-    public TaskScope(String name, ExecutorService executorService, boolean ownExecutor) {
-        this(name, executorService, ownExecutor, null);
-    }
-    
-    public ContextRelay<Object> contextualizer() {
-        return contextualizer;
-    }
-    
-    public TaskScope(String name, ExecutorService executorService, boolean ownExecutor, ContextRelay<Object> contextualizer) {
+    protected TaskScope(String name, ExecutorService executorService, boolean ownExecutor, ContextRelay<Object> contextualizer) {
         Objects.requireNonNull(executorService, "executorService may not be null");
         this.name = name;
         if (ownExecutor) {
