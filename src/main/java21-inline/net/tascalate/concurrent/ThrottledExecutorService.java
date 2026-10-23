@@ -15,6 +15,8 @@
  */
 package net.tascalate.concurrent;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -27,12 +29,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 /**
@@ -44,12 +43,12 @@ import java.util.stream.Stream;
  * Unlike a classic {@link java.util.concurrent.ThreadPoolExecutor}, which keeps a fixed
  * set of long-lived worker threads that pull tasks from a queue, this executor spawns a
  * <b>new thread for every submitted task</b> while strictly capping the number of
- * <i>concurrently running</i> threads with a {@link Semaphore} holding
+ * <i>concurrently running</i> threads with an atomic counter holding
  * {@code maxConcurrentThreads} permits.
  * </p>
  * <p>
  * By default those threads are <b>virtual threads</b> (created via {@link Thread#ofVirtual()}),
- * so per-task thread creation is extremely cheap while the semaphore still guarantees that at
+ * so per-task thread creation is extremely cheap while the counter still guarantees that at
  * most {@code maxConcurrentThreads} tasks execute at the same time. This combines the massive
  * scalability of virtual threads with a hard concurrency bound &mdash; ideal for rate-limiting
  * access to a downstream resource (a database, a third-party API, a connection pool) without
@@ -58,11 +57,11 @@ import java.util.stream.Stream;
  *
  * <h2>Permit hand-off</h2>
  * <p>
- * When a task completes, its thread does not simply release the semaphore permit. It first
+ * When a task completes, its thread does not simply release the permit. It first
  * checks the waiting queue: if another task is pending, the permit is <i>handed off</i>
  * directly to a freshly spawned thread for that next task; only when the queue is empty is the
- * permit returned to the semaphore. This minimizes the latency between consecutive tasks and
- * avoids an extra wake-up round-trip through the semaphore.
+ * permit returned to the counter. This minimizes the latency between consecutive tasks and
+ * avoids an extra wake-up round-trip.
  * </p>
  *
  * <h2>Queuing and rejection</h2>
@@ -102,12 +101,25 @@ import java.util.stream.Stream;
  */
 public class ThrottledExecutorService extends AbstractExecutorService implements ExecutorService {
 
-    /** Atomic updater for the {@link #state} field. */
-    private static final AtomicIntegerFieldUpdater<ThrottledExecutorService> STATE =
-            AtomicIntegerFieldUpdater.newUpdater(ThrottledExecutorService.class, "state");
+    /** VarHandle for the {@link #state} field. */
+    private static final VarHandle STATE;
     
-    private final AtomicIntegerFieldUpdater<ThrottledExecutorService> AVAILABLE_SLOTS =
-            AtomicIntegerFieldUpdater.newUpdater(ThrottledExecutorService.class, "availableSlots");
+    /** VarHandle for the {@link #availableSlots} field. */
+    private static final VarHandle AVAILABLE_SLOTS;
+    
+    /** VarHandle for the {@link #activeThreadCount} field. */
+    private static final VarHandle ACTIVE_THREAD_COUNT;
+
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            STATE = l.findVarHandle(ThrottledExecutorService.class, "state", int.class);
+            AVAILABLE_SLOTS = l.findVarHandle(ThrottledExecutorService.class, "availableSlots", int.class);
+            ACTIVE_THREAD_COUNT = l.findVarHandle(ThrottledExecutorService.class, "activeThreadCount", long.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     // states: RUNNING -> SHUTDOWN -> TERMINATED
     /** The executor is accepting and running tasks. */
@@ -122,19 +134,24 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
 
     /** The maximum number of tasks allowed to run concurrently. */
     private final int maxConcurrentThreads;
-    /** Semaphore whose permits represent the available concurrency slots. */
+    
+    /** Number of available concurrency slots. */
     private volatile int availableSlots;
+    
     /** Buffer for tasks submitted while every permit is taken. */
     private final BlockingQueue<Runnable> queue;
+    
     /** Factory used to create a fresh thread (virtual by default) for each task. */
     private final ThreadFactory threadFactory;
+    
     /** Handler invoked when the queue cannot accept a task. */
     private final RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler;
 
     /** Set of currently live worker threads, used for monitoring and interruption. */
     private final Set<Thread> threads = ConcurrentHashMap.newKeySet();
     
-    private final AtomicLong activeThreadCount = new AtomicLong(0);
+    /** Number of currently active worker threads. */
+    private volatile long activeThreadCount;
     
     /** Latch counted down exactly once when the executor reaches the TERMINATED state. */
     private final CountDownLatch terminationSignal = new CountDownLatch(1);
@@ -331,7 +348,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
      * @return the count of live worker threads
      */
     public long threadCount() {
-        return activeThreadCount.longValue();
+        return activeThreadCount;
     }
 
     /**
@@ -562,7 +579,8 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
                 } finally {
                     // Task is done. Remove self from tracking.
                     threads.remove(currentThread);
-                    activeThreadCount.decrementAndGet();
+                    ACTIVE_THREAD_COUNT.getAndAdd(this, -1L);
+                    
                     // We still hold the permit. Try to get the next task from the queue.
                     Runnable nextTask = queue.poll();
                     if (nextTask != null) {
@@ -585,7 +603,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
         }
         Objects.requireNonNull(thread, "ThreadFactory created null object");
         threads.add(thread);
-        activeThreadCount.incrementAndGet();
+        ACTIVE_THREAD_COUNT.getAndAdd(this, 1L);
         boolean started = false;
         try {
             thread.start();
@@ -593,7 +611,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
         } finally {
             if (!started) {
                 threads.remove(thread);
-                activeThreadCount.decrementAndGet();
+                ACTIVE_THREAD_COUNT.getAndAdd(this, -1L);
                 releaseSlot();
                 executeNextQueued(null);
             }
@@ -607,7 +625,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
     private void tryTerminate() {
         assert state >= SHUTDOWN;
         while (true) {
-            if (availableSlots != maxConcurrentThreads || // Some threads still running
+            if (availableSlots != maxConcurrentThreads || // Some permits still held
                 !queue.isEmpty()                       || // Some tasks queued
                 !threads.isEmpty()) {
                 return; 
@@ -644,7 +662,11 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
         return drained;
     }
     
- // Replace tryAcquire:
+    /**
+     * Attempts to acquire a concurrency slot using a CAS loop on {@link #availableSlots}.
+     * 
+     * @return {@code true} if a slot was acquired, {@code false} otherwise
+     */
     private boolean tryAcquireSlot() {
         while (true) {
             int current = availableSlots;
@@ -653,9 +675,11 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
         }
     }
 
-    // Replace release:
+    /**
+     * Releases a concurrency slot back to the pool.
+     */
     private void releaseSlot() {
-        AVAILABLE_SLOTS.incrementAndGet(this);
+        AVAILABLE_SLOTS.getAndAdd(this, 1);
     }
 
     /**
