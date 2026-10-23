@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,29 +22,41 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>> {
 
+    @SuppressWarnings("rawtypes")
+    private static final AtomicIntegerFieldUpdater<AggregatingPromise> RESULTS_COUNT_UPDATER =
+        AtomicIntegerFieldUpdater.newUpdater(AggregatingPromise.class, "resultsCount");
+
+    @SuppressWarnings("rawtypes")
+    private static final AtomicIntegerFieldUpdater<AggregatingPromise> ERRORS_COUNT_UPDATER =
+        AtomicIntegerFieldUpdater.newUpdater(AggregatingPromise.class, "errorsCount");
+
+    @SuppressWarnings("rawtypes")
+    private static final AtomicIntegerFieldUpdater<AggregatingPromise> DONE_UPDATER =
+        AtomicIntegerFieldUpdater.newUpdater(AggregatingPromise.class, "done");
+
     private final List<Throwable> errors;
-    
     private final AtomicIntegerArray completions;
-
-    private final AtomicInteger resultsCount = new AtomicInteger(0);
-    private final AtomicInteger errorsCount = new AtomicInteger(0);
-
-    private final AtomicBoolean done = new AtomicBoolean(false);
-
+    
+    @SuppressWarnings("unused")
+    private volatile int resultsCount;
+    @SuppressWarnings("unused")
+    private volatile int errorsCount;
+    @SuppressWarnings("unused")
+    private volatile int done; // 0 = false, 1 = true
+    
     private final int minResultsCount;
     private final int maxErrorsCount;
     private final boolean cancelRemaining;
     private final List<? extends CompletionStage<? extends T>> promises;
-    
+
     @FunctionalInterface
     interface Constructor<T, R> {
-        AggregatingPromise<T, R> create(int minResultsCount, int maxErrorsCount, boolean cancelRemaining,
+        AggregatingPromise<T, R> create(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
                                         List<? extends CompletionStage<? extends T>> promises);
     }
 
@@ -55,13 +67,12 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
                 void applyResult(int idx, T value) {
                     results.set(idx, Optional.ofNullable(value));
                 }
-                
                 List<Optional<T>> collectResults(int resultsCount, AtomicIntegerArray completions) {
                     return Collections.unmodifiableList(results); 
                 }                 
             };
     }
-    
+
     static <T> Constructor<T, T> newWithSuccessResults() {
         return (minResultsCount, maxErrorsCount, cancelRemaining, promises) -> 
             new AggregatingPromise<T, T>(minResultsCount, maxErrorsCount, cancelRemaining, promises) {
@@ -69,7 +80,6 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
                 void applyResult(int idx, T value) {
                     results.set(idx, value);
                 }
-                
                 List<T> collectResults(int resultsCount, AtomicIntegerArray completions) { 
                     List<T> collectedResult = new ArrayList<>(resultsCount);
                     for (int k = 0, size = completions.length(); k < size; k++) {
@@ -81,24 +91,20 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
                 } 
             };
     }
-    
+
     static <T> Constructor<T, Void> newWithEmptyResults() {
         return (minResultsCount, maxErrorsCount, cancelRemaining, promises) -> 
             new AggregatingPromise<T, Void>(minResultsCount, maxErrorsCount, cancelRemaining, promises) {
                 void applyResult(int idx, T value) {
-                    
                 }
-                
                 List<Void> collectResults(int resultsCount, AtomicIntegerArray completions) { 
                     return Collections.emptyList(); 
                 } 
             };
     }
 
-        
-    AggregatingPromise(int minResultsCount, int maxErrorsCount, boolean cancelRemaining,
+    AggregatingPromise(int minResultsCount, int maxErrorsCount, boolean cancelRemaining, 
                        List<? extends CompletionStage<? extends T>> promises) {
-
         if (null == promises || promises.isEmpty()) {
             throw new IllegalArgumentException("There are should be at least one promise specified");
         }
@@ -112,13 +118,13 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
         this.errors  = newList(size);
         this.completions = new AtomicIntegerArray(size);
     }
-    
+
     abstract void applyResult(int idx, T value);
     abstract List<R> collectResults(int resultsCount, AtomicIntegerArray completions); 
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        if (done.compareAndSet(false, true)) {
+        if (DONE_UPDATER.compareAndSet(this, 0, 1)) {
             // Synchronized around done
             markRemainingCancelled();
             cancelPromises();
@@ -135,28 +141,26 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
         }
         if (null == error) {
             // ON NEXT RESULT
-            int c = resultsCount.incrementAndGet();
+            int c = RESULTS_COUNT_UPDATER.incrementAndGet(this);
             if (c <= minResultsCount) {
                 // Only one thread may access this due to check with
                 // "completions"
                 applyResult(idx, result);
-                if (c == minResultsCount && done.compareAndSet(false, true)) {
+                if (c == minResultsCount && DONE_UPDATER.compareAndSet(this, 0, 1)) {
                     // Synchronized around done
                     markRemainingCancelled();
                     // Now no other thread can modify results array.
-                    
                     // Cancel before firing events:
                     // this helps with releasing thread pools, throttling etc.
                     if (cancelRemaining) {
                         cancelPromises();
                     }
-                    
                     success(collectResults(minResultsCount, completions));
                 }
             }
         } else {
             // ON NEXT ERROR
-            int c = errorsCount.getAndIncrement();
+            int c = ERRORS_COUNT_UPDATER.getAndIncrement(this);
             // We are reporting maxErrorsCount + 1 exceptions
             // So if we specify that no exceptions should happen
             // we will report at least one
@@ -164,17 +168,16 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
                 // Only one thread may access this due to check with
                 // "completions"
                 errors.set(idx, error);
-                if (c == maxErrorsCount && done.compareAndSet(false, true)) {
+                if (c == maxErrorsCount && DONE_UPDATER.compareAndSet(this, 0, 1)) {
                     // Synchronized around done
                     markRemainingCancelled();
                     // Now no other thread can modify errors array.
-                    
                     // Cancel before firing events:
                     // this helps with releasing thread pools, throttling etc.
                     if (cancelRemaining) {
                         cancelPromises();
                     }
-                    c++; //Beacuse we used errorsCount.getAndIncrement() rather than incrementAndGet
+                    c++; //Because we used errorsCount.getAndIncrement() rather than incrementAndGet
                     failure(new MultitargetException(
                         String.format(
                             c == 1 ? 
@@ -188,7 +191,7 @@ abstract class AggregatingPromise<T, R> extends CompletableFutureWrapper<List<R>
             }
         }
     }
-    
+
     Promise<List<R>> start() {
         int i = 0;
         for (CompletionStage<? extends T> promise : promises) {

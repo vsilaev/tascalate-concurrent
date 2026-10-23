@@ -32,6 +32,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 /**
@@ -104,6 +105,9 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
     /** Atomic updater for the {@link #state} field. */
     private static final AtomicIntegerFieldUpdater<ThrottledExecutorService> STATE =
             AtomicIntegerFieldUpdater.newUpdater(ThrottledExecutorService.class, "state");
+    
+    private final AtomicIntegerFieldUpdater<ThrottledExecutorService> AVAILABLE_SLOTS =
+            AtomicIntegerFieldUpdater.newUpdater(ThrottledExecutorService.class, "availableSlots");
 
     // states: RUNNING -> SHUTDOWN -> TERMINATED
     /** The executor is accepting and running tasks. */
@@ -119,7 +123,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
     /** The maximum number of tasks allowed to run concurrently. */
     private final int maxConcurrentThreads;
     /** Semaphore whose permits represent the available concurrency slots. */
-    private final Semaphore semaphore;
+    private volatile int availableSlots;
     /** Buffer for tasks submitted while every permit is taken. */
     private final BlockingQueue<Runnable> queue;
     /** Factory used to create a fresh thread (virtual by default) for each task. */
@@ -129,6 +133,9 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
 
     /** Set of currently live worker threads, used for monitoring and interruption. */
     private final Set<Thread> threads = ConcurrentHashMap.newKeySet();
+    
+    private final AtomicLong activeThreadCount = new AtomicLong(0);
+    
     /** Latch counted down exactly once when the executor reaches the TERMINATED state. */
     private final CountDownLatch terminationSignal = new CountDownLatch(1);
 
@@ -292,7 +299,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
                                     RejectedExecutionHandler<? super ThrottledExecutorService> rejectedExecutionHandler) {
         this.threadFactory = threadFactory;
         this.maxConcurrentThreads = maxConcurrentThreads;
-        this.semaphore = new Semaphore(maxConcurrentThreads);
+        this.availableSlots = maxConcurrentThreads;
         this.queue = queue;
         this.rejectedExecutionHandler = rejectedExecutionHandler != null 
                                         ? rejectedExecutionHandler 
@@ -324,7 +331,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
      * @return the count of live worker threads
      */
     public long threadCount() {
-        return threads.stream().filter(Thread::isAlive).count();
+        return activeThreadCount.longValue();
     }
 
     /**
@@ -472,7 +479,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
             throw new RejectedExecutionException();
         }
         //  Try to acquire a concurrency slot immediately
-        if (semaphore.tryAcquire()) {
+        if (tryAcquireSlot()) {
             executeDirect(command, true);
         } else {
             //  No slot available: enqueue the task
@@ -495,13 +502,13 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
         if (isTerminated()) {
             return;
         }
-        if (semaphore.tryAcquire()) {
+        if (tryAcquireSlot()) {
             Runnable task = queue.poll();
             if (task != null) {
                 executeDirect(task, task == explicitTask);
             } else {
                 // Queue is empty, release the permit back
-                semaphore.release();
+                releaseSlot();
                 if (state == SHUTDOWN) {
                     tryTerminate();
                 }
@@ -555,6 +562,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
                 } finally {
                     // Task is done. Remove self from tracking.
                     threads.remove(currentThread);
+                    activeThreadCount.decrementAndGet();
                     // We still hold the permit. Try to get the next task from the queue.
                     Runnable nextTask = queue.poll();
                     if (nextTask != null) {
@@ -562,7 +570,7 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
                         executeDirect(nextTask, false);
                     } else {
                         // Queue is empty, release the permit.
-                        semaphore.release();
+                        releaseSlot();
                         // Queue may be populated after releasing permit from
                         // public void execute(Runnable command), re-check
                         executeNextQueued(null);
@@ -571,12 +579,13 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
             });
         } finally {
             if (thread == null) {
-                semaphore.release();
+                releaseSlot();
                 executeNextQueued(null);
             }
         }
         Objects.requireNonNull(thread, "ThreadFactory created null object");
         threads.add(thread);
+        activeThreadCount.incrementAndGet();
         boolean started = false;
         try {
             thread.start();
@@ -584,7 +593,8 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
         } finally {
             if (!started) {
                 threads.remove(thread);
-                semaphore.release();
+                activeThreadCount.decrementAndGet();
+                releaseSlot();
                 executeNextQueued(null);
             }
         }
@@ -596,12 +606,17 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
      */
     private void tryTerminate() {
         assert state >= SHUTDOWN;
-        if (semaphore.availablePermits() == maxConcurrentThreads &&
-            queue.isEmpty() &&
-            threads.isEmpty() &&
-            STATE.compareAndSet(this, SHUTDOWN, TERMINATED)) {
-            // signal waiters
-            terminationSignal.countDown();
+        while (true) {
+            if (availableSlots != maxConcurrentThreads || // Some threads still running
+                !queue.isEmpty()                       || // Some tasks queued
+                !threads.isEmpty()) {
+                return; 
+            }
+            if (STATE.compareAndSet(this, SHUTDOWN, TERMINATED)) {
+                terminationSignal.countDown();
+                return;
+            }
+            // If CAS failed, re-check conditions
         }
     }
 
@@ -627,6 +642,20 @@ public class ThrottledExecutorService extends AbstractExecutorService implements
             tryTerminate();
         }
         return drained;
+    }
+    
+ // Replace tryAcquire:
+    private boolean tryAcquireSlot() {
+        while (true) {
+            int current = availableSlots;
+            if (current <= 0) return false;
+            if (AVAILABLE_SLOTS.compareAndSet(this, current, current - 1)) return true;
+        }
+    }
+
+    // Replace release:
+    private void releaseSlot() {
+        AVAILABLE_SLOTS.incrementAndGet(this);
     }
 
     /**
