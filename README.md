@@ -45,7 +45,7 @@ To use a library you have to add a single Maven dependency
 </dependency>
 ```
 
-#Documentation
+# Documentation
 Complete user documentation is available [HERE](https://github.com/vsilaev/tascalate-concurrent/blob/master/USER_MANUAL.md)
 
 # Acknowledgements
