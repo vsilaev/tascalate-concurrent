@@ -1906,7 +1906,7 @@ Promise<byte[]> data = fetchUrlAsync(url)
 
 // Later: data.cancel(true) will forcefully close any registered streams in the chain
 ```
-### 15.6. Building Your Own Decorators
+## 6. Building Your Own Decorators
 
 The decorator architecture is highly extensible. You can create custom decorators by implementing the `PromiseCustomizer` interface and applying it via `ExtendedPromiseDecorator` or `CustomizablePromiseDecorator`.
 
@@ -1933,7 +1933,7 @@ Promise<T> loggedPromise = originalPromise.as(p ->
 ```
 By leveraging these decorators, Tascalate Concurrent allows you to compose complex, production-ready asynchronous workflows with clean, declarative code, while keeping cross-cutting concerns neatly separated from your core business logic. To strip away these layers when needed, simply call `.unwrap()` (removes one layer) or `.raw()` (removes all layers) on the `Promise`.
 
-## 6. Fluent Decorators via Extension Methods
+## 7. Fluent Decorators via Extension Methods
 While the `Promise.as(Function)` method provides a powerful way to apply decorators, chaining multiple decorators can sometimes feel verbose and disrupt the natural flow of the code:
 ```java
 Promise<Data> result = fetchData()
