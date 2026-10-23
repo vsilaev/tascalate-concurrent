@@ -100,7 +100,7 @@ import net.tascalate.concurrent.core.CompletionStageAPI;
  * @see CompletableSubTask
  * @see Promise
  */
-abstract class AbstractCompletableTask<T> extends PromiseAdapterExtended<T>
+abstract class AbstractCompletableTask<T> extends AbstractMinimalPromise<T>
                                           implements Promise<T> {
 
     /** Tracks completion state and notifies dependent stages. */

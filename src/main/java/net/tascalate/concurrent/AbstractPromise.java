@@ -5,15 +5,15 @@
  * This class is based on the work create by Lukáš Křečan 
  * under the Apache License, Version 2.0. Please see 
  * https://github.com/lukas-krecan/completion-stage/blob/completion-stage-0.0.9/src/main/java/net/javacrumbs/completionstage/CompletionStageAdapter.java
- * 
- * Modified work: copyright 2015-2021 Valery Silaev (http://vsilaev.com)
- * 
+ *
+ * Modified work: copyright 2015-2026 Valery Silaev (http://vsilaev.com)
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,31 +31,57 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * Helper class to create a concrete {@link Promise} subclass as an
- * implementation from scratch.
- * <p>All calls are delegated to the asynchronus methods (*Async) with 
+ * Abstract base class for implementing the {@link Promise} interface from scratch.
+ * <p>
+ * This class handles the routing of synchronous composition methods (e.g., 
+ * {@code thenApply}, {@code thenAccept}) to their asynchronous counterparts 
+ * (e.g., {@code thenApplyAsync}, {@code thenAcceptAsync}). 
+ * </p>
+ * <p>
+ * Synchronous methods are delegated to the asynchronous variants using a special 
+ * {@link #SAME_THREAD_EXECUTOR}, which executes the task immediately on the 
+ * completing thread. Asynchronous methods without an explicit executor are 
+ * delegated to the variants with an explicit executor using the {@code defaultExecutor} 
+ * provided at construction time.
+ * </p>
+ * <p>
+ * Subclasses must implement all asynchronous composition methods that accept an 
  * explicit {@link Executor} parameter.
- * 
- * @author vsilaev
+ * </p>
  *
- * @param <T>
- *   a type of the successfully resolved promise value   
+ * @param <T> the type of the successfully resolved promise value
+ * @author vsilaev
+ * @see AbstractMinimalPromise
+ * @see Promise
  */
-abstract public class PromiseAdapter<T> implements Promise<T> {
+abstract class AbstractPromise<T> implements Promise<T> {
+
+    /**
+     * A special executor that runs tasks immediately on the calling thread.
+     * Used to route synchronous composition methods to their asynchronous counterparts.
+     */
     protected static final Executor SAME_THREAD_EXECUTOR = new Executor() {
         public void execute(Runnable command) {
             command.run();
         }
-
         public String toString() {
             return "SAME_THREAD_EXECUTOR";
         }
     };
+
+    /** The default executor used for asynchronous methods without an explicit executor. */
     private final Executor defaultExecutor;
 
-    protected PromiseAdapter(Executor defaultExecutor) {
+    /**
+     * Creates a new abstract promise with the specified default executor.
+     *
+     * @param defaultExecutor the executor to use for asynchronous methods
+     */
+    protected AbstractPromise(Executor defaultExecutor) {
         this.defaultExecutor = defaultExecutor;
     }
+
+    // --- Synchronous methods routed to SAME_THREAD_EXECUTOR ---
 
     @Override
     public <U> Promise<U> thenApply(Function<? super T, ? extends U> fn) {
@@ -96,7 +122,7 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public <U, V> Promise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
         return thenCombineAsync(other, fn, this.defaultExecutor);
     }
-    
+
     @Override
     public <U> Promise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
         return thenAcceptBothAsync(other, action, SAME_THREAD_EXECUTOR);
@@ -116,7 +142,7 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public Promise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action) {
         return runAfterBothAsync(other, action, this.defaultExecutor);
     }
-    
+
     @Override
     public <U> Promise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn) {
         return applyToEitherAsync(other, fn, SAME_THREAD_EXECUTOR);
@@ -126,12 +152,12 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public <U> Promise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
         return applyToEitherAsync(other, fn, this.defaultExecutor);
     }
-    
+
     @Override
     public Promise<T> exceptionally(Function<Throwable, ? extends T> fn) {
         return exceptionallyAsync(fn, SAME_THREAD_EXECUTOR);
     }
-    
+
     @Override
     public Promise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
         return exceptionallyAsync(fn, this.defaultExecutor);
@@ -141,7 +167,7 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public Promise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return exceptionallyComposeAsync(fn, SAME_THREAD_EXECUTOR);
     }
-    
+
     @Override
     public Promise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return exceptionallyComposeAsync(fn, this.defaultExecutor);
@@ -166,7 +192,7 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public Promise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
         return runAfterEitherAsync(other, action, this.defaultExecutor);
     }
-    
+
     @Override
     public <U> Promise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
         return thenComposeAsync(fn, SAME_THREAD_EXECUTOR);
@@ -176,33 +202,35 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
     public <U> Promise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
         return thenComposeAsync(fn, this.defaultExecutor);
     }
-    
+
     @Override
     public Promise<T> thenFilter(Predicate<? super T> predicate) {
         return thenFilterAsync(predicate, SAME_THREAD_EXECUTOR);
     }
-    
+
     @Override
     public Promise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return thenFilterAsync(predicate, errorSupplier, SAME_THREAD_EXECUTOR);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public Promise<T> thenFilterAsync(Predicate<? super T> predicate) {
         return thenFilterAsync(predicate, this.defaultExecutor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return thenFilterAsync(predicate, errorSupplier, this.defaultExecutor);
     }
-    
+
     /* AS IS (definitions in Promise are OK)
     @Override
     public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
         return thenFilterAsync(predicate, NO_SUCH_ELEMENT, executor);
     }
-    
+
     @Override
     public Promise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier, Executor executor) {
         return thenComposeAsync(v -> predicate.test(v) ? this : failure(errorSupplier, v), executor);
@@ -229,6 +257,11 @@ abstract public class PromiseAdapter<T> implements Promise<T> {
         return handleAsync(fn, this.defaultExecutor);
     }
 
+    /**
+     * Returns the default executor used by this promise for asynchronous operations.
+     *
+     * @return the default executor
+     */
     protected final Executor getDefaultExecutor() {
         return this.defaultExecutor;
     }

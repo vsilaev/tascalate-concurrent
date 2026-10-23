@@ -40,13 +40,13 @@ import net.tascalate.concurrent.var.ContextRelay;
  * 
  * <h2>Usage with Lombok</h2>
  * <pre>{@code
- * @ExtensionMethod({PromiseOperations.class})
+ * &#64;ExtensionMethod({PromiseOperations.class})
  * public class MyService {
  *     public Promise<Data> fetchData() {
  *         return fetchRawData()
  *             .interruptible()                      // Applies BlockingIO decorator
  *             .contextual(TRACE_ID.relay())         // Applies ContextRelay decorator
- *             .tryComposeEx(resource -> process(resource)); // Async try-with-resources
+ *             .tryComposeEx(resource -&gt; process(resource)); // Async try-with-resources
  *     }
  * }
  * }</pre>
