@@ -133,7 +133,7 @@ public class TaskScope implements AutoCloseable {
     private final TaskCompletionService<Object> completionService;
 
     /** Optional context relay applied to every forked task. */
-    private final ContextRelay<Object> contextualizer;
+    private final ContextRelay<?> contextualizer;
 
     /** Set of all currently tracked (not yet consumed) forked promises. */
     private final Set<Promise<?>> allFutures = new HashSet<>();
@@ -157,7 +157,7 @@ public class TaskScope implements AutoCloseable {
     protected TaskScope(String name,
                         ExecutorService executorService,
                         boolean ownExecutor,
-                        ContextRelay<Object> contextualizer) {
+                        ContextRelay<?> contextualizer) {
         Objects.requireNonNull(executorService, "executorService may not be null");
         this.name = name;
         this.executorService = executorService;
@@ -282,7 +282,7 @@ public class TaskScope implements AutoCloseable {
         private boolean ownExecutor = false;
 
         /** Context relay applied to every forked task. */
-        private ContextRelay<Object> contextualizer;
+        private ContextRelay<?> contextualizer;
 
         /**
          * Creates a new builder with default settings.
@@ -365,7 +365,7 @@ public class TaskScope implements AutoCloseable {
          * @param contextualizer the context relay (may be null to disable propagation)
          * @return this builder
          */
-        public Builder contextualizer(ContextRelay<Object> contextualizer) {
+        public Builder contextualizer(ContextRelay<?> contextualizer) {
             this.contextualizer = contextualizer;
             return this;
         }
@@ -629,7 +629,7 @@ public class TaskScope implements AutoCloseable {
      *
      * @return the context relay, or null
      */
-    public ContextRelay<Object> contextualizer() {
+    public ContextRelay<?> contextualizer() {
         return contextualizer;
     }
 
