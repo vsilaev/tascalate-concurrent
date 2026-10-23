@@ -27,7 +27,7 @@ import net.tascalate.concurrent.Promise;
  * </p>
  *
  * <pre>{@code
- * AsyncLock lock = AsyncLock.create();
+ * AsyncLock lock = AsyncExclusiveLock.create();
  *
  * Promises.tryCompose(lock.acquire(), t -> updateSharedStateAsync());
  * 

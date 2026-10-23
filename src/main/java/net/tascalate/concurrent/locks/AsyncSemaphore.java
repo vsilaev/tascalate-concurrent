@@ -151,12 +151,10 @@ public interface AsyncSemaphore {
      /**
       * Gets the number of currently available permits.
       * <p>
-      * The bounds of the returned value are not defined; an implementation may, for example, choose to
-      * represent waiting acquisitions as holding negative permits, and thus the value returned by this
-      * method could be negative. Furthermore, a positive number of permits returned by this method may
-      * not indicate that such permits are acquirable, as the waiter-queue policy may prohibit
-      * fulfilling further acquisitions.
-      * <p>
+      * The default implementation ({@link AsyncSemaphoreBase}) guarantees the returned
+      * value is within {@code 0 .. totalPermits}. Subclasses with different accounting
+      * strategies may define other bounds.
+      * </p>
       * This value is produced on a best-effort basis, and should not be used for any control logic.
       * Generally it is only useful in testing, debugging, or statistics purposes.
       *

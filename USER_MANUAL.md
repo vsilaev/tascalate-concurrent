@@ -1,3 +1,4 @@
+
 # Why `CompletableFuture` is Not Enough?
 
 There are several shortcomings in the [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its use in real-world asynchronous programming, especially when dealing with I/O-bound, interruptible tasks:
@@ -1579,37 +1580,34 @@ The promises returned by the `try*` methods are fully cancellable. If you cancel
 
 # 13. Asynchronous locks
 
-Standard `java.util.concurrent` synchronizers — `Lock`, `Semaphore`, `CountDownLatch` — were designed for blocking code: a thread that cannot acquire a lock is *parked* until it can. In a non-blocking, promise-based application this is exactly what you must not do: a parked thread is a wasted thread (and on an event-loop thread, a parked loop is a dead application).
+Standard `java.util.concurrent` synchronizers — `Lock`, `Semaphore`, `CountDownLatch` — were designed for blocking code: a thread that cannot acquire a lock is _parked_ until it can. In a non-blocking, promise-based application this is exactly what you must not do: a parked thread is a wasted thread (and on an event-loop thread, a parked loop is a dead application).
 
 The `net.tascalate.concurrent.locks` package provides asynchronous analogs of the standard synchronizers. Their core principle is simple:
 
 > **Acquisition never blocks.** Instead of parking the calling thread, an acquisition returns either an immediate result or a `Promise` that completes when the lock/permits are granted. Waiting parties are promises in a queue, not threads in a waiting state.
 
-## 1. The token pattern
+## 1. The base contract and the token pattern
 
-Instead of the error-prone paired `lock()` / `unlock()` calls that must be matched manually, a successful acquisition yields a **token** — an object that owns the release responsibility:
+All asynchronous locks in this package implement the base `AsyncLock<T>` interface. Instead of the error-prone paired `lock()` / `unlock()` calls that must be matched manually, a successful acquisition yields a **token** — an object that owns the release responsibility:
 
-* `tryAcquire()` performs an immediate, non-waiting attempt and returns an `Token` — populated on success, `null` when the lock is held;
-* `acquire()` returns a `Promise<Token>` that completes when the lock is granted (immediately if it is free, or later when preceding holders release it).
+-   `tryAcquire()` performs an immediate, non-waiting attempt and returns a `Token` — populated on success, `null` when the lock is held;
+-   `acquire()` returns a `Promise<Token>` that completes when the lock is granted (immediately if it is free, or later when preceding holders release it).
 
 Tokens implement `AutoCloseable`, so they integrate directly with the library's asynchronous try-with-resources combinators (Section 12). Releasing is guaranteed even if the protected action fails or is cancelled:
-
 ```java
-AsyncLock lock = AsyncLock.create();
-
+AsyncExclusiveLock lock = AsyncExclusiveLock.create();
 // Recommended: acquire, run, release automatically
 Promise<Result> r1 = lock.guard(() -> criticalAsyncWork());
-
 // Equivalent explicit form
-Promise<Result> r2 = Promises.tryCompose(lock.acquire(), $ -> criticalAsyncWork());
+Promise<Result> r2 = Promises.tryCompose(lock.acquire(), token -> criticalAsyncWork());
 ```
 Both forms call `token.close()` (i.e., `token.release()`) exactly once, after the protected stage completes — successfully, exceptionally, or via cancellation.
 
-## 2. `AsyncLock` — mutual exclusion
+## 2. `AsyncExclusiveLock` — mutual exclusion
 
-`AsyncLock` is the asynchronous analogue of `java.util.concurrent.locks.Lock`. At most one party holds it at any moment, and waiting acquirers are served **in arrival order** (FIFO).
+`AsyncExclusiveLock` is the asynchronous analogue of `java.util.concurrent.locks.Lock`. At most one party holds it at any moment, and waiting acquirers are served **in arrival order** (FIFO).
 ```java
-AsyncLock cacheLock = AsyncLock.create();
+AsyncExclusiveLock cacheLock = AsyncExclusiveLock.create();
 
 Promise<CacheEntry> refreshed = cacheLock.guard(() ->
     cache.getAsync(key).thenCompose(entry ->
@@ -1627,7 +1625,6 @@ If the lock must be released from a _different_ scope than the acquisition (e.g.
 ```java
 // At most 10 concurrent database queries; fair ordering
 AsyncSemaphoreLock dbPermits = AsyncSemaphoreLock.create(10, true);
-
 Promise<RowSet> rows = dbPermits.guard(() -> dao.queryAsync(sql));
 ```
 Multi-permit acquisitions and inspection methods are available:
@@ -1638,6 +1635,7 @@ long free    = dbPermits.availablePermits();   // permits available right now
 int  waiting = dbPermits.getQueueLength();     // queued acquisition requests
 AsyncSemaphoreLock.Token all = dbPermits.drainPermits(); // take whatever is free
 ```
+
 ## 4. `AsyncSemaphore` — counting semaphore, JDK style
 
 `AsyncSemaphore` offers the same permit accounting with an API that mirrors the JDK `Semaphore` directly: acquisitions resolve to the _granted permit count_, and releasing is an explicit call made by you:
@@ -1651,7 +1649,6 @@ permits.acquire(3).thenCompose(granted ->
 When in doubt, prefer the token-based `AsyncSemaphoreLock`: the token makes leaks structurally impossible.
 
 **Choosing between the two semaphore flavors:**
-
 | | `AsyncSemaphoreLock` (tokens) | `AsyncSemaphore` (permit counts) |
 | :--- | :--- | :--- |
 | Acquisition yields | `Promise<Token>` carrying its permits | `Promise<Long>` — the granted count |
@@ -1681,7 +1678,7 @@ A latch created with a count of zero is already complete; `countDown(long delta)
 
 ## 6. Fairness and cancellation
 
--   **Fairness.** Semaphores accept a `fair` flag at creation. In fair mode permits are granted strictly in arrival order — barging is prevented because immediate acquisitions refuse to proceed while any waiter is queued. In unfair mode (and always for `AsyncLock`'s FIFO queue) the overhead of strict ordering is avoided where appropriate.
+-   **Fairness.** Semaphores accept a `fair` flag at creation. In fair mode permits are granted strictly in arrival order — barging is prevented because immediate acquisitions refuse to proceed while any waiter is queued. In unfair mode (and always for `AsyncExclusiveLock`'s FIFO queue) the overhead of strict ordering is avoided where appropriate.
 -   **Cancellation.** Pending acquisitions are ordinary promises and are fully cancellable: cancelling an acquisition removes the waiter from the queue, and any permits tentatively reserved for it are returned to the pool. No leaked permits, no stranded waiters.
 
 ## 7. Implementation notes
@@ -1689,7 +1686,7 @@ A latch created with a count of zero is already complete; `countDown(long delta)
 All implementations are lock-free: permit accounting uses compare-and-set operations, waiter queues are based on `ConcurrentLinkedQueue`, and release operations are guarded by idempotent release-once flags (double-release is a no-op). Instances are obtained through the static factories on the interfaces:
 | Class | JDK analog | Acquisition yields | Created via |
 | :--- | :--- | :--- | :--- |
-| **`AsyncLock`** | `Lock` | `Promise<Token>` (exclusive) | `AsyncLock.create()` |
+| **`AsyncExclusiveLock`** | `Lock` | `Promise<Token>` (exclusive) | `AsyncExclusiveLock.create()` |
 | **`AsyncSemaphoreLock`** | `Semaphore` | `Promise<Token>` carrying permits | `AsyncSemaphoreLock.create(permits, fair)` |
 | **`AsyncSemaphore`** | `Semaphore` | `Promise<Long>` (granted count) | `AsyncSemaphore.create(permits, fair)` |
 | **`AsyncCountDownLatch`** | `CountDownLatch` | the latch itself is a `Promise<Long>` | `new AsyncCountDownLatch(count)` |

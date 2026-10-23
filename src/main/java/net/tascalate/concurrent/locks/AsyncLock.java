@@ -47,7 +47,7 @@ import net.tascalate.concurrent.Promises;
  * </p>
  *
  * <pre>{@code
- * AsyncLock lock = AsyncLock.create();
+ * AsyncLock lock = AsyncExclusiveLock.create();
  *
  * // Explicit token handling
  * Promise<Result> r1 = Promises.tryCompose(

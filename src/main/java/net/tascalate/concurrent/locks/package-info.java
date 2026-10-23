@@ -24,8 +24,8 @@
  * promise of a result; no calling thread is ever parked waiting for a lock:
  * </p>
  * <ul>
- *   <li>{@code tryAcquire()} performs an immediate attempt and returns an
- *       {@link java.util.Optional} token;</li>
+ *   <li>{@code tryAcquire()} performs an immediate attempt and returns a
+ *       token, or {@code null} when the lock is currently held;</li>
  *   <li>{@code acquire()} returns a {@link net.tascalate.concurrent.Promise} that
  *       completes when the lock or permits are granted &mdash; immediately if available,
  *       or later, when preceding holders release them.</li>
@@ -44,7 +44,7 @@
  * </p>
  *
  * <pre>{@code
- * AsyncLock lock = AsyncLock.create();
+ * AsyncLock lock = AsyncExclusiveLock.create();
  *
  * // Concise form: acquire, run, release automatically
  * Promise<Result> r = lock.guard(() -> criticalAsyncWork());
@@ -139,7 +139,7 @@
  * All implementations are lock-free: permit accounting uses compare-and-set operations,
  * waiter queues are based on {@link java.util.concurrent.ConcurrentLinkedQueue}, and
  * release operations are guarded by idempotent release-once flags, making double-release
- * a no-op. Default implementations are provided by {@code DefaultAsyncLock},
+ * a no-op. Default implementations are provided by {@code DefaultAsyncExclusiveLock},
  * {@code DefaultAsyncSemaphoreLock} and {@code DefaultAsyncSemaphore} (the latter two
  * sharing the {@code AsyncSemaphoreBase} permit/waiter machinery); obtain instances via
  * the static {@code create(...)} factories on the corresponding interfaces.

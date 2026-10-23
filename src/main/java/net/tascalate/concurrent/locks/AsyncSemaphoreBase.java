@@ -26,9 +26,10 @@ import net.tascalate.concurrent.Promises;
 
 /**
  * Abstract base implementation of an asynchronous counting semaphore, providing
- * lock-free permit accounting and a concurrent waiter queue shared by concrete
- * semaphore locks.
- *
+ * lock-free permit accounting and a concurrent waiter queue shared by the
+ * concrete semaphore implementations ({@link DefaultAsyncSemaphoreLock} and
+ * {@link DefaultAsyncSemaphore}).
+ * 
  * <h2>Permit accounting</h2>
  * <p>
  * Available permits are tracked in a {@code volatile long} field modified exclusively
@@ -62,7 +63,9 @@ import net.tascalate.concurrent.Promises;
  * the pool by {@link #nextWaiters()}.
  * </p>
  *
- * @param <T> the token payload type of the concrete semaphore
+ * @param <T> the result payload type delivered by acquisition promises
+ *           ({@link AsyncSemaphoreLock.Token} for the token-based flavour,
+ *           {@link Long} for the permit-count flavour)
  */
 abstract class AsyncSemaphoreBase<T> {
 
@@ -181,7 +184,7 @@ abstract class AsyncSemaphoreBase<T> {
      *         reserved; already complete when the permits were available immediately
      */
     public Promise<T> acquire(long permits) {
-        // argument check is in tryAcquire
+        // argument validation is in tryAcquireInternal
         if (tryAcquireInternal(permits)) {
             return Promises.success(createPromisePayload(permits));
         } else {
@@ -206,7 +209,7 @@ abstract class AsyncSemaphoreBase<T> {
         long current = AVAILABLE_PERMITS.addAndGet(this, permits);
         if (current < 0 || current > totalPermits) {
             throw new IllegalStateException(String.format(
-                "After releasing %d permits number of available permits %d is not within range 1..%d", 
+                "After releasing %d permits number of available permits %d is not within range 0..%d",
                 permits, current, totalPermits
             ));
         }

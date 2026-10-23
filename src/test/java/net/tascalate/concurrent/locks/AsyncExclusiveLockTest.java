@@ -23,7 +23,7 @@ import net.tascalate.concurrent.Promises;
  * Tests for {@link AsyncExclusiveLock} / {@link DefaultAsyncExclusiveLock}: mutual exclusion,
  * FIFO waiter ordering, idempotent release, cancellation, and {@code guard(...)}.
  */
-public class AsyncLockTest {
+public class AsyncExclusiveLockTest {
 
     @Test
     public void tryAcquireSucceedsWhenFreeAndFailsWhenHeld() {

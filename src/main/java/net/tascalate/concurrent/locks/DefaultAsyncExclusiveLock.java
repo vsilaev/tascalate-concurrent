@@ -15,7 +15,6 @@
  */
 package net.tascalate.concurrent.locks;
 
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -56,7 +55,7 @@ public class DefaultAsyncExclusiveLock implements AsyncExclusiveLock {
      * <p>
      * Implemented via {@link #acquire()}: if the returned promise is already complete
      * the lock was granted immediately and its token is returned; otherwise the waiter
-     * is removed from the queue and an empty {@link Optional} is returned.
+     * is removed from the queue and {@code null} is returned.
      * </p>
      */
     @Override
