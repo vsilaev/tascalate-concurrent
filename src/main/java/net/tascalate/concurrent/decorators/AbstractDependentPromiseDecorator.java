@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,720 +31,951 @@ import java.util.function.Supplier;
 import net.tascalate.concurrent.DependentPromise;
 import net.tascalate.concurrent.Promise;
 
-public abstract class AbstractDependentPromiseDecorator<T> 
-    extends AbstractPromiseDecorator<T, DependentPromise<T>> 
+/**
+ * Abstract base class for decorating a {@link DependentPromise}.
+ * <p>
+ * This class extends {@link AbstractPromiseDecorator} and implements
+ * {@link DependentPromise}, providing the foundation for decorators that need
+ * to preserve the dependent-promise API (i.e., the ability to enlist upstream
+ * stages for cancellation). It delegates all dependent-specific methods
+ * (timeouts, delays, composition with enlistment options, etc.) to the
+ * underlying delegate, wrapping the results to maintain the decoration chain.
+ * </p>
+ *
+ * <h2>Role in the Decorator Hierarchy</h2>
+ * <pre>
+ * AbstractCompletionStageDecorator
+ *     └── AbstractPromiseLikeDecorator
+ *             └── AbstractFutureDecorator
+ *                     └── AbstractPromiseDecorator
+ *                             └── AbstractDependentPromiseDecorator  ← you are here
+ *                                     ├── ExecutorBoundDependentPromise
+ *                                     └── ExtendedDependentPromiseDecorator
+ * </pre>
+ *
+ * <h2>Subclass Responsibilities</h2>
+ * <p>
+ * Subclasses must implement {@link #wrapNew(CompletionStage)} to define how
+ * derived stages should be wrapped. The {@link #wrap(CompletionStage)} method
+ * is overridden to cast results to {@link DependentPromise}, ensuring that the
+ * dependent API is preserved throughout the chain.
+ * </p>
+ *
+ * @param <T> the type of the successfully resolved promise value
+ * @author vsilaev
+ * @see AbstractPromiseDecorator
+ * @see DependentPromise
+ * @see ExecutorBoundDependentPromise
+ * @see ExtendedDependentPromiseDecorator
+ */
+public abstract class AbstractDependentPromiseDecorator<T>
+    extends AbstractPromiseDecorator<T, DependentPromise<T>>
     implements DependentPromise<T> {
 
+    /**
+     * Creates a new dependent-promise decorator wrapping the specified delegate.
+     *
+     * @param delegate the {@link DependentPromise} to delegate calls to
+     */
     protected AbstractDependentPromiseDecorator(DependentPromise<T> delegate) {
         super(delegate);
     }
-    
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Casts the result of the superclass's {@code wrap} to
+     * {@link DependentPromise}. This is safe because the underlying delegate
+     * is a {@code DependentPromise}, and the decoration chain preserves this
+     * type.
+     * </p>
+     */
     @Override
     protected <U> DependentPromise<U> wrap(CompletionStage<U> original) {
         return (DependentPromise<U>)super.wrap(original);
     }
-    
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Subclasses must implement this to return a {@link DependentPromise}
+     * wrapper for derived stages.
+     * </p>
+     */
     @Override
     abstract protected <U> DependentPromise<U> wrapNew(CompletionStage<U> original);
-    
+
+    // ========================================================================
+    // DependentPromise-Specific Methods
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> dependent() {
         return wrap(super.dependent());
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> dependent(Set<Promise.Origin> defaultEnlistOptions) {
         return wrap(super.dependent(defaultEnlistOptions));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> defaultAsyncOn(Executor executor) {
         return (DependentPromise<T>)super.defaultAsyncOn(executor);
     }
 
-    @Override 
+    /** {@inheritDoc} */
+    @Override
     public DependentPromise<T> onCancel(Runnable code) {
         return (DependentPromise<T>)super.onCancel(code);
     }
-    
+
+    // ========================================================================
+    // Delay Methods
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> delay(long timeout, TimeUnit unit) {
         return (DependentPromise<T>)super.delay(timeout, unit);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError) {
         return (DependentPromise<T>)super.delay(timeout, unit, delayOnError);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> delay(Duration duration) {
         return (DependentPromise<T>)super.delay(duration);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> delay(Duration duration, boolean delayOnError) {
         return (DependentPromise<T>)super.delay(duration, delayOnError);
     }
-    
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Delegates to the underlying dependent promise with explicit enlistment.
+     * </p>
+     */
     @Override
     public DependentPromise<T> delay(long timeout, TimeUnit unit, boolean delayOnError, boolean enlistOrigin) {
-        return wrap(delegate.delay(timeout, unit, delayOnError, enlistOrigin));        
+        return wrap(delegate.delay(timeout, unit, delayOnError, enlistOrigin));
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Delegates to the underlying dependent promise with explicit enlistment.
+     * </p>
+     */
     @Override
     public DependentPromise<T> delay(Duration duration, boolean delayOnError, boolean enlistOrigin) {
         return wrap(delegate.delay(duration, delayOnError, enlistOrigin));
     }
 
-    @Override    
+    // ========================================================================
+    // Timeout Methods
+    // ========================================================================
+
+    /** {@inheritDoc} */
+    @Override
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit) {
         return (DependentPromise<T>)super.orTimeout(timeout, unit);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return (DependentPromise<T>)super.orTimeout(timeout, unit, cancelOnTimeout);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> orTimeout(Duration duration) {
         return (DependentPromise<T>)super.orTimeout(duration);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout) {
         return (DependentPromise<T>)super.orTimeout(duration, cancelOnTimeout);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> orTimeout(long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
         return wrap(delegate.orTimeout(timeout, unit, cancelOnTimeout, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> orTimeout(Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         return wrap(delegate.orTimeout(duration, cancelOnTimeout, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit) {
         return (DependentPromise<T>)super.onTimeout(value, timeout, unit);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return (DependentPromise<T>)super.onTimeout(value, timeout, unit, cancelOnTimeout);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(T value, Duration duration) {
         return (DependentPromise<T>)super.onTimeout(value, duration);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout) {
         return (DependentPromise<T>)super.onTimeout(value, duration, cancelOnTimeout);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit) {
         return (DependentPromise<T>)super.onTimeout(supplier, timeout, unit);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout) {
         return (DependentPromise<T>)super.onTimeout(supplier, timeout, unit, cancelOnTimeout);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration) {
         return (DependentPromise<T>)super.onTimeout(supplier, duration);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout) {
         return (DependentPromise<T>)super.onTimeout(supplier, duration, cancelOnTimeout);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(T value, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
         return wrap(delegate.onTimeout(value, timeout, unit, cancelOnTimeout, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(T value, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
-        return wrap(delegate.onTimeout(value, duration, cancelOnTimeout, enlistOrigin)); 
+        return wrap(delegate.onTimeout(value, duration, cancelOnTimeout, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, long timeout, TimeUnit unit, boolean cancelOnTimeout, boolean enlistOrigin) {
         return wrap(delegate.onTimeout(supplier, timeout, unit, cancelOnTimeout, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> onTimeout(Supplier<? extends T> supplier, Duration duration, boolean cancelOnTimeout, boolean enlistOrigin) {
         return wrap(delegate.onTimeout(supplier, duration, cancelOnTimeout, enlistOrigin));
     }
-    
+
+    // ========================================================================
+    // Unary Composition with Enlistment
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn, boolean enlistOrigin) {
         return wrap(delegate.thenApply(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, boolean enlistOrigin) {
         return wrap(delegate.thenApplyAsync(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.thenApplyAsync(fn, executor, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenAccept(Consumer<? super T> action, boolean enlistOrigin) {
         return wrap(delegate.thenAccept(action, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, boolean enlistOrigin) {
         return wrap(delegate.thenAcceptAsync(action, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.thenAcceptAsync(action, executor, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenRun(Runnable action, boolean enlistOrigin) {
         return wrap(delegate.thenRun(action, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action, boolean enlistOrigin) {
         return wrap(delegate.thenRunAsync(action, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.thenRunAsync(action, executor, enlistOrigin));
     }
 
+    // ========================================================================
+    // Binary Composition with Enlistment Options
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
-    public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, 
+    public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other,
                                                   BiFunction<? super T, ? super U, ? extends V> fn,
                                                   Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombine(other, fn, enlistOptions));
     }
 
-    
+    /** {@inheritDoc} */
     @Override
-    public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, 
+    public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
                                                        BiFunction<? super T, ? super U, ? extends V> fn,
                                                        Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombineAsync(other, fn, enlistOptions));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
-                                                       BiFunction<? super T, ? super U, ? extends V> fn, 
+                                                       BiFunction<? super T, ? super U, ? extends V> fn,
                                                        Executor executor,
                                                        Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenCombineAsync(other, fn, executor, enlistOptions));
     }
-    
 
+    /** {@inheritDoc} */
     @Override
-    public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, 
+    public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other,
                                                      BiConsumer<? super T, ? super U> action,
                                                      Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBoth(other, action, enlistOptions));
     }
 
+    /** {@inheritDoc} */
     @Override
-    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
+    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                           BiConsumer<? super T, ? super U> action,
                                                           Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBothAsync(other, action, enlistOptions));
     }
 
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
-                                                          BiConsumer<? super T, ? super U> action, 
+                                                          BiConsumer<? super T, ? super U> action,
                                                           Executor executor,
                                                           Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.thenAcceptBothAsync(other, action, executor, enlistOptions));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBoth(other, action, enlistOptions));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBothAsync(other, action, enlistOptions));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
-                                                    Runnable action, 
+    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other,
+                                                    Runnable action,
                                                     Executor executor,
                                                     Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterBothAsync(other, action, executor, enlistOptions));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, 
+    public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other,
                                                  Function<? super T, U> fn,
                                                  Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEither(other, fn, enlistOptions));
     }
-    
 
+    /** {@inheritDoc} */
     @Override
-    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
+    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other,
                                                       Function<? super T, U> fn,
                                                       Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEitherAsync(other, fn, enlistOptions));
     }
 
+    /** {@inheritDoc} */
     @Override
-    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
+    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other,
                                                       Function<? super T, U> fn,
                                                       Executor executor,
                                                       Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.applyToEitherAsync(other, fn, executor, enlistOptions));
     }
-    
 
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, 
+    public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other,
                                                Consumer<? super T> action,
                                                Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEither(other, action, enlistOptions));
     }
 
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
+    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other,
                                                     Consumer<? super T> action,
                                                     Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEitherAsync(other, action, enlistOptions));
     }
 
-    
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
+    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other,
                                                     Consumer<? super T> action,
                                                     Executor executor,
                                                     Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.acceptEitherAsync(other, action, executor, enlistOptions));
     }
 
-    
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEither(other, action, enlistOptions));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action, Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEitherAsync(other, action, enlistOptions));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
-                                                      Runnable action, 
+    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other,
+                                                      Runnable action,
                                                       Executor executor,
                                                       Set<Promise.Origin> enlistOptions) {
         return wrap(delegate.runAfterEitherAsync(other, action, executor, enlistOptions));
     }
 
+    // ========================================================================
+    // Composition / Error Handling with Enlistment
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn, boolean enlistOrigin) {
         return wrap(delegate.thenCompose(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, boolean enlistOrigin) {
         return wrap(delegate.thenComposeAsync(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.thenComposeAsync(fn, executor, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
         return wrap(delegate.exceptionally(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, boolean enlistOrigin) {
         return wrap(delegate.exceptionallyAsync(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.exceptionallyAsync(fn, executor, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
         return wrap(delegate.exceptionallyCompose(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, boolean enlistOrigin) {
         return wrap(delegate.exceptionallyComposeAsync(fn, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, 
-                                                         Executor executor, 
+    public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn,
+                                                         Executor executor,
                                                          boolean enlistOrigin) {
         return wrap(delegate.exceptionallyComposeAsync(fn, executor, enlistOrigin));
     }
-    
+
+    // ========================================================================
+    // Filtering with Enlistment
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> thenFilter(Predicate<? super T> predicate, boolean enlistOrigin) {
         return wrap(delegate.thenFilter(predicate, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<T> thenFilter(Predicate<? super T> predicate, 
-                                          Function<? super T, Throwable> errorSupplier, 
+    public DependentPromise<T> thenFilter(Predicate<? super T> predicate,
+                                          Function<? super T, Throwable> errorSupplier,
                                           boolean enlistOrigin) {
         return wrap(delegate.thenFilter(predicate, errorSupplier, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, boolean enlistOrigin) {
         return wrap(delegate.thenFilterAsync(predicate, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
-                                               Function<? super T, Throwable> errorSupplier, 
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate,
+                                               Function<? super T, Throwable> errorSupplier,
                                                boolean enlistOrigin) {
         return wrap(delegate.thenFilterAsync(predicate, errorSupplier, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
-                                               Executor executor, 
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate,
+                                               Executor executor,
                                                boolean enlistOrigin) {
         return wrap(delegate.thenFilterAsync(predicate, executor, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
-                                               Function<? super T, Throwable> errorSupplier, 
-                                               Executor executor, 
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate,
+                                               Function<? super T, Throwable> errorSupplier,
+                                               Executor executor,
                                                boolean enlistOrigin) {
         return wrap(delegate.thenFilterAsync(predicate, errorSupplier, executor, enlistOrigin));
     }
-    
+
+    // ========================================================================
+    // Completion Handlers with Enlistment
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return wrap(delegate.whenComplete(action, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, boolean enlistOrigin) {
         return wrap(delegate.whenCompleteAsync(action, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.whenCompleteAsync(action, executor, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin) {
         return wrap(delegate.handle(fn, enlistOrigin));
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, boolean enlistOrigin) {
         return wrap(delegate.handleAsync(fn, enlistOrigin));
     }
 
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor, boolean enlistOrigin) {
         return wrap(delegate.handleAsync(fn, executor, enlistOrigin));
     }
-    
+
+    // ========================================================================
+    // Standard Composition Methods (Delegating to Superclass with Casts)
+    // ========================================================================
+
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> thenApply(Function<? super T, ? extends U> fn) {
         return (DependentPromise<U>)super.thenApply(fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn) {
         return (DependentPromise<U>)super.thenApplyAsync(fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> thenApplyAsync(Function<? super T, ? extends U> fn, Executor executor) {
         return (DependentPromise<U>)super.thenApplyAsync(fn, executor);
-    }    
-    
+    }
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenAccept(Consumer<? super T> action) {
         return (DependentPromise<Void>)super.thenAccept(action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action) {
         return (DependentPromise<Void>)super.thenAcceptAsync(action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenAcceptAsync(Consumer<? super T> action, Executor executor) {
         return (DependentPromise<Void>)super.thenAcceptAsync(action, executor);
-    }    
+    }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenRun(Runnable action) {
         return (DependentPromise<Void>)super.thenRun(action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action) {
         return (DependentPromise<Void>)super.thenRunAsync(action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> thenRunAsync(Runnable action, Executor executor) {
         return (DependentPromise<Void>)super.thenRunAsync(action, executor);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U, V> DependentPromise<V> thenCombine(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
         return (DependentPromise<V>)super.thenCombine(other, fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other, BiFunction<? super T, ? super U, ? extends V> fn) {
         return (DependentPromise<V>)super.thenCombineAsync(other, fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U, V> DependentPromise<V> thenCombineAsync(CompletionStage<? extends U> other,
-                                                       BiFunction<? super T, ? super U, ? extends V> fn, 
+                                                       BiFunction<? super T, ? super U, ? extends V> fn,
                                                        Executor executor) {
         return (DependentPromise<V>)super.thenCombineAsync(other, fn, executor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<Void> thenAcceptBoth(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
         return (DependentPromise<Void>)super.thenAcceptBoth(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, BiConsumer<? super T, ? super U> action) {
         return (DependentPromise<Void>)super.thenAcceptBothAsync(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
-    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other, 
+    public <U> DependentPromise<Void> thenAcceptBothAsync(CompletionStage<? extends U> other,
                                                           BiConsumer<? super T, ? super U> action,
                                                           Executor executor) {
         return (DependentPromise<Void>)super.thenAcceptBothAsync(other, action, executor);
-    }    
-    
+    }
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterBoth(CompletionStage<?> other, Runnable action) {
         return (DependentPromise<Void>)super.runAfterBoth(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, Runnable action) {
         return (DependentPromise<Void>)super.runAfterBothAsync(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other, 
-                                                    Runnable action, 
+    public DependentPromise<Void> runAfterBothAsync(CompletionStage<?> other,
+                                                    Runnable action,
                                                     Executor executor) {
         return (DependentPromise<Void>)super.runAfterBothAsync(other, action, executor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> applyToEither(CompletionStage<? extends T> other, Function<? super T, U> fn) {
         return (DependentPromise<U>)super.applyToEither(other, fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, Function<? super T, U> fn) {
         return (DependentPromise<U>)super.applyToEitherAsync(other, fn);
     }
 
+    /** {@inheritDoc} */
     @Override
-    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other, 
+    public <U> DependentPromise<U> applyToEitherAsync(CompletionStage<? extends T> other,
                                                       Function<? super T, U> fn,
                                                       Executor executor) {
         return (DependentPromise<U>)super.applyToEitherAsync(other, fn, executor);
-    }    
+    }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> acceptEither(CompletionStage<? extends T> other, Consumer<? super T> action) {
         return (DependentPromise<Void>)super.acceptEither(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, Consumer<? super T> action) {
         return (DependentPromise<Void>)super.acceptEitherAsync(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other, 
+    public DependentPromise<Void> acceptEitherAsync(CompletionStage<? extends T> other,
                                                     Consumer<? super T> action,
                                                     Executor executor) {
         return (DependentPromise<Void>)super.acceptEitherAsync(other, action, executor);
-    }    
+    }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterEither(CompletionStage<?> other, Runnable action) {
         return (DependentPromise<Void>)super.runAfterEither(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, Runnable action) {
         return (DependentPromise<Void>)super.runAfterEitherAsync(other, action);
     }
 
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other, 
-                                                      Runnable action, 
+    public DependentPromise<Void> runAfterEitherAsync(CompletionStage<?> other,
+                                                      Runnable action,
                                                       Executor executor) {
-        
         return (DependentPromise<Void>)super.runAfterEitherAsync(other, action, executor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenCompose(Function<? super T, ? extends CompletionStage<U>> fn) {
         return (DependentPromise<U>)super.thenCompose(fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn) {
         return (DependentPromise<U>)super.thenComposeAsync(fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     public <U> DependentPromise<U> thenComposeAsync(Function<? super T, ? extends CompletionStage<U>> fn, Executor executor) {
         return (DependentPromise<U>)super.thenComposeAsync(fn, executor);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionally(Function<Throwable, ? extends T> fn) {
         return (DependentPromise<T>)super.exceptionally(fn);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn) {
         return (DependentPromise<T>)super.exceptionallyAsync(fn);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyAsync(Function<Throwable, ? extends T> fn, Executor executor) {
         return (DependentPromise<T>)super.exceptionallyAsync(fn, executor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyCompose(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return (DependentPromise<T>)super.exceptionallyCompose(fn);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn) {
         return (DependentPromise<T>)super.exceptionallyComposeAsync(fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> exceptionallyComposeAsync(Function<Throwable, ? extends CompletionStage<T>> fn, Executor executor) {
         return (DependentPromise<T>)super.exceptionallyComposeAsync(fn, executor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> thenFilter(Predicate<? super T> predicate) {
         return (DependentPromise<T>)super.thenFilter(predicate);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> thenFilter(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return (DependentPromise<T>)super.thenFilter(predicate, errorSupplier);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate) {
         return (DependentPromise<T>)super.thenFilterAsync(predicate);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Function<? super T, Throwable> errorSupplier) {
         return (DependentPromise<T>)super.thenFilterAsync(predicate, errorSupplier);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, Executor executor) {
         return (DependentPromise<T>)super.thenFilterAsync(predicate, executor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
-    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate, 
-                                               Function<? super T, Throwable> errorSupplier, 
+    public DependentPromise<T> thenFilterAsync(Predicate<? super T> predicate,
+                                               Function<? super T, Throwable> errorSupplier,
                                                Executor executor) {
         return (DependentPromise<T>)super.thenFilterAsync(predicate, errorSupplier, executor);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
         return (DependentPromise<T>)super.whenComplete(action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action) {
         return (DependentPromise<T>)super.whenCompleteAsync(action);
     }
 
+    /** {@inheritDoc} */
     @Override
     public DependentPromise<T> whenCompleteAsync(BiConsumer<? super T, ? super Throwable> action, Executor executor) {
         return (DependentPromise<T>)super.whenCompleteAsync(action, executor);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> handle(BiFunction<? super T, Throwable, ? extends U> fn) {
         return (DependentPromise<U>)super.handle(fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn) {
         return (DependentPromise<U>)super.handleAsync(fn);
     }
 
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("unchecked")
     public <U> DependentPromise<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn, Executor executor) {
         return (DependentPromise<U>)super.handleAsync(fn, executor);
     }
-    
+
+    // ========================================================================
+    // CompletableFuture Conversion
+    // ========================================================================
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Delegates directly to the underlying dependent promise, preserving the
+     * enlistment behavior.
+     * </p>
+     */
     @Override
     public CompletableFuture<T> toCompletableFuture(boolean enlistOrigin) {
         return delegate.toCompletableFuture(enlistOrigin);
     }
-
 }

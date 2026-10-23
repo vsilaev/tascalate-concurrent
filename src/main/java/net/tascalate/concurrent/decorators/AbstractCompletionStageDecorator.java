@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,34 +23,76 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import net.tascalate.concurrent.Promise;
 import net.tascalate.concurrent.core.CompletionStageAPI;
 
 /**
- * Helper class to create a concrete {@link Promise} subclass via delegation
- * to the wrapped {@link CompletionStage}
- * 
- * @author vsilaev
+ * Abstract base helper class to create a concrete {@link CompletionStage} decorator 
+ * via delegation to a wrapped {@link CompletionStage}.
+ * <p>
+ * This class implements the Decorator pattern for {@link CompletionStage}. It holds a 
+ * reference to a {@code delegate} and forwards all composition method calls to it. 
+ * Subclasses must implement {@link #wrapNew(CompletionStage)} to define how derived 
+ * stages (returned by methods like {@code thenApply}) should be wrapped in the same 
+ * decorator type.
+ * </p>
+ * <p>
+ * The {@link #wrap(CompletionStage)} method optimizes the decoration process: if the 
+ * delegate returns itself (e.g., in a no-op scenario), it returns the current decorator 
+ * instance instead of creating a new wrapper.
+ * </p>
  *
- * @param <T>
- *   a type of the successfully resolved promise value   
- * @param <D>
- *   a type of the concrete {@link CompletionStage} subclass
+ * @param <T> a type of the successfully resolved promise value
+ * @param <D> a type of the concrete {@link CompletionStage} subclass being decorated
+ * @author vsilaev
+ * @see CompletionStageDecorator
+ * @see AbstractPromiseLikeDecorator
  */
-abstract public class AbstractCompletionStageDecorator<T, D extends CompletionStage<T>> implements CompletionStage<T> {
+abstract public class AbstractCompletionStageDecorator<T, D extends CompletionStage<T>> 
+    implements CompletionStage<T> {
+    
+    /** The underlying {@link CompletionStage} being decorated. */
     final protected D delegate;
 
+    /**
+     * Creates a new decorator wrapping the specified delegate.
+     *
+     * @param delegate the {@link CompletionStage} to delegate calls to
+     */
     protected AbstractCompletionStageDecorator(D delegate) {
         this.delegate = delegate;
     }
-    
+
+    /**
+     * Wraps the result of a delegate's composition method.
+     * <p>
+     * If the {@code original} stage is the exact same instance as the {@code delegate}, 
+     * this method returns {@code this} cast to the appropriate type, avoiding unnecessary 
+     * wrapper allocation. Otherwise, it delegates to {@link #wrapNew(CompletionStage)}.
+     * </p>
+     *
+     * @param <U>      the result type of the new stage
+     * @param original the stage returned by the delegate's composition method
+     * @return the wrapped stage, or {@code this} if no wrapping is needed
+     */
     @SuppressWarnings("unchecked")
     protected <U> CompletionStage<U> wrap(CompletionStage<U> original) {
         return delegate != original ? wrapNew(original) : (CompletionStage<U>)this;
     }
-    
-    abstract protected <U> CompletionStage<U> wrapNew(CompletionStage<U> original);
 
+    /**
+     * Factory method to create a new wrapper for a derived stage.
+     * <p>
+     * Subclasses must implement this to ensure that when a composition method (like 
+     * {@code thenApply}) is called on this decorator, the resulting stage is wrapped 
+     * in the same decorator type, preserving the decoration chain.
+     * </p>
+     *
+     * @param <U>      the result type of the new stage
+     * @param original the stage returned by the delegate's composition method
+     * @return a new decorator instance wrapping the {@code original} stage
+     */
+    abstract protected <U> CompletionStage<U> wrapNew(CompletionStage<U> original);    
+    
     @Override
     public <U> CompletionStage<U> thenApply(Function<? super T, ? extends U> fn) {
         return wrap(delegate.thenApply(fn));

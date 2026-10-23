@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2021 Valery Silaev (http://vsilaev.com)
+ * Copyright 2015-2026 Valery Silaev (http://vsilaev.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,36 +22,81 @@ import java.util.concurrent.CompletionStage;
 
 import net.tascalate.concurrent.Promise;
 
-public class CompletableFutureDecorator<T> 
-    extends AbstractFutureDecorator<T, CompletableFuture<T>> 
+/**
+ * A concrete {@link Promise} decorator that wraps a {@link CompletableFuture}.
+ * <p>
+ * This class extends {@link AbstractFutureDecorator} to provide a ready-to-use
+ * wrapper for {@link CompletableFuture} instances. It is the foundation for
+ * several other decorators in this package (such as {@link ExecutorBoundPromise}
+ * and {@link BlockingCompletionStageDecorator}) that need to adapt a
+ * {@code CompletableFuture} to the {@link Promise} API.
+ * </p>
+ * <p>
+ * Unlike {@link net.tascalate.concurrent.CompletableFutureWrapper} (which owns
+ * its own {@code CompletableFuture} and can be manually completed), this
+ * decorator wraps an <i>existing</i> {@code CompletableFuture} provided by
+ * external code.
+ * </p>
+ *
+ * @param <T> the type of the successfully resolved promise value
+ * @author vsilaev
+ * @see AbstractFutureDecorator
+ * @see ExecutorBoundPromise
+ * @see BlockingCompletionStageDecorator
+ */
+public class CompletableFutureDecorator<T>
+    extends AbstractFutureDecorator<T, CompletableFuture<T>>
     implements Promise<T> {
 
+    /**
+     * Creates a new decorator wrapping a newly created, uncompleted
+     * {@link CompletableFuture}.
+     * <p>
+     * This constructor is intended for subclasses that need to create a fresh
+     * {@code CompletableFuture} and complete it manually (e.g.,
+     * {@link net.tascalate.concurrent.CompletablePromise}).
+     * </p>
+     */
     protected CompletableFutureDecorator() {
         this(new CompletableFuture<T>());
     }
-    
+
+    /**
+     * Creates a new decorator wrapping the specified {@link CompletableFuture}.
+     *
+     * @param delegate the {@link CompletableFuture} to delegate calls to
+     */
     protected CompletableFutureDecorator(CompletableFuture<T> delegate) {
         super(delegate);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Wraps the given {@link CompletionStage} in a new {@code CompletableFutureDecorator},
+     * assuming it is a {@link CompletableFuture}.
+     * </p>
+     */
     @Override
     protected <U> Promise<U> wrapNew(CompletionStage<U> original) {
         return new CompletableFutureDecorator<>((CompletableFuture<U>)original);
     }
 
+    /** {@inheritDoc} */
     @Override
     public T getNow(T valueIfAbsent) {
         return delegate.getNow(valueIfAbsent);
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public T join() throws CancellationException, CompletionException {
         return delegate.join();
     }
-    
+
+    /** {@inheritDoc} */
     @Override
     public boolean isCompletedExceptionally() {
         return delegate.isCompletedExceptionally();
     }
-
 }
