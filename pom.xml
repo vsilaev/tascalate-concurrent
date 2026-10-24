@@ -152,6 +152,22 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
 				<version>3.5.0</version>
+				<configuration>
+					<excludes>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/channels/SelectCoordinator.class</exclude>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/channels/SelectCoordinator$1.class</exclude>
+
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/CallbackRegistry$State.class</exclude>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/CallbackRegistry$InitialState.class</exclude>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/CallbackRegistry$CallbackNode.class</exclude>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/CallbackRegistry$CompletedState.class</exclude>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/CallbackRegistry$SuccessState.class</exclude>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/CallbackRegistry$FailureState.class</exclude>
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/CallbackRegistry$AsyncTask.class</exclude>
+
+						<exclude>META-INF/versions/9/net/tascalate/concurrent/AggregatingPromise$*.class</exclude>
+					</excludes>
+				</configuration>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
