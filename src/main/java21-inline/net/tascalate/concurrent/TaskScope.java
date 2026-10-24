@@ -15,9 +15,11 @@
  */
 package net.tascalate.concurrent;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -25,9 +27,11 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -88,10 +92,29 @@ import net.tascalate.concurrent.var.ContextRelay;
  *
  * <h2>Timeout Support</h2>
  * <p>
- * Unlike the JDK's {@code StructuredTaskScope}, {@code TaskScope} does <b>not</b>
- * provide built-in scope-level timeout support. Introducing it would require a
- * background timer thread, which would break the single-threaded {@code close()} /
- * {@code reset()} guarantees. Instead, use one of these approaches:
+ * A pragmatic scope-level timeout can be configured via
+ * {@link Builder#timeout(Duration)}.
+ * </p>
+ * <p>
+ * When the timeout expires, the scope is marked as timed out and all currently
+ * tracked forked promises are cancelled. The timeout does <b>not</b> call
+ * {@link #close()} or {@link #reset()}; {@link #completions()} remains usable
+ * and will simply observe the cancelled tasks.
+ * </p>
+ * <p>
+ * Any subsequent {@link #fork(Callable)} or {@link #fork(Runnable)} call after
+ * the timeout has fired throws a {@link CompletionException} wrapping a
+ * {@link TimeoutException}.
+ * </p>
+ * <p>
+ * The timeout is scheduled through {@link AsyncInternals#delay(Duration)} and
+ * therefore does not require the scope itself to own or manage a background
+ * timer thread. The timeout does not break the single-threaded nature of
+ * {@link #close()} and {@link #reset()}; those methods still perform the
+ * structural cleanup exclusively on the owner thread.
+ * </p>
+ * <p>
+ * {@link #reset()} does not restart or clear an already configured timeout.
  * </p>
  * <ul>
  *   <li><b>Per-task timeout:</b> Chain {@link Promise#orTimeout(java.time.Duration, boolean)}
@@ -136,7 +159,16 @@ public class TaskScope implements AutoCloseable {
     private final ContextRelay<?> contextualizer;
 
     /** Set of all currently tracked (not yet consumed) forked promises. */
-    private final Set<Promise<?>> allFutures = new HashSet<>();
+    private final Set<Promise<?>> allFutures = ConcurrentHashMap.newKeySet();
+
+    /** Optional scope-level timeout duration. */
+    private final Duration timeout;
+
+    /** Promise that fires when the scope-level timeout expires, or null. */
+    private final Promise<Duration> timeoutPromise;
+
+    /** Set to true once the scope-level timeout has fired. */
+    private volatile boolean timedOut;
 
     /** The thread that created this scope. All mutating operations are confined to it. */
     private final Thread owner = Thread.currentThread();
@@ -149,21 +181,49 @@ public class TaskScope implements AutoCloseable {
      * Primary constructor. Use {@link #builder()} or {@link #toBuilder()} instead
      * of calling this directly.
      *
-     * @param name           the scope name (must not be null)
+     * @param name            the scope name (must not be null)
      * @param executorService the executor to run forked tasks on (must not be null)
-     * @param ownExecutor    if {@code true}, {@link #close()} will shut down the executor
-     * @param contextualizer optional context relay applied to every forked task (may be null)
+     * @param ownExecutor     if {@code true}, {@link #close()} will shut down the executor
+     * @param contextualizer  optional context relay applied to every forked task (may be null)
+     * @param timeout         optional scope-level timeout, or null for no timeout
      */
     protected TaskScope(String name,
                         ExecutorService executorService,
                         boolean ownExecutor,
-                        ContextRelay<?> contextualizer) {
+                        ContextRelay<?> contextualizer,
+                        Duration timeout) {
         Objects.requireNonNull(executorService, "executorService may not be null");
         this.name = name;
         this.executorService = executorService;
         this.ownExecutor = ownExecutor;
         this.completionService = new TaskExecutorCompletionService<>(executorService);
         this.contextualizer = contextualizer;
+        this.timeout = timeout;
+
+        if (timeout != null) {
+            Promise<Duration> delay = AsyncInternals.delay(timeout);
+            this.timeoutPromise = delay;
+
+            delay.whenComplete((d, e) -> {
+                // If the delay promise is cancelled, usually by close(), do not
+                // treat this as a timeout.
+                if (e == null) {
+                    handleTimeout();
+                }
+            });
+        } else {
+            this.timeoutPromise = null;
+        }
+    }
+    
+    /**
+     * Backward-compatible constructor without a timeout.
+     */
+    protected TaskScope(String name,
+                        ExecutorService executorService,
+                        boolean ownExecutor,
+                        ContextRelay<?> contextualizer) {
+        this(name, executorService, ownExecutor, contextualizer, null);
     }
 
     /**
@@ -283,6 +343,9 @@ public class TaskScope implements AutoCloseable {
 
         /** Context relay applied to every forked task. */
         private ContextRelay<?> contextualizer;
+        
+        /** Optional scope-level timeout; null means no timeout. */
+        private Duration timeout;
 
         /**
          * Creates a new builder with default settings.
@@ -369,6 +432,36 @@ public class TaskScope implements AutoCloseable {
             this.contextualizer = contextualizer;
             return this;
         }
+        
+        /**
+         * Sets a scope-level timeout.
+         * <p>
+         * When the timeout expires, the scope is marked as timed out and all
+         * currently tracked forked promises are cancelled. The timeout does
+         * <b>not</b> call {@link TaskScope#close()} or {@link TaskScope#reset()}.
+         * The {@link TaskScope#completions()} stream remains usable and will simply
+         * observe the cancelled tasks.
+         * </p>
+         * <p>
+         * Any subsequent {@link TaskScope#fork(Callable)} or
+         * {@link TaskScope#fork(Runnable)} call after the timeout has fired will
+         * throw a {@link CompletionException} wrapping a {@link TimeoutException}.
+         * </p>
+         * <p>
+         * Passing {@code null} clears a previously configured timeout.
+         * </p>
+         *
+         * @param timeout the timeout duration, or null to disable the timeout
+         * @return this builder
+         * @throws IllegalArgumentException if the timeout is negative
+         */
+        public Builder timeout(Duration timeout) {
+            if (timeout != null && timeout.isNegative()) {
+                throw new IllegalArgumentException("timeout may not be negative");
+            }
+            this.timeout = timeout;
+            return this;
+        }
 
         /**
          * Builds and returns a new {@link TaskScope} instance.
@@ -409,7 +502,13 @@ public class TaskScope implements AutoCloseable {
                 actualOwnExecutor = true;
             }
 
-            return new TaskScope(actualName, actualExecutor, actualOwnExecutor, contextualizer);
+            return new TaskScope(
+                actualName,
+                actualExecutor,
+                actualOwnExecutor,
+                contextualizer,
+                timeout
+            );
         }
     }
 
@@ -424,17 +523,33 @@ public class TaskScope implements AutoCloseable {
      * management. If a {@link ContextRelay} was configured, the runnable is
      * automatically wrapped to propagate context variables.
      * </p>
+     * <p>
+     * If the scope-level timeout has already fired, this method throws a
+     * {@link CompletionException} wrapping a {@link TimeoutException}.
+     * </p>
      *
      * @param code the runnable to execute
      * @return a {@link Promise}{@code <Void>} representing the forked task
      * @throws IllegalStateException if called from a thread other than the scope owner
+     * @throws CompletionException   if the scope-level timeout has already fired
      */
     @SuppressWarnings("unchecked")
     public Promise<Void> fork(Runnable code) {
         checkOwner();
+        checkTimeout(); // Fast-path: throw immediately if already timed out
+
         Runnable contextualized = (null == contextualizer) ? code : contextualizer.contextual(code);
+        
+        // Execute and enlist
         Promise<?> result = completionService.submit(contextualized, null);
         allFutures.add(result);
+
+        // Double-check: if timeout fired exactly between our early check and enlistment,
+        // the timer thread's iteration might have missed this task. We cancel it here.
+        if (timedOut) {
+            result.cancel(true);
+        }
+        
         return (Promise<Void>) result;
     }
 
@@ -445,18 +560,33 @@ public class TaskScope implements AutoCloseable {
      * management. If a {@link ContextRelay} was configured, the callable is
      * automatically wrapped to propagate context variables.
      * </p>
+     * <p>
+     * If the scope-level timeout has already fired, this method throws a
+     * {@link CompletionException} wrapping a {@link TimeoutException}.
+     * </p>
      *
      * @param <T>  the result type of the callable
      * @param code the callable to execute
      * @return a {@link Promise}{@code <T>} representing the forked task
      * @throws IllegalStateException if called from a thread other than the scope owner
+     * @throws CompletionException   if the scope-level timeout has already fired
      */
     @SuppressWarnings("unchecked")
     public <T> Promise<T> fork(Callable<T> code) {
         checkOwner();
+        checkTimeout(); // Fast-path: throw immediately if already timed out
+
         Callable<T> contextualized = (null == contextualizer) ? code : contextualizer.contextual(code);
+        
+        // Execute and enlist
         Promise<?> result = completionService.submit((Callable<Object>) contextualized);
         allFutures.add(result);
+
+        // Double-check: catch the race window where timer fired but missed this task
+        if (timedOut) {
+            result.cancel(true);
+        }
+        
         return (Promise<T>) result;
     }
 
@@ -591,7 +721,8 @@ public class TaskScope implements AutoCloseable {
 
     /**
      * Closes this scope: cancels all remaining forked tasks via {@link #reset()},
-     * and shuts down the executor <b>only if this scope owns it</b>.
+     * cancels the scope-level timeout if it has not fired yet, and shuts down the
+     * executor <b>only if this scope owns it</b>.
      * <p>
      * Ownership is determined at construction time:
      * </p>
@@ -607,10 +738,34 @@ public class TaskScope implements AutoCloseable {
      */
     @Override
     public void close() {
+        if (timeoutPromise != null) {
+            timeoutPromise.cancel(true);
+        }
+
         reset();
+
         if (ownExecutor && null != executorService) {
             executorService.shutdownNow();
         }
+    }
+    
+    /**
+     * Returns the configured scope-level timeout, or {@code null} if no timeout
+     * was configured.
+     *
+     * @return the configured timeout duration, or null
+     */
+    public Duration timeout() {
+        return timeout;
+    }
+
+    /**
+     * Returns {@code true} if the scope-level timeout has fired.
+     *
+     * @return {@code true} if the scope has timed out
+     */
+    public boolean isTimedOut() {
+        return timedOut;
     }
 
     /**
@@ -715,6 +870,53 @@ public class TaskScope implements AutoCloseable {
     // =========================================================================
     // Internals
     // =========================================================================
+    /**
+     * Checks whether the scope-level timeout has fired and throws the standard
+     * timeout exception if so.
+     *
+     * @throws CompletionException if the scope-level timeout has already fired
+     */
+    private void checkTimeout() {
+        if (timedOut) {
+            throw new CompletionException(
+                new TimeoutException(
+                    "Task scope '" + name + "' timed out" +
+                    (timeout != null ? " after " + timeout : "")
+                )
+            );
+        }
+    }
+
+    /**
+     * Handles timeout expiration.
+     * <p>
+     * This method intentionally does <b>not</b> call {@link #close()} or
+     * {@link #reset()}. It only marks the scope as timed out and cancels the
+     * promises currently tracked by the scope.
+     * </p>
+     * <p>
+     * The {@link #completions()} stream remains usable: cancelled tasks will be
+     * observed as cancelled promises.
+     * </p>
+     */
+    private void handleTimeout() {
+        if (timedOut) {
+            return;
+        }
+        timedOut = true;
+        
+        // Iterate over the concurrent set. Any task added concurrently by the owner 
+        // thread will either be seen by this iterator, or the owner thread will see 
+        // timedOut == true in its double-check and cancel the task itself.
+        for (Promise<?> promise : allFutures) {
+            try {
+                promise.cancel(true);
+            } catch (RuntimeException | Error ignored) {
+                // Continue cancelling the remaining tasks even if one cancellation
+                // unexpectedly fails.
+            }
+        }
+    }
 
     /**
      * Generates the next unique scope name in the form {@code "scope_N"}.

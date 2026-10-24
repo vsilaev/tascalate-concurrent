@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.time.Duration;
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -69,7 +71,7 @@ public class TaskScopeTest {
     public void testBuilderShutsDownOwnedExecutor() {
         ExecutorService ownedExecutor = Executors.newSingleThreadExecutor();
         try (TaskScope scope = TaskScope.builder()
-                .executor(ownedExecutor, true) // Explicitly owned
+                .executor(ownedExecutor, true)
                 .build()) {
             scope.fork(() -> {});
         }
@@ -80,12 +82,12 @@ public class TaskScopeTest {
     public void testBuilderDoesNotShutdownUnownedExecutor() {
         ExecutorService externalExecutor = Executors.newSingleThreadExecutor();
         try (TaskScope scope = TaskScope.builder()
-                .executor(externalExecutor) // Default: unowned
+                .executor(externalExecutor)
                 .build()) {
             scope.fork(() -> {});
         }
         assertFalse("External executor should NOT be shut down", externalExecutor.isShutdown());
-        externalExecutor.shutdownNow(); // Manual cleanup for the test
+        externalExecutor.shutdownNow();
     }
 
     // =========================================================================
@@ -136,7 +138,7 @@ public class TaskScopeTest {
             });
 
             List<Object> results = scope.completions()
-                    .filter(Promise.State.SUCCESS) // Use Promise.State as a Predicate
+                    .filter(Promise.State.SUCCESS)
                     .map(Promise::join)
                     .collect(Collectors.toList());
 
@@ -151,7 +153,6 @@ public class TaskScopeTest {
             scope.fork(() -> {
                 throw new IllegalStateException("Boom");
             });
-            // This should throw CompletionException wrapping IllegalStateException
             scope.completions().map(Promise::join).findFirst();
         }
     }
@@ -162,16 +163,13 @@ public class TaskScopeTest {
         CountDownLatch slowTasksInterrupted = new CountDownLatch(3);
 
         try (TaskScope scope = TaskScope.builder().executor(sharedExecutor).build()) {
-            // 1. Fork 2 fast tasks that complete almost immediately
             scope.fork(() -> "Fast1");
             scope.fork(() -> "Fast2");
 
-            // 2. Fork 3 slow tasks that block until interrupted
             for (int i = 0; i < 3; i++) {
                 scope.fork(() -> {
                     slowTasksStarted.countDown();
                     try {
-                        // Block for a long time; will be interrupted by scope.close()
                         Thread.sleep(Duration.ofMinutes(1));
                     } catch (InterruptedException e) {
                         slowTasksInterrupted.countDown();
@@ -181,25 +179,19 @@ public class TaskScopeTest {
                 });
             }
 
-            // 3. Consume exactly 2 results. The 2 fast tasks will satisfy the limit.
             List<Object> results = scope.completions()
                     .limit(2)
                     .map(Promise::join)
                     .collect(Collectors.toList());
 
             assertEquals("Should collect exactly 2 fast results", 2, results.size());
-            
-            // 4. Verify that the slow tasks actually started and are currently blocked.
-            // Because the pool has 4 threads, the 2 fast tasks free up their threads 
-            // almost instantly, allowing all 3 slow tasks to grab threads and start.
+
             assertTrue("Slow tasks should have started", slowTasksStarted.await(2, TimeUnit.SECONDS));
             assertEquals("No slow tasks should be interrupted yet", 3, slowTasksInterrupted.getCount());
-            
-        } // try-with-resources exits here, calling scope.close(), which cancels the remaining tasks.
+        }
 
-        // 5. Verify that the 3 slow tasks were interrupted and cancelled by the scope
-        assertTrue("Slow tasks should have been interrupted by scope.close()", 
-                   slowTasksInterrupted.await(2, TimeUnit.SECONDS));
+        assertTrue("Slow tasks should have been interrupted by scope.close()",
+                slowTasksInterrupted.await(2, TimeUnit.SECONDS));
     }
 
     // =========================================================================
@@ -209,7 +201,6 @@ public class TaskScopeTest {
     @Test
     public void testResetAllowsScopeReuse() throws Exception {
         try (TaskScope scope = TaskScope.builder().executor(sharedExecutor).build()) {
-            // Batch 1
             scope.fork(() -> "Batch1-Result");
             List<Object> batch1 = scope.completions()
                     .map(Promise::join)
@@ -217,10 +208,8 @@ public class TaskScopeTest {
             assertEquals(1, batch1.size());
             assertEquals("Batch1-Result", batch1.get(0));
 
-            // Reset the scope
             scope.reset();
 
-            // Batch 2
             scope.fork(() -> "Batch2-Result");
             List<Object> batch2 = scope.completions()
                     .map(Promise::join)
@@ -253,7 +242,6 @@ public class TaskScopeTest {
             });
             scope.fork(() -> "Success");
 
-            // Filter to only accept successful promises
             Promise<Object> p = scope.take(Promise.State.SUCCESS);
             assertNotNull(p);
             assertEquals("Success", p.join());
@@ -276,11 +264,8 @@ public class TaskScopeTest {
     public void testTakeReturnsNullWhenExhausted() throws Exception {
         try (TaskScope scope = TaskScope.builder().executor(sharedExecutor).build()) {
             scope.fork(() -> "One");
-            
-            // Consume the only task
+
             assertNotNull(scope.take());
-            
-            // Queue is now empty
             assertEquals(null, scope.take());
         }
     }
@@ -299,17 +284,12 @@ public class TaskScopeTest {
                 .contextualizer(relay)
                 .build()) {
 
-            // Bind a value in the current thread, then fork a task.
-            // The contextualizer captures the context eagerly at fork time.
             testVar.bind("PropagatedValue").run(() -> {
                 scope.fork(() -> {
-                    // This assertion runs on the worker thread.
-                    // If propagation works, testVar.get() should return "PropagatedValue".
                     assertEquals("PropagatedValue", testVar.get());
                 });
             });
 
-            // Wait for the task to complete
             scope.completions().limit(1).forEach(Promise::join);
         }
     }
@@ -324,7 +304,7 @@ public class TaskScopeTest {
 
         try (TaskScope parent = TaskScope.builder()
                 .name("ParentScope")
-                .executor(parentExecutor, true) // Parent owns the executor
+                .executor(parentExecutor, true)
                 .build()) {
 
             try (TaskScope child = parent.toBuilder()
@@ -332,28 +312,23 @@ public class TaskScopeTest {
                     .build()) {
 
                 assertEquals("ChildScope", child.toString());
-                
-                // Fork a task in the child. It should run on the parent's executor.
                 child.fork(() -> {});
             }
 
-            // Closing the child should NOT shut down the parent's executor
             assertFalse("Parent executor should remain active after child closes", parentExecutor.isShutdown());
         }
 
-        // Closing the parent should shut down the executor
         assertTrue("Parent executor should be shut down after parent closes", parentExecutor.isShutdown());
     }
 
     // =========================================================================
-    // Global Timeout Pattern Tests
+    // Global Timeout Pattern Tests (manual takeWhile approach)
     // =========================================================================
 
     @Test
     public void testGlobalTimeoutPatternWithTakeWhile() throws Exception {
         try (TaskScope scope = TaskScope.builder().executor(sharedExecutor).build()) {
-            
-            // 1. Fork a "timeout" task that completes quickly
+
             Promise<Object> timeoutPromise = scope.fork(() -> {
                 try {
                     Thread.sleep(50);
@@ -363,7 +338,6 @@ public class TaskScopeTest {
                 return "TIMEOUT";
             });
 
-            // 2. Fork slow tasks that would take longer than the timeout
             for (int i = 0; i < 3; i++) {
                 scope.fork(() -> {
                     try {
@@ -375,16 +349,442 @@ public class TaskScopeTest {
                 });
             }
 
-            // 3. Consume completions until the timeout task appears
             List<Object> results = scope.completions()
                     .takeWhile(p -> p != timeoutPromise)
                     .filter(Promise.State.SUCCESS)
                     .map(Promise::join)
                     .collect(Collectors.toList());
 
-            // Since the timeout task (50ms) finishes before the slow tasks (500ms),
-            // the stream should stop immediately, yielding 0 results.
             assertEquals("Should collect 0 results before timeout", 0, results.size());
+        }
+    }
+
+    // =========================================================================
+    // Built-in Scope-Level Timeout Tests
+    // =========================================================================
+
+    @Test
+    public void testTimeoutCancelsRunningTasks() throws Exception {
+        CountDownLatch tasksStarted = new CountDownLatch(2);
+        CountDownLatch tasksInterrupted = new CountDownLatch(2);
+
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(100))
+                .build()) {
+
+            for (int i = 0; i < 2; i++) {
+                scope.fork(() -> {
+                    tasksStarted.countDown();
+                    try {
+                        Thread.sleep(Duration.ofMinutes(1));
+                    } catch (InterruptedException e) {
+                        tasksInterrupted.countDown();
+                        Thread.currentThread().interrupt();
+                    }
+                    return "ShouldNotComplete";
+                });
+            }
+
+            assertTrue("Tasks should have started", tasksStarted.await(2, TimeUnit.SECONDS));
+            assertTrue("Tasks should be interrupted by timeout",
+                    tasksInterrupted.await(2, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    public void testForkThrowsAfterTimeout() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(50))
+                .build()) {
+
+            // Wait for timeout to expire
+            awaitTimedOut(scope, 2, TimeUnit.SECONDS);
+
+            try {
+                scope.fork(() -> "ShouldNotRun");
+                fail("Should have thrown CompletionException");
+            } catch (CompletionException e) {
+                assertTrue("Cause should be TimeoutException",
+                        e.getCause() instanceof TimeoutException);
+            }
+        }
+    }
+
+    @Test
+    public void testForkRunnableThrowsAfterTimeout() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(50))
+                .build()) {
+
+            awaitTimedOut(scope, 2, TimeUnit.SECONDS);
+
+            try {
+                scope.fork(() -> System.out.println("ShouldNotRun"));
+                fail("Should have thrown CompletionException");
+            } catch (CompletionException e) {
+                assertTrue("Cause should be TimeoutException",
+                        e.getCause() instanceof TimeoutException);
+            }
+        }
+    }
+
+    @Test
+    public void testCompletionsStillUsableAfterTimeout() throws Exception {
+        CountDownLatch taskInterrupted = new CountDownLatch(1);
+
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(100))
+                .build()) {
+
+            scope.fork(() -> {
+                try {
+                    Thread.sleep(Duration.ofMinutes(1));
+                } catch (InterruptedException e) {
+                    taskInterrupted.countDown();
+                    Thread.currentThread().interrupt();
+                }
+                return "Slow";
+            });
+
+            // Wait for the task to actually be interrupted
+            assertTrue("Task should be interrupted",
+                    taskInterrupted.await(2, TimeUnit.SECONDS));
+
+            // completions() should still work and return the cancelled task
+            List<Promise<Object>> results = scope.completions()
+                    .collect(Collectors.toList());
+
+            assertEquals(1, results.size());
+            assertTrue("Task should be completed exceptionally (cancelled)",
+                    results.get(0).isCompletedExceptionally());
+        }
+    }
+
+    @Test
+    public void testSuccessfulTasksCollectedBeforeTimeout() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofSeconds(5))
+                .build()) {
+
+            scope.fork(() -> "Fast1");
+            scope.fork(() -> "Fast2");
+
+            List<Object> results = scope.completions()
+                    .filter(Promise.State.SUCCESS)
+                    .map(Promise::join)
+                    .collect(Collectors.toList());
+
+            assertEquals(2, results.size());
+            assertTrue(results.contains("Fast1"));
+            assertTrue(results.contains("Fast2"));
+        }
+    }
+
+    @Test
+    public void testMixedFastAndSlowTasksWithTimeout() throws Exception {
+        CountDownLatch slowTaskInterrupted = new CountDownLatch(1);
+
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(200))
+                .build()) {
+
+            // Fast task completes before timeout
+            scope.fork(() -> "Fast");
+
+            // Slow task will be cancelled by timeout
+            scope.fork(() -> {
+                try {
+                    Thread.sleep(Duration.ofMinutes(1));
+                } catch (InterruptedException e) {
+                    slowTaskInterrupted.countDown();
+                    Thread.currentThread().interrupt();
+                }
+                return "Slow";
+            });
+
+            // Collect only successful results
+            List<Object> results = scope.completions()
+                    .filter(Promise.State.SUCCESS)
+                    .map(Promise::join)
+                    .collect(Collectors.toList());
+
+            assertEquals("Only the fast task should succeed", 1, results.size());
+            assertEquals("Fast", results.get(0));
+
+            assertTrue("Slow task should be interrupted",
+                    slowTaskInterrupted.await(2, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    public void testTimeoutDoesNotRestartOnReset() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(50))
+                .build()) {
+
+            scope.fork(() -> "Fast");
+            scope.completions().map(Promise::join).collect(Collectors.toList());
+
+            // Wait for timeout to expire
+            awaitTimedOut(scope, 2, TimeUnit.SECONDS);
+
+            // Reset should work without error
+            scope.reset();
+
+            // But fork should still throw because timeout already fired
+            try {
+                scope.fork(() -> "ShouldNotRun");
+                fail("Should have thrown CompletionException after reset");
+            } catch (CompletionException e) {
+                assertTrue("Cause should be TimeoutException",
+                        e.getCause() instanceof TimeoutException);
+            }
+        }
+    }
+
+    @Test
+    public void testResetBeforeTimeoutAllowsContinuedUse() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofSeconds(5))
+                .build()) {
+
+            // Batch 1
+            scope.fork(() -> "Batch1");
+            List<Object> batch1 = scope.completions()
+                    .map(Promise::join)
+                    .collect(Collectors.toList());
+            assertEquals(1, batch1.size());
+
+            // Reset before timeout expires
+            scope.reset();
+
+            // Batch 2 should still work because timeout hasn't fired
+            scope.fork(() -> "Batch2");
+            List<Object> batch2 = scope.completions()
+                    .map(Promise::join)
+                    .collect(Collectors.toList());
+            assertEquals(1, batch2.size());
+            assertEquals("Batch2", batch2.get(0));
+        }
+    }
+
+    @Test
+    public void testCloseAfterTimeout() throws Exception {
+        ExecutorService ownedExecutor = Executors.newSingleThreadExecutor();
+
+        TaskScope scope = TaskScope.builder()
+                .executor(ownedExecutor, true)
+                .timeout(Duration.ofMillis(50))
+                .build();
+
+        scope.fork(() -> {
+            try {
+                Thread.sleep(Duration.ofMinutes(1));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return "Slow";
+        });
+
+        // Wait for timeout
+        awaitTimedOut(scope, 2, TimeUnit.SECONDS);
+
+        // Close should work properly even after timeout
+        scope.close();
+
+        assertTrue("Owned executor should be shut down after close",
+                ownedExecutor.isShutdown());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testBuilderRejectsNegativeTimeout() {
+        TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(-100))
+                .build();
+    }
+
+    @Test
+    public void testBuilderAllowsNullTimeout() {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(null)
+                .build()) {
+
+            scope.fork(() -> "Works");
+
+            List<Object> results = scope.completions()
+                    .map(Promise::join)
+                    .collect(Collectors.toList());
+
+            assertEquals(1, results.size());
+            assertEquals("Works", results.get(0));
+        }
+    }
+
+    @Test
+    public void testIsTimedOutReturnsFalseBeforeTimeout() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofSeconds(10))
+                .build()) {
+
+            assertFalse("Should not be timed out yet", scope.isTimedOut());
+
+            scope.fork(() -> "Fast");
+            scope.completions().map(Promise::join).collect(Collectors.toList());
+
+            assertFalse("Should still not be timed out", scope.isTimedOut());
+        }
+    }
+
+    @Test
+    public void testIsTimedOutReturnsTrueAfterTimeout() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(50))
+                .build()) {
+
+            assertFalse("Should not be timed out initially", scope.isTimedOut());
+
+            awaitTimedOut(scope, 2, TimeUnit.SECONDS);
+
+            assertTrue("Should be timed out after duration expires", scope.isTimedOut());
+        }
+    }
+
+    @Test
+    public void testTimeoutGetterReturnsConfiguredValue() {
+        Duration configured = Duration.ofSeconds(5);
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(configured)
+                .build()) {
+
+            assertEquals(configured, scope.timeout());
+        }
+    }
+
+    @Test
+    public void testTimeoutGetterReturnsNullWhenNotConfigured() {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .build()) {
+
+            assertEquals(null, scope.timeout());
+        }
+    }
+
+    @Test
+    public void testTakeReturnsCancelledTaskAfterTimeout() throws Exception {
+        CountDownLatch taskInterrupted = new CountDownLatch(1);
+
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(100))
+                .build()) {
+
+            scope.fork(() -> {
+                try {
+                    Thread.sleep(Duration.ofMinutes(1));
+                } catch (InterruptedException e) {
+                    taskInterrupted.countDown();
+                    Thread.currentThread().interrupt();
+                }
+                return "Slow";
+            });
+
+            assertTrue("Task should be interrupted",
+                    taskInterrupted.await(2, TimeUnit.SECONDS));
+
+            // take() should return the cancelled promise
+            Promise<Object> p = scope.take();
+            assertNotNull("take() should return the cancelled promise", p);
+            assertTrue("Promise should be completed exceptionally",
+                    p.isCompletedExceptionally());
+        }
+    }
+
+    @Test
+    public void testTakeReturnsCancelledTaskAndExhaustsQueue() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(50))
+                .build()) {
+
+            scope.fork(() -> {
+                try {
+                    Thread.sleep(Duration.ofMinutes(1));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return "Slow";
+            });
+
+            awaitTimedOut(scope, 2, TimeUnit.SECONDS);
+
+            // 1. Consume the cancelled task using take() instead of takeValue()
+            Promise<Object> p = scope.take();
+            assertNotNull("take() should return the cancelled promise", p);
+            assertTrue("Promise should be cancelled", p.isCancelled());
+
+            // 2. Queue is now exhausted, both take() and takeValue() should return null
+            assertEquals("take() should return null when exhausted", null, scope.take());
+            assertEquals("takeValue() should return null when exhausted", null, scope.takeValue());
+        }
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testTakeValueThrowsOnCancelledTask() throws Exception {
+        try (TaskScope scope = TaskScope.builder()
+                .executor(sharedExecutor)
+                .timeout(Duration.ofMillis(50))
+                .build()) {
+
+            scope.fork(() -> {
+                try {
+                    Thread.sleep(Duration.ofMinutes(1));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return "Slow";
+            });
+
+            awaitTimedOut(scope, 2, TimeUnit.SECONDS);
+
+            // takeValue() internally calls resultNow(), which throws IllegalStateException
+            // for cancelled or exceptionally completed tasks.
+            scope.takeValue();
+        }
+    }
+
+    // =========================================================================
+    // Helper Methods
+    // =========================================================================
+
+    /**
+     * Polls {@code scope.isTimedOut()} until it returns true or the deadline expires.
+     *
+     * @param scope   the scope to check
+     * @param timeout maximum time to wait
+     * @param unit    time unit
+     * @throws InterruptedException if interrupted while waiting
+     */
+    private void awaitTimedOut(TaskScope scope, long timeout, TimeUnit unit) throws InterruptedException {
+        long deadlineNanos = System.nanoTime() + unit.toNanos(timeout);
+        while (!scope.isTimedOut()) {
+            if (System.nanoTime() > deadlineNanos) {
+                fail("Timed out waiting for scope to report isTimedOut() == true");
+            }
+            Thread.sleep(10);
         }
     }
 }

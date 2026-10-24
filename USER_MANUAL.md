@@ -2826,13 +2826,76 @@ try (TaskScope scope = TaskScope.builder().name("ReusableScope").build()) {
     
 } // Final cleanup and executor shutdown (if owned)
 ```
-## Timeouts and Cancellation Guarantees
+## Timeout Support
 
-Unlike the standard JDK `StructuredTaskScope`, the Tascalate Concurrent `TaskScope`  **does not provide built-in scope-level timeout support**.
+`TaskScope` provides a pragmatic scope-level timeout via the builder:
+```java
+try (TaskScope scope = TaskScope.builder() .timeout(Duration.ofSeconds(5)) .build()) {
+    for (String url : urls) {
+        scope.fork(() -> fetchFromUrl(url));
+    }
 
-This is an intentional design decision. Introducing a scope-level timeout would inherently require a background timer thread to monitor execution and trigger cancellations. This would break the strict guarantee that `TaskScope.close()` and `TaskScope.reset()` are purely **single-thread operations** executed exclusively by the scope's owner thread. Preserving this single-threaded guarantee is critical for predictable resource management, avoiding hidden concurrency bugs, and ensuring that cleanup happens exactly when the developer expects it.
+    List<Object> results = scope.completions()
+        .filter(Promise.State.SUCCESS)
+        .map(Promise::join)
+        .toList();
+}
+```
+When the timeout expires, the scope is marked as timed out and all currently tracked forked promises are cancelled. The timeout does **not** call `close()` or `reset()`. The `completions()` stream remains usable and will simply observe the cancelled tasks.
 
-However, you can still easily enforce timeouts on **individual forked tasks**. Because `scope.fork()` returns a standard `Promise`, you can simply chain the `.orTimeout()` method directly to the returned promise.
+Any subsequent call to `fork(...)` after the timeout has fired throws a `CompletionException` wrapping a `TimeoutException`.
+
+This design avoids introducing a scope-owned background timer thread and preserves the guarantee that structural cleanup performed by `close()` and `reset()` remains an owner-thread operation. The timeout only performs a pragmatic cancellation of currently running tasks and prevents new forks from being accepted.
+
+`reset()` does not restart or clear an already configured timeout.
+
+### `completions()` after timeout
+
+If a timeout happens while consuming `scope.completions()`, the stream does **not** terminate abruptly by itself. It continues to return completed promises, including tasks that were cancelled by the timeout.
+
+So this remains valid:
+```java
+List<Object> successful = scope.completions()
+    .filter(Promise.State.SUCCESS)
+    .map(Promise::join)
+    .toList();
+```
+
+### `reset()` after timeout
+
+`reset()` still works as before: `scope.reset()`. It cancels currently tracked tasks, clears the tracked set, and drains the completion queue.
+
+But if the timeout has already fired, the scope remains timed out, and subsequent `fork(...)` calls still throw `CompletionException(TimeoutException)`. If you want a fresh timeout for a new batch, create a new scope, for example:
+```java
+try (TaskScope scope1 = TaskScope.builder()
+        .timeout(Duration.ofSeconds(5))
+        .build()) {
+    // batch 1
+}
+
+try (TaskScope scope2 = TaskScope.builder()
+        .timeout(Duration.ofSeconds(5))
+        .build()) {
+    // batch 2
+}
+```
+### Nested scopes
+
+The timeout is intentionally not inherited automatically, because timeout is a lifecycle property of the scope instance itself.
+
+If you want a child scope to have a timeout, configure it explicitly:
+```java
+try (TaskScope child = parent.toBuilder()
+        .timeout(Duration.ofSeconds(2))
+        .build()) {
+    // ...
+}
+```
+This gives you a useful scope-level timeout without sacrificing the simple owner-thread cleanup model.
+
+### Per-fork timeouts
+
+Regardless of scope-level timeout settings, you can easily enforce timeouts on **individual forked tasks**. Because `scope.fork()` returns a standard `Promise`, you can simply chain the `.orTimeout()` method directly to the returned promise.
 ```java
 try (TaskScope scope = TaskScope.builder().build()) {
     // Fork a task and apply a per-task timeout
@@ -2846,11 +2909,13 @@ try (TaskScope scope = TaskScope.builder().build()) {
         .toList();
 }
 ```
-When the specified duration expires, the specific task is interrupted and its promise completes with a `CancellationException`. The `TaskScope` handles this gracefully: the cancelled promise will still appear in the `completions()` stream, but it will be naturally filtered out if you are only collecting `Promise.State.SUCCESS` results.
+When the specified duration expires, the specific task is interrupted and its promise completes with a `CancellationException`.  The `TaskScope` handles this gracefully: the failed promise will still appear in the `completions()` stream, but it will be naturally filtered out if you are only collecting `Promise.State.SUCCESS` results.
 
 This approach gives you fine-grained, per-task timeout control without compromising the scope's robust, single-threaded lifecycle guarantees.
 
-Alternatively, you may implement something like `Global Batch Timeout` - you can simply fork a "timeout" task alongside your work tasks and use the Stream API's `takeWhile` to stop processing the moment the timeout task completes.
+### Global Batch Timeout pattern
+
+Alternatively, you may implement a **Global Batch Timeout** pattern — you can simply fork a "timeout" task alongside your work tasks and use the Stream API's `takeWhile` to stop processing the moment the timeout task completes.
 ```java
 try (TaskScope scope = TaskScope.builder().build()) { // Defaults to virtual threads
     
@@ -2876,7 +2941,7 @@ try (TaskScope scope = TaskScope.builder().build()) { // Defaults to virtual thr
 ```
 This pattern requires the timeout task to occupy a thread while it sleeps. If you were using a fixed platform thread pool, this would waste a valuable thread. However, because `TaskScope` defaults to `Executors.newVirtualThreadPerTaskExecutor()`, the sleeping timeout task is unmounted from the carrier thread, making it virtually "free" in terms of OS resource consumption.
 
-_Note: If you are using a custom platform thread pool via the builder (e.g., `.executor(myFixedPool)`), you must ensure the pool has at least one extra thread available to run the timeout task concurrently with the work tasks, otherwise the timeout task will starve and never trigger._
+> **Note:** If you are using a custom platform thread pool via the builder (e.g., `.executor(myFixedPool)`), you must ensure the pool has at least one extra thread available to run the timeout task concurrently with the work tasks, otherwise the timeout task will starve and never trigger.
 
 # Acknowledgements
 
