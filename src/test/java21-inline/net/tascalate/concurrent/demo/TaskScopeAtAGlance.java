@@ -80,7 +80,7 @@ public class TaskScopeAtAGlance {
             scope.completions()
                  .filter(Promise.State.SUCCESS)
                  .map(Promise::join)
-                 .map(String.class::cast)
+                 .map(Object::toString)
                  .limit(quorumSize)
                  .toList();
 

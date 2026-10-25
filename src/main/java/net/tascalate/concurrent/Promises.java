@@ -151,8 +151,13 @@ public final class Promises {
      * @return a promise that is already cancelled
      */
     @SuppressWarnings("unchecked")
+    public static <T> Promise<T> cancelled() {
+        return (Promise<T>)PROMISE_CANCELLED;
+    }
+    
+    @Deprecated
     public static <T> Promise<T> canceled() {
-        return (Promise<T>)PROMISE_CANCELED;
+        return cancelled();
     }
   
     /**
@@ -1954,9 +1959,9 @@ public final class Promises {
     /**
      * Shared singleton cancelled promise
      */
-    private static final Promise<Object> PROMISE_CANCELED; 
+    private static final Promise<Object> PROMISE_CANCELLED; 
     static {
-        PROMISE_CANCELED = new CompletableFutureWrapper<>();
-        PROMISE_CANCELED.cancel(true);
+        PROMISE_CANCELLED = new CompletableFutureWrapper<>();
+        PROMISE_CANCELLED.cancel(true);
     }
 }

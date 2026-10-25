@@ -1,4 +1,3 @@
-
 # Why `CompletableFuture` is Not Enough?
 
 There are several shortcomings in the [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) implementation that complicate its use in real-world asynchronous programming, especially when dealing with I/O-bound, interruptible tasks:
@@ -16,7 +15,7 @@ To use a library you have to add a single Maven dependency
 <dependency>
     <groupId>net.tascalate</groupId>
     <artifactId>net.tascalate.concurrent</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 
@@ -110,14 +109,14 @@ public final class Promises {
 	 * Useful when you need to immediately return a cancelled promise without
 	 * allocating a new one.
 	 */
-	public static <T> Promise<T> canceled();
+	public static <T> Promise<T> cancelled();
 }
 ```
 **When to use which:**
 
 -   **`Promises.TRUE` / `Promises.FALSE`**: Always prefer these over `Promises.success(true)` or `Promises.success(false)` when returning a boolean result. They are singletons and incur zero allocation overhead.
 -   **`Promises.nothing()`**: Ideal for `Promise<Void>` chains or when a method signature requires a `Promise<T>` but you have no meaningful value to return (equivalent to `success(null)` but without allocation).
--   **`Promises.canceled()`**: Use this when a method needs to short-circuit and return an already-cancelled promise (e.g., when a feature flag is disabled or a request is preemptively rejected), allowing downstream `onCancel` handlers to fire immediately.
+-   **`Promises.cancelled()`**: Use this when a method needs to short-circuit and return an already-cancelled promise (e.g., when a feature flag is disabled or a request is preemptively rejected), allowing downstream `onCancel` handlers to fire immediately.
 -   **`Promises.maybe(...)`**: Perfect for bridging legacy APIs that return `Optional<T>` into your asynchronous `Promise` pipelines without writing verbose `if/else` blocks.
 
 ### 2. Adapting External Stages
@@ -262,7 +261,7 @@ public Promise<DataStructure> loadData(String url) {
 Promise<DataStructure> p = loadData("http://someserver.com/rest/ds");
 ...
 if (someCondition()) {
-  // Only the second promise (parseXml) is canceled.
+  // Only the second promise (parseXml) is cancelled.
   p.cancel(true);
 }
 ```
@@ -278,7 +277,7 @@ public Promise<DataStructure> loadData(String url) {
 Promise<DataStructure> p = loadData("http://someserver.com/rest/ds");
 ...
 if (someCondition()) {
-  // Now the whole chain is canceled.
+  // Now the whole chain is cancelled.
   p.cancel(true);
 }
 ```
@@ -2954,7 +2953,6 @@ import net.tascalate.concurrent.var.ContextVar;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
@@ -3028,7 +3026,7 @@ public class TaskScopeAtAGlance {
             scope.completions()
                  .filter(Promise.State.SUCCESS)
                  .map(Promise::join)
-                 .map(String.class::cast)
+                 .map(Object::toString)
                  .limit(quorumSize)
                  .toList();
 
@@ -3052,7 +3050,7 @@ public class TaskScopeAtAGlance {
                                                 .join();
 
                 System.out.println("[Main] Nested scope job completed: " + nestedResults);
-            } catch (CompletionException | CancellationException ex) {
+            } catch (CompletionException ex) {
                 Throwable cause = ex.getCause();
                 System.out.println("[Main] Nested scope job did not complete normally: " + cause);
             }

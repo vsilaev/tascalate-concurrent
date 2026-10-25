@@ -248,7 +248,7 @@ public class BufferedChannel<T> implements Channel<T> {
                     }
                     isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
-                        return Promises.canceled();
+                        return Promises.cancelled();
                     }
                     matchedReceiver = matched;
                     waitReceivers.poll(); // actually consume it now
@@ -260,7 +260,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 } else if (buffer.size() < capacity) {
                     isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
-                        return Promises.canceled();
+                        return Promises.cancelled();
                     }
                     buffer.add(wrap(value));
                     return Promises.success(value);
@@ -342,7 +342,7 @@ public class BufferedChannel<T> implements Channel<T> {
                 if (!buffer.isEmpty()) {
                     isWon = isWon || coordinator.tryClaim(this);
                     if (!isWon) {
-                        return Promises.canceled();
+                        return Promises.cancelled();
                     }
                     // BUFFER PATH
                     resultFromBuffer = unwrap(buffer.poll());
@@ -369,7 +369,7 @@ public class BufferedChannel<T> implements Channel<T> {
                         }
                         isWon = isWon || coordinator.tryClaim(this);
                         if (!isWon) {
-                            return Promises.canceled();
+                            return Promises.cancelled();
                         }
                         waitSenders.poll(); 
                         rendezvousSender = ws;
@@ -393,7 +393,7 @@ public class BufferedChannel<T> implements Channel<T> {
                     // rendezvousSender is completed with the same value, safe to use as a return
                     return rendezvousSender.future;
                 } else {
-                    // rendezvousSender was canceled concurrently, retry
+                    // rendezvousSender was cancelled concurrently, retry
                     continue;
                 }
             } else {

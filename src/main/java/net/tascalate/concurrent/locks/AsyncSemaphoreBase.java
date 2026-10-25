@@ -256,7 +256,7 @@ abstract class AsyncSemaphoreBase<T> {
                 try {
                     if (head.isDone()) {
                         // Same as edge case below - just for speed-up:
-                        // If canceled fully or canceling is in progress
+                        // If cancelled fully or canceling is in progress
                         // remove here just to avoid wasting cycles
                         // when same remove is running in 
                         // AbstractSemaphorePromise.cancel 

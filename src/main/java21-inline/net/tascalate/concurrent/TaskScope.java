@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
@@ -429,6 +430,75 @@ public class TaskScope implements AutoCloseable {
         public Builder contextualizer(ContextRelay<?> contextualizer) {
             this.contextualizer = contextualizer;
             return this;
+        }
+        
+        /**
+         * Sets a scope-level timeout in milliseconds.
+         * <p>
+         * This is a convenience method equivalent to:
+         * </p>
+         * <pre>{@code
+         * timeout(Duration.ofMillis(millis))
+         * }</pre>
+         * <p>
+         * When the timeout expires, the scope is marked as timed out and all
+         * currently tracked forked promises are cancelled. The timeout does
+         * <b>not</b> call {@link TaskScope#close()} or {@link TaskScope#reset()}.
+         * The {@link TaskScope#completions()} stream remains usable and will simply
+         * observe the cancelled tasks.
+         * </p>
+         * <p>
+         * Any subsequent {@link TaskScope#fork(Callable)} or
+         * {@link TaskScope#fork(Runnable)} call after the timeout has fired will
+         * throw a {@link CompletionException} wrapping a {@link TimeoutException}.
+         * </p>
+         *
+         * @param millis the timeout duration in milliseconds; must not be negative
+         * @return this builder
+         * @throws IllegalArgumentException if {@code millis} is negative
+         * @see #timeout(Duration)
+         */
+        public Builder timeout(long millis) {
+            if (millis < 0) {
+                throw new IllegalArgumentException("timeout millis may not be negative: " + millis);
+            }
+            return timeout(Duration.ofMillis(millis));
+        }
+
+        /**
+         * Sets a scope-level timeout with the given amount and time unit.
+         * <p>
+         * This is a convenience method equivalent to:
+         * </p>
+         * <pre>{@code
+         * timeout(Duration.of(amount, timeUnit.toChronoUnit()))
+         * }</pre>
+         * <p>
+         * When the timeout expires, the scope is marked as timed out and all
+         * currently tracked forked promises are cancelled. The timeout does
+         * <b>not</b> call {@link TaskScope#close()} or {@link TaskScope#reset()}.
+         * The {@link TaskScope#completions()} stream remains usable and will simply
+         * observe the cancelled tasks.
+         * </p>
+         * <p>
+         * Any subsequent {@link TaskScope#fork(Callable)} or
+         * {@link TaskScope#fork(Runnable)} call after the timeout has fired will
+         * throw a {@link CompletionException} wrapping a {@link TimeoutException}.
+         * </p>
+         *
+         * @param amount   the timeout amount in the given time unit; must not be negative
+         * @param timeUnit the time unit of the timeout amount (must not be null)
+         * @return this builder
+         * @throws NullPointerException     if {@code timeUnit} is null
+         * @throws IllegalArgumentException if {@code amount} is negative
+         * @see #timeout(Duration)
+         */
+        public Builder timeout(long amount, TimeUnit timeUnit) {
+            if (amount < 0) {
+                throw new IllegalArgumentException("timeout amount may not be negative: " + amount);
+            }
+            Objects.requireNonNull(timeUnit, "timeUnit may not be null");
+            return timeout(Duration.of(amount, timeUnit.toChronoUnit()));
         }
         
         /**

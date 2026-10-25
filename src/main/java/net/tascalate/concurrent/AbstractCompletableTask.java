@@ -403,7 +403,7 @@ abstract class AbstractCompletableTask<T> extends AbstractMinimalPromise<T>
                     // to include it in cancellableOrigins
                     nextStage.intermediateStage = null;
                     if (nextStage.isDone()) {
-                        // Was canceled by user code
+                        // Was cancelled by user code
                         // Don't need to run anything
                         return null;
                     }
@@ -472,7 +472,7 @@ abstract class AbstractCompletableTask<T> extends AbstractMinimalPromise<T>
                 try {
                     nextStage.intermediateStage = null;
                     if (nextStage.isDone()) {
-                        // Was canceled by user code
+                        // Was cancelled by user code
                         // Don't need to run anything
                         return null;
                     }
