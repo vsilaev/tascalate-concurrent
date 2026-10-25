@@ -85,7 +85,7 @@ public interface ReceiveChannel<T> extends ChannelBase {
      *         with a timeout exception if the deadline elapses
      */
     default Promise<T> receive(Duration timeout) {
-        return receive().orTimeout(timeout, true);
+        return receive().dependent().orTimeout(timeout, true, true);
     }
 
     /**

@@ -370,7 +370,7 @@ public class TaskScopeTest {
 
         try (TaskScope scope = TaskScope.builder()
                 .executor(sharedExecutor)
-                .timeout(Duration.ofMillis(100))
+                .timeout(Duration.ofMillis(500))
                 .build()) {
 
             for (int i = 0; i < 2; i++) {

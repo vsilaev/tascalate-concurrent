@@ -94,7 +94,7 @@ public interface SendChannel<T> extends ChannelBase {
      * @return a promise that completes on acceptance or fails on timeout
      */
     default Promise<T> send(T value, Duration timeout) {
-        return send(value).orTimeout(timeout, true);
+        return send(value).dependent().orTimeout(timeout, true, true);
     }
 
     /**

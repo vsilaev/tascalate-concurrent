@@ -16,10 +16,8 @@
 package net.tascalate.concurrent;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -767,6 +765,16 @@ public class TaskScope implements AutoCloseable {
     public boolean isTimedOut() {
         return timedOut;
     }
+    
+    /**
+     * Returns the {@link ContextRelay} configured for this scope, or {@code null}
+     * if no context propagation is configured.
+     *
+     * @return the context relay, or null
+     */
+    public ContextRelay<?> contextualizer() {
+        return contextualizer;
+    }
 
     /**
      * Returns the human-readable name of this scope.
@@ -776,16 +784,6 @@ public class TaskScope implements AutoCloseable {
     @Override
     public String toString() {
         return name;
-    }
-
-    /**
-     * Returns the {@link ContextRelay} configured for this scope, or {@code null}
-     * if no context propagation is configured.
-     *
-     * @return the context relay, or null
-     */
-    public ContextRelay<?> contextualizer() {
-        return contextualizer;
     }
 
     // =========================================================================

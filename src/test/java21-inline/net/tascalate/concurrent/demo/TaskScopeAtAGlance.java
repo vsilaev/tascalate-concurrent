@@ -7,7 +7,6 @@ import net.tascalate.concurrent.var.ContextVar;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
@@ -105,7 +104,7 @@ public class TaskScopeAtAGlance {
                                                 .join();
 
                 System.out.println("[Main] Nested scope job completed: " + nestedResults);
-            } catch (CompletionException | CancellationException ex) {
+            } catch (CompletionException ex) {
                 Throwable cause = ex.getCause();
                 System.out.println("[Main] Nested scope job did not complete normally: " + cause);
             }
