@@ -2534,7 +2534,7 @@ The implementation class `BufferedChannel<T>` handles both rendezvous (capacity 
 | Disabling a case (`ch = nil`) | `Select.disabled()` | Dynamically removes a case from the select loop. |
 | `case <-time.After(d):` | `ch.receive(Duration)` | Built-in timeout support; auto-cancels the underlying waiter. |
 
-# 17. Structured Concurrency and Combinators with `TaskScope` (Java 21+)
+# 19. Structured Concurrency and Combinators with `TaskScope` (Java 21+)
 
 The introduction of **Structured Concurrency** in the JDK (formalized in **JEP 525**, following a long history of incubation and preview phases starting with JEP 428 and JEP 453) has revolutionized how we manage concurrent task lifecycles. However, the standard JDK implementation relies on rigid, imperative "joiners" (like `StructuredTaskScope.Joiner.allSuccessfulOrThrow()` or `StructuredTaskScope.Joiner.awaitAllSuccessfulOrThrow`). While useful for simple scenarios, these joiners become cumbersome when you need complex aggregation logic (e.g., "wait for the first 3 successes, ignore failures, and cancel the rest").
 
